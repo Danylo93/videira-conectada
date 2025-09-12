@@ -26,6 +26,9 @@ export type Database = {
           submitted_at: string
           updated_at: string
           year: number
+          members_present: string[] | null
+          visitors_present: string[] | null
+          phase: string | null
         }
         Insert: {
           created_at?: string
@@ -38,6 +41,9 @@ export type Database = {
           submitted_at?: string
           updated_at?: string
           year: number
+          members_present?: string[] | null
+          visitors_present?: string[] | null
+          phase?: string | null
         }
         Update: {
           created_at?: string
@@ -50,6 +56,9 @@ export type Database = {
           submitted_at?: string
           updated_at?: string
           year?: number
+          members_present?: string[] | null
+          visitors_present?: string[] | null
+          phase?: string | null
         }
         Relationships: [
           {

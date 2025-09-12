@@ -17,6 +17,7 @@ export interface CellReport {
   year: number;
   members: Member[];
   frequentadores: Member[];
+  phase: 'Comunhão' | 'Edificação' | 'Evangelismo' | 'Multiplicação';
   multiplicationDate?: Date;
   observations?: string;
   submittedAt: Date;

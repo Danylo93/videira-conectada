@@ -7,63 +7,98 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogTrigger 
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
 } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from '@/components/ui/table';
-import { 
-  FileText, 
-  Plus, 
-  Send, 
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  FileText,
+  Plus,
+  Send,
   Calendar,
-  Users,
-  CheckCircle,
-  Clock,
-  AlertCircle
+  Edit,
+  Trash2,
+  Download
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-
-interface CellReport {
-  id: string;
-  month: string;
-  year: number;
-  multiplicationDate?: Date;
-  observations?: string;
-  status: 'draft' | 'submitted' | 'approved';
-  submittedAt: Date;
-}
+import { Member, CellReport as CellReportType } from '@/types/church';
+import * as XLSX from 'xlsx';
 
 export function CellReports() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [reports, setReports] = useState<CellReport[]>([]);
+  const [reports, setReports] = useState<CellReportType[]>([]);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState('');
   const [multiplicationDate, setMultiplicationDate] = useState('');
   const [observations, setObservations] = useState('');
+  const [phase, setPhase] = useState('');
+  const [allMembers, setAllMembers] = useState<Member[]>([]);
+  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
+  const [selectedVisitorIds, setSelectedVisitorIds] = useState<string[]>([]);
+  const [editingReport, setEditingReport] = useState<CellReportType | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const memberOptions = allMembers.filter(m => m.type === 'member');
+  const visitorOptions = allMembers.filter(m => m.type === 'frequentador');
 
   useEffect(() => {
     if (user && user.role === 'lider') {
-      loadReports();
+      loadMembers().then(loadReports);
     }
   }, [user]);
 
+  const loadMembers = async (): Promise<Member[]> => {
+    if (!user) return [];
+
+    const { data, error } = await supabase
+      .from('members')
+      .select('*')
+      .eq('lider_id', user.id)
+      .eq('active', true);
+
+    if (error) {
+      console.error('Error loading members:', error);
+      return [];
+    }
+
+    const formatted: Member[] = (data || []).map(member => ({
+      id: member.id,
+      name: member.name,
+      phone: member.phone,
+      email: member.email,
+      type: member.type as 'member' | 'frequentador',
+      liderId: member.lider_id,
+      joinDate: new Date(member.join_date),
+      lastPresence: member.last_presence ? new Date(member.last_presence) : undefined,
+      active: member.active,
+    }));
+
+    setAllMembers(formatted);
+    return formatted;
+  };
+
   const loadReports = async () => {
     if (!user) return;
-    
+
+    if (allMembers.length === 0) {
+      await loadMembers();
+    }
+
     const { data, error } = await supabase
       .from('cell_reports')
       .select('*')
@@ -76,10 +111,14 @@ export function CellReports() {
       return;
     }
 
-    const formattedReports: CellReport[] = (data || []).map(report => ({
+    const formattedReports: CellReportType[] = (data || []).map(report => ({
       id: report.id,
+      liderId: report.lider_id,
       month: report.month,
       year: report.year,
+      members: allMembers.filter(m => report.members_present?.includes(m.id)),
+      frequentadores: allMembers.filter(m => report.visitors_present?.includes(m.id)),
+      phase: (report.phase as 'Comunhão' | 'Edificação' | 'Evangelismo' | 'Multiplicação') || 'Comunhão',
       multiplicationDate: report.multiplication_date ? new Date(report.multiplication_date) : undefined,
       observations: report.observations,
       status: report.status as 'draft' | 'submitted' | 'approved',
@@ -100,8 +139,8 @@ export function CellReports() {
 
   const handleCreateReport = async () => {
     if (!user || !selectedMonth) return;
-    
-    const { data, error } = await supabase
+
+    const { error } = await supabase
       .from('cell_reports')
       .insert([
         {
@@ -111,10 +150,11 @@ export function CellReports() {
           multiplication_date: multiplicationDate || null,
           observations: observations || null,
           status: 'draft',
+          members_present: selectedMemberIds,
+          visitors_present: selectedVisitorIds,
+          phase: phase || null,
         }
-      ])
-      .select()
-      .single();
+      ]);
 
     if (error) {
       toast({
@@ -125,16 +165,115 @@ export function CellReports() {
       return;
     }
 
-    loadReports();
+    await loadReports();
     setIsCreateDialogOpen(false);
     setSelectedMonth('');
     setMultiplicationDate('');
     setObservations('');
-    
+    setPhase('');
+    setSelectedMemberIds([]);
+    setSelectedVisitorIds([]);
+
     toast({
       title: "Sucesso",
       description: "Relatório criado com sucesso!",
     });
+  };
+
+  const openEditReport = (report: CellReportType) => {
+    setEditingReport(report);
+    setSelectedMonth(report.month);
+    setMultiplicationDate(report.multiplicationDate ? report.multiplicationDate.toISOString().split('T')[0] : '');
+    setObservations(report.observations || '');
+    setPhase(report.phase);
+    setSelectedMemberIds(report.members.map(m => m.id));
+    setSelectedVisitorIds(report.frequentadores.map(f => f.id));
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateReport = async () => {
+    if (!user || !editingReport) return;
+
+    const { error } = await supabase
+      .from('cell_reports')
+      .update({
+        month: selectedMonth,
+        year: parseInt(selectedMonth.split('-')[0]),
+        multiplication_date: multiplicationDate || null,
+        observations: observations || null,
+        members_present: selectedMemberIds,
+        visitors_present: selectedVisitorIds,
+        phase: phase || null,
+      })
+      .eq('id', editingReport.id);
+
+    if (error) {
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível atualizar o relatório.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    await loadReports();
+    setIsEditDialogOpen(false);
+    setEditingReport(null);
+    setSelectedMonth('');
+    setMultiplicationDate('');
+    setObservations('');
+    setPhase('');
+    setSelectedMemberIds([]);
+    setSelectedVisitorIds([]);
+
+    toast({
+      title: 'Sucesso',
+      description: 'Relatório atualizado com sucesso!',
+    });
+  };
+
+  const handleDeleteReport = async (id: string) => {
+    const { error } = await supabase.from('cell_reports').delete().eq('id', id);
+    if (error) {
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível excluir o relatório.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    await loadReports();
+    toast({
+      title: 'Sucesso',
+      description: 'Relatório excluído com sucesso!',
+    });
+  };
+
+  const handleExportReport = (report: CellReportType) => {
+    const data = [
+      {
+        Periodo: new Date(report.month + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }),
+        Fase: report.phase,
+        Membros: report.members.map(m => m.name).join(', '),
+        Frequentadores: report.frequentadores.map(f => f.name).join(', '),
+        Observacoes: report.observations || '',
+      },
+    ];
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Relatório');
+    XLSX.writeFile(wb, `relatorio-${report.month}.xlsx`);
+  };
+
+  const handleShareReport = (report: CellReportType) => {
+    const message = `Relatório ${new Date(report.month + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+Fase: ${report.phase}
+Membros: ${report.members.map(m => m.name).join(', ')}
+Frequentadores: ${report.frequentadores.map(f => f.name).join(', ')}
+Observações: ${report.observations || ''}`;
+    const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank');
   };
 
   const months = [
@@ -205,6 +344,62 @@ export function CellReports() {
                 />
               </div>
               <div>
+                <Label>Membros Presentes</Label>
+                <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
+                  {memberOptions.map((m) => (
+                    <div key={m.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`member-${m.id}`}
+                        checked={selectedMemberIds.includes(m.id)}
+                        onCheckedChange={(checked) =>
+                          setSelectedMemberIds(
+                            checked ? [...selectedMemberIds, m.id] : selectedMemberIds.filter((id) => id !== m.id)
+                          )
+                        }
+                      />
+                      <label htmlFor={`member-${m.id}`} className="text-sm">
+                        {m.name}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <Label>Frequentadores Presentes</Label>
+                <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
+                  {visitorOptions.map((v) => (
+                    <div key={v.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`visitor-${v.id}`}
+                        checked={selectedVisitorIds.includes(v.id)}
+                        onCheckedChange={(checked) =>
+                          setSelectedVisitorIds(
+                            checked ? [...selectedVisitorIds, v.id] : selectedVisitorIds.filter((id) => id !== v.id)
+                          )
+                        }
+                      />
+                      <label htmlFor={`visitor-${v.id}`} className="text-sm">
+                        {v.name}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <Label>Fase da Célula</Label>
+                <Select value={phase} onValueChange={setPhase}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a fase" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Comunhão">Comunhão</SelectItem>
+                    <SelectItem value="Edificação">Edificação</SelectItem>
+                    <SelectItem value="Evangelismo">Evangelismo</SelectItem>
+                    <SelectItem value="Multiplicação">Multiplicação</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
                 <Label htmlFor="observations">Observações</Label>
                 <Textarea
                   id="observations"
@@ -216,6 +411,108 @@ export function CellReports() {
               </div>
               <Button onClick={handleCreateReport} className="w-full gradient-primary">
                 Criar Relatório
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Editar Relatório</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="edit-month">Mês/Ano</Label>
+                <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o mês" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {months.map((month) => (
+                      <SelectItem key={month.value} value={month.value}>
+                        {month.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="edit-multiplication">Data de Multiplicação (opcional)</Label>
+                <Input
+                  id="edit-multiplication"
+                  type="date"
+                  value={multiplicationDate}
+                  onChange={(e) => setMultiplicationDate(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>Membros Presentes</Label>
+                <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
+                  {memberOptions.map((m) => (
+                    <div key={m.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`edit-member-${m.id}`}
+                        checked={selectedMemberIds.includes(m.id)}
+                        onCheckedChange={(checked) =>
+                          setSelectedMemberIds(
+                            checked ? [...selectedMemberIds, m.id] : selectedMemberIds.filter((id) => id !== m.id)
+                          )
+                        }
+                      />
+                      <label htmlFor={`edit-member-${m.id}`} className="text-sm">
+                        {m.name}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <Label>Frequentadores Presentes</Label>
+                <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
+                  {visitorOptions.map((v) => (
+                    <div key={v.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`edit-visitor-${v.id}`}
+                        checked={selectedVisitorIds.includes(v.id)}
+                        onCheckedChange={(checked) =>
+                          setSelectedVisitorIds(
+                            checked ? [...selectedVisitorIds, v.id] : selectedVisitorIds.filter((id) => id !== v.id)
+                          )
+                        }
+                      />
+                      <label htmlFor={`edit-visitor-${v.id}`} className="text-sm">
+                        {v.name}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <Label>Fase da Célula</Label>
+                <Select value={phase} onValueChange={setPhase}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a fase" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Comunhão">Comunhão</SelectItem>
+                    <SelectItem value="Edificação">Edificação</SelectItem>
+                    <SelectItem value="Evangelismo">Evangelismo</SelectItem>
+                    <SelectItem value="Multiplicação">Multiplicação</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="edit-observations">Observações</Label>
+                <Textarea
+                  id="edit-observations"
+                  value={observations}
+                  onChange={(e) => setObservations(e.target.value)}
+                  placeholder="Observações sobre o mês..."
+                  rows={3}
+                />
+              </div>
+              <Button onClick={handleUpdateReport} className="w-full gradient-primary">
+                Atualizar Relatório
               </Button>
             </div>
           </DialogContent>
@@ -241,8 +538,10 @@ export function CellReports() {
                 <TableRow>
                   <TableHead>Período</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Fase</TableHead>
                   <TableHead>Data de Multiplicação</TableHead>
                   <TableHead>Data de Envio</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -256,6 +555,7 @@ export function CellReports() {
                         {report.status === 'draft' ? 'Rascunho' : report.status === 'submitted' ? 'Enviado' : 'Aprovado'}
                       </Badge>
                     </TableCell>
+                    <TableCell>{report.phase}</TableCell>
                     <TableCell>
                       {report.multiplicationDate ? (
                         <div className="flex items-center gap-1 text-sm">
@@ -271,6 +571,20 @@ export function CellReports() {
                         <Calendar className="w-3 h-3" />
                         {report.submittedAt.toLocaleDateString('pt-BR')}
                       </div>
+                    </TableCell>
+                    <TableCell className="text-right space-x-2">
+                      <Button size="icon" variant="ghost" onClick={() => openEditReport(report)}>
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button size="icon" variant="ghost" onClick={() => handleDeleteReport(report.id)}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                      <Button size="icon" variant="ghost" onClick={() => handleExportReport(report)}>
+                        <Download className="w-4 h-4" />
+                      </Button>
+                      <Button size="icon" variant="ghost" onClick={() => handleShareReport(report)}>
+                        <Send className="w-4 h-4" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
