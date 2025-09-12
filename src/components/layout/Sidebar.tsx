@@ -22,7 +22,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar';
-import logoVideira from '@/assets/logo-videira.png';
+import { cn } from '@/lib/utils';
 
 interface NavigationItem {
   title: string;
@@ -112,22 +112,22 @@ export function Sidebar() {
         </div>
 
         <SidebarGroup>
-          <SidebarGroupLabel>Navegação</SidebarGroupLabel>
+            <SidebarGroupLabel>Navegação</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {filteredItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink 
-                      to={item.url} 
-                      className={({ isActive }) => 
-                        `flex items-center gap-3 px-3 py-2 rounded-lg transition-smooth ${
-                          isActive 
-                            ? 'bg-primary text-primary-foreground grape-glow' 
-                            : 'hover:bg-muted'
-                        }`
-                      }
-                    >
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isActive(item.url)}
+                    className={cn(
+                      'flex items-center gap-3 px-3 py-2 rounded-lg transition-smooth',
+                      isActive(item.url)
+                        ? 'bg-primary text-primary-foreground grape-glow'
+                        : 'text-sidebar-foreground hover:bg-muted'
+                    )}
+                  >
+                    <NavLink to={item.url}>
                       <item.icon className="w-5 h-5 flex-shrink-0" />
                       {!collapsed && <span>{item.title}</span>}
                     </NavLink>

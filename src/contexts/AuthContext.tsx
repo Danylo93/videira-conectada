@@ -11,44 +11,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setSession(session);
-        
-        if (session?.user) {
-          // Fetch user profile from our profiles table
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('user_id', session.user.id)
-            .single();
+    const handleSession = async (currentSession: Session | null) => {
+      setSession(currentSession);
 
-          if (profile) {
-            const userData: User = {
-              id: profile.id,
-              name: profile.name,
-              email: profile.email,
-              role: profile.role,
-              phone: profile.phone,
-              discipuladorId: profile.discipulador_id,
-              pastorId: profile.pastor_id,
-              celula: profile.celula,
-              createdAt: new Date(profile.created_at),
-            };
-            setUser(userData);
-          }
-        } else {
-          setUser(null);
+      if (currentSession?.user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', currentSession.user.id)
+          .single();
+
+        if (profile) {
+          const userData: User = {
+            id: profile.id,
+            name: profile.name,
+            email: profile.email,
+            role: profile.role,
+            phone: profile.phone,
+            discipuladorId: profile.discipulador_id,
+            pastorId: profile.pastor_id,
+            celula: profile.celula,
+            createdAt: new Date(profile.created_at),
+          };
+          setUser(userData);
         }
-        
-        setLoading(false);
+      } else {
+        setUser(null);
       }
-    );
 
-    // Check for existing session
+      setLoading(false);
+    };
+
+    // Set up auth state listener
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_, session) => {
+      handleSession(session);
+    });
+
+    // Handle any existing session on initial load
     supabase.auth.getSession().then(({ data: { session } }) => {
-      // The onAuthStateChange callback will handle this
+      handleSession(session);
     });
 
     return () => subscription.unsubscribe();
