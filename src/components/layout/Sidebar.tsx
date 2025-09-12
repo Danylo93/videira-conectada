@@ -1,14 +1,15 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocation, NavLink } from 'react-router-dom';
-import { 
-  Home, 
-  Users, 
-  FileText, 
-  GraduationCap, 
+import {
+  Home,
+  Users,
+  FileText,
+  GraduationCap,
   Calendar,
   BarChart3,
   Church,
-  Grape
+  Grape,
+  LucideIcon
 } from 'lucide-react';
 import {
   Sidebar as SidebarComponent,
@@ -26,7 +27,7 @@ import logoVideira from '@/assets/logo-videira.png';
 interface NavigationItem {
   title: string;
   url: string;
-  icon: any;
+  icon: LucideIcon;
   roles: string[];
 }
 
