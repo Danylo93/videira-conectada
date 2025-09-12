@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,45 +33,9 @@ import {
 } from 'lucide-react';
 import { Member } from '@/types/church';
 
-// Mock data
-const mockMembers: Member[] = [
-  {
-    id: '1',
-    name: 'Maria Silva',
-    phone: '(11) 99999-1111',
-    email: 'maria@email.com',
-    type: 'member',
-    liderId: '4',
-    joinDate: new Date('2024-01-15'),
-    lastPresence: new Date('2024-12-08'),
-    active: true,
-  },
-  {
-    id: '2',
-    name: 'João Santos',
-    phone: '(11) 99999-2222',
-    email: 'joao@email.com',
-    type: 'member',
-    liderId: '4',
-    joinDate: new Date('2024-03-20'),
-    lastPresence: new Date('2024-12-08'),
-    active: true,
-  },
-  {
-    id: '3',
-    name: 'Ana Costa',
-    phone: '(11) 99999-3333',
-    type: 'frequentador',
-    liderId: '4',
-    joinDate: new Date('2024-11-01'),
-    lastPresence: new Date('2024-12-01'),
-    active: true,
-  },
-];
-
 export function CellManagement() {
   const { user } = useAuth();
-  const [members, setMembers] = useState<Member[]>(mockMembers);
+  const [members, setMembers] = useState<Member[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newMember, setNewMember] = useState({
     name: '',
@@ -78,6 +43,43 @@ export function CellManagement() {
     email: '',
     type: 'member' as 'member' | 'frequentador',
   });
+
+  // Load members on component mount
+  useEffect(() => {
+    if (user && user.role === 'lider') {
+      loadMembers();
+    }
+  }, [user]);
+
+  const loadMembers = async () => {
+    if (!user) return;
+    
+    const { data, error } = await supabase
+      .from('members')
+      .select('*')
+      .eq('lider_id', user.id)
+      .eq('active', true)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error loading members:', error);
+      return;
+    }
+
+    const formattedMembers: Member[] = (data || []).map(member => ({
+      id: member.id,
+      name: member.name,
+      phone: member.phone,
+      email: member.email,
+      type: member.type as 'member' | 'frequentador',
+      liderId: member.lider_id,
+      joinDate: new Date(member.join_date),
+      lastPresence: member.last_presence ? new Date(member.last_presence) : undefined,
+      active: member.active,
+    }));
+
+    setMembers(formattedMembers);
+  };
 
   if (!user || user.role !== 'lider') {
     return (
@@ -87,19 +89,41 @@ export function CellManagement() {
     );
   }
 
-  const handleAddMember = () => {
-    const member: Member = {
-      id: Date.now().toString(),
-      name: newMember.name,
-      phone: newMember.phone,
-      email: newMember.email,
-      type: newMember.type,
-      liderId: user.id,
-      joinDate: new Date(),
-      active: true,
+  const handleAddMember = async () => {
+    if (!user) return;
+    
+    const { data, error } = await supabase
+      .from('members')
+      .insert([
+        {
+          name: newMember.name,
+          phone: newMember.phone || null,
+          email: newMember.email || null,
+          type: newMember.type,
+          lider_id: user.id,
+        }
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error adding member:', error);
+      return;
+    }
+
+    // Add to local state
+    const newMemberData: Member = {
+      id: data.id,
+      name: data.name,
+      phone: data.phone,
+      email: data.email,
+      type: data.type as 'member' | 'frequentador',
+      liderId: data.lider_id,
+      joinDate: new Date(data.join_date),
+      active: data.active,
     };
 
-    setMembers([...members, member]);
+    setMembers([newMemberData, ...members]);
     setNewMember({ name: '', phone: '', email: '', type: 'member' });
     setIsAddDialogOpen(false);
   };

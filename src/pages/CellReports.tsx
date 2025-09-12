@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
 import { 
   Dialog, 
   DialogContent, 
@@ -13,6 +14,7 @@ import {
   DialogTitle, 
   DialogTrigger 
 } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   Table, 
   TableBody, 
@@ -24,305 +26,257 @@ import {
 import { 
   FileText, 
   Plus, 
-  Calendar, 
-  Users, 
+  Send, 
+  Calendar,
+  Users,
   CheckCircle,
   Clock,
-  Eye
+  AlertCircle
 } from 'lucide-react';
-import { CellReport } from '@/types/church';
+import { useToast } from '@/hooks/use-toast';
 
-// Mock data
-const mockReports: CellReport[] = [
-  {
-    id: '1',
-    liderId: '4',
-    month: '2024-12',
-    year: 2024,
-    members: [],
-    frequentadores: [],
-    observations: 'Mês muito bom, com crescimento espiritual visível.',
-    submittedAt: new Date('2024-12-05'),
-    status: 'submitted',
-  },
-  {
-    id: '2',
-    liderId: '4',
-    month: '2024-11',
-    year: 2024,
-    members: [],
-    frequentadores: [],
-    multiplicationDate: new Date('2024-11-15'),
-    observations: 'Célula se multiplicou! Nova célula iniciada.',
-    submittedAt: new Date('2024-11-30'),
-    status: 'approved',
-  },
-];
+interface CellReport {
+  id: string;
+  month: string;
+  year: number;
+  multiplicationDate?: Date;
+  observations?: string;
+  status: 'draft' | 'submitted' | 'approved';
+  submittedAt: Date;
+}
 
 export function CellReports() {
   const { user } = useAuth();
-  const [reports, setReports] = useState<CellReport[]>(mockReports);
+  const { toast } = useToast();
+  const [reports, setReports] = useState<CellReport[]>([]);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [newReport, setNewReport] = useState({
-    memberCount: 0,
-    visitorCount: 0,
-    multiplicationDate: '',
-    observations: '',
-  });
+  const [selectedMonth, setSelectedMonth] = useState('');
+  const [multiplicationDate, setMultiplicationDate] = useState('');
+  const [observations, setObservations] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  if (!user) return null;
-
-  const canViewAllReports = user.role === 'pastor' || user.role === 'obreiro' || user.role === 'discipulador';
-  const canCreateReports = user.role === 'lider';
-
-  const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM format
-
-  const handleCreateReport = () => {
-    const report: CellReport = {
-      id: Date.now().toString(),
-      liderId: user.id,
-      month: currentMonth,
-      year: new Date().getFullYear(),
-      members: [], // In real app, this would be populated from the members list
-      frequentadores: [],
-      multiplicationDate: newReport.multiplicationDate ? new Date(newReport.multiplicationDate) : undefined,
-      observations: newReport.observations,
-      submittedAt: new Date(),
-      status: 'draft',
-    };
-
-    setReports([report, ...reports]);
-    setNewReport({
-      memberCount: 0,
-      visitorCount: 0,
-      multiplicationDate: '',
-      observations: '',
-    });
-    setIsCreateDialogOpen(false);
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'approved':
-        return <Badge variant="default" className="bg-success">Aprovado</Badge>;
-      case 'submitted':
-        return <Badge variant="default">Enviado</Badge>;
-      case 'draft':
-        return <Badge variant="secondary">Rascunho</Badge>;
-      default:
-        return <Badge variant="secondary">{status}</Badge>;
+  useEffect(() => {
+    if (user && user.role === 'lider') {
+      loadReports();
     }
+  }, [user]);
+
+  const loadReports = async () => {
+    if (!user) return;
+    
+    const { data, error } = await supabase
+      .from('cell_reports')
+      .select('*')
+      .eq('lider_id', user.id)
+      .order('year', { ascending: false })
+      .order('month', { ascending: false });
+
+    if (error) {
+      console.error('Error loading reports:', error);
+      return;
+    }
+
+    const formattedReports: CellReport[] = (data || []).map(report => ({
+      id: report.id,
+      month: report.month,
+      year: report.year,
+      multiplicationDate: report.multiplication_date ? new Date(report.multiplication_date) : undefined,
+      observations: report.observations,
+      status: report.status as 'draft' | 'submitted' | 'approved',
+      submittedAt: new Date(report.submitted_at),
+    }));
+
+    setReports(formattedReports);
+    setLoading(false);
   };
 
-  const formatMonth = (monthStr: string) => {
-    const [year, month] = monthStr.split('-');
-    const date = new Date(parseInt(year), parseInt(month) - 1);
-    return date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+  if (!user || user.role !== 'lider') {
+    return (
+      <div className="text-center py-12">
+        <p className="text-muted-foreground">Acesso restrito para líderes de célula.</p>
+      </div>
+    );
+  }
+
+  const handleCreateReport = async () => {
+    if (!user || !selectedMonth) return;
+    
+    const { data, error } = await supabase
+      .from('cell_reports')
+      .insert([
+        {
+          lider_id: user.id,
+          month: selectedMonth,
+          year: parseInt(selectedMonth.split('-')[0]),
+          multiplication_date: multiplicationDate || null,
+          observations: observations || null,
+          status: 'draft',
+        }
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      toast({
+        title: "Erro",
+        description: "Não foi possível criar o relatório.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    loadReports();
+    setIsCreateDialogOpen(false);
+    setSelectedMonth('');
+    setMultiplicationDate('');
+    setObservations('');
+    
+    toast({
+      title: "Sucesso",
+      description: "Relatório criado com sucesso!",
+    });
   };
 
-  const filteredReports = canViewAllReports 
-    ? reports 
-    : reports.filter(r => r.liderId === user.id);
+  const months = [
+    { value: '2024-01', label: 'Janeiro 2024' },
+    { value: '2024-02', label: 'Fevereiro 2024' },
+    { value: '2024-03', label: 'Março 2024' },
+    { value: '2024-04', label: 'Abril 2024' },
+    { value: '2024-05', label: 'Maio 2024' },
+    { value: '2024-06', label: 'Junho 2024' },
+    { value: '2024-07', label: 'Julho 2024' },
+    { value: '2024-08', label: 'Agosto 2024' },
+    { value: '2024-09', label: 'Setembro 2024' },
+    { value: '2024-10', label: 'Outubro 2024' },
+    { value: '2024-11', label: 'Novembro 2024' },
+    { value: '2024-12', label: 'Dezembro 2024' },
+  ];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 animate-fade-in">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Relatórios de Célula</h1>
-          <p className="text-muted-foreground">
-            {canViewAllReports ? 'Todos os relatórios' : 'Meus relatórios mensais'}
-          </p>
+          <p className="text-muted-foreground">{user.celula}</p>
         </div>
         
-        {canCreateReports && (
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gradient-primary">
-                <Plus className="w-4 h-4 mr-2" />
-                Novo Relatório
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Novo Relatório - {formatMonth(currentMonth)}</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="memberCount">Qtd. Membros</Label>
-                    <Input
-                      id="memberCount"
-                      type="number"
-                      value={newReport.memberCount}
-                      onChange={(e) => setNewReport({ ...newReport, memberCount: parseInt(e.target.value) || 0 })}
-                      placeholder="0"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="visitorCount">Qtd. Frequentadores</Label>
-                    <Input
-                      id="visitorCount"
-                      type="number"
-                      value={newReport.visitorCount}
-                      onChange={(e) => setNewReport({ ...newReport, visitorCount: parseInt(e.target.value) || 0 })}
-                      placeholder="0"
-                    />
-                  </div>
-                </div>
-                
-                <div>
-                  <Label htmlFor="multiplicationDate">Data de Multiplicação (opcional)</Label>
-                  <Input
-                    id="multiplicationDate"
-                    type="date"
-                    value={newReport.multiplicationDate}
-                    onChange={(e) => setNewReport({ ...newReport, multiplicationDate: e.target.value })}
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="observations">Observações</Label>
-                  <Textarea
-                    id="observations"
-                    value={newReport.observations}
-                    onChange={(e) => setNewReport({ ...newReport, observations: e.target.value })}
-                    placeholder="Descreva como foi o mês da célula, testemunhos, desafios, crescimento..."
-                    rows={4}
-                  />
-                </div>
-
-                <div className="bg-muted p-3 rounded-lg">
-                  <h4 className="font-medium mb-2">Resumo:</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Período: {formatMonth(currentMonth)}<br />
-                    Total de pessoas: {newReport.memberCount + newReport.visitorCount}<br />
-                    {newReport.multiplicationDate && `Multiplicação: ${new Date(newReport.multiplicationDate).toLocaleDateString('pt-BR')}`}
-                  </p>
-                </div>
-
-                <Button onClick={handleCreateReport} className="w-full gradient-primary">
-                  Criar Relatório
-                </Button>
+        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="gradient-primary">
+              <Plus className="w-4 h-4 mr-2" />
+              Novo Relatório
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Criar Novo Relatório</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="month">Mês/Ano</Label>
+                <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o mês" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {months.map((month) => (
+                      <SelectItem key={month.value} value={month.value}>
+                        {month.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            </DialogContent>
-          </Dialog>
-        )}
+              <div>
+                <Label htmlFor="multiplication">Data de Multiplicação (opcional)</Label>
+                <Input
+                  id="multiplication"
+                  type="date"
+                  value={multiplicationDate}
+                  onChange={(e) => setMultiplicationDate(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="observations">Observações</Label>
+                <Textarea
+                  id="observations"
+                  value={observations}
+                  onChange={(e) => setObservations(e.target.value)}
+                  placeholder="Observações sobre o mês..."
+                  rows={3}
+                />
+              </div>
+              <Button onClick={handleCreateReport} className="w-full gradient-primary">
+                Criar Relatório
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
-      {/* Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="hover:grape-glow transition-smooth">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total de Relatórios</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-primary">{filteredReports.length}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:grape-glow transition-smooth">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Aprovados</CardTitle>
-            <CheckCircle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-success">
-              {filteredReports.filter(r => r.status === 'approved').length}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:grape-glow transition-smooth">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pendentes</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-accent">
-              {filteredReports.filter(r => r.status === 'submitted').length}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:grape-glow transition-smooth">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Multiplicações</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-primary">
-              {filteredReports.filter(r => r.multiplicationDate).length}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Reports Table */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <FileText className="w-5 h-5 text-primary" />
-            Lista de Relatórios
+            Histórico de Relatórios
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Período</TableHead>
-                {canViewAllReports && <TableHead>Líder</TableHead>}
-                <TableHead>Status</TableHead>
-                <TableHead>Data de Envio</TableHead>
-                <TableHead>Multiplicação</TableHead>
-                <TableHead>Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredReports.map((report) => (
-                <TableRow key={report.id}>
-                  <TableCell className="font-medium">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-primary" />
-                      {formatMonth(report.month)}
-                    </div>
-                  </TableCell>
-                  {canViewAllReports && (
-                    <TableCell>
-                      <span className="text-sm">
-                        {report.liderId === user?.id ? 'Você' : `Líder #${report.liderId}`}
-                      </span>
-                    </TableCell>
-                  )}
-                  <TableCell>{getStatusBadge(report.status)}</TableCell>
-                  <TableCell>
-                    <div className="text-sm text-muted-foreground">
-                      {report.submittedAt.toLocaleDateString('pt-BR')}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {report.multiplicationDate ? (
-                      <div className="flex items-center gap-1">
-                        <CheckCircle className="w-4 h-4 text-success" />
-                        <span className="text-sm">
-                          {report.multiplicationDate.toLocaleDateString('pt-BR')}
-                        </span>
-                      </div>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Button size="sm" variant="outline">
-                      <Eye className="w-3 h-3 mr-1" />
-                      Ver
-                    </Button>
-                  </TableCell>
+          {reports.length === 0 ? (
+            <div className="text-center py-8">
+              <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-muted-foreground">Nenhum relatório criado ainda.</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Período</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Data de Multiplicação</TableHead>
+                  <TableHead>Data de Envio</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {reports.map((report) => (
+                  <TableRow key={report.id}>
+                    <TableCell className="font-medium">
+                      {new Date(report.month + '-01').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={report.status === 'approved' ? 'default' : 'secondary'}>
+                        {report.status === 'draft' ? 'Rascunho' : report.status === 'submitted' ? 'Enviado' : 'Aprovado'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {report.multiplicationDate ? (
+                        <div className="flex items-center gap-1 text-sm">
+                          <Calendar className="w-3 h-3" />
+                          {report.multiplicationDate.toLocaleDateString('pt-BR')}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1 text-sm">
+                        <Calendar className="w-3 h-3" />
+                        {report.submittedAt.toLocaleDateString('pt-BR')}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>

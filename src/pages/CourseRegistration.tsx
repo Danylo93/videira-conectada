@@ -1,11 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
 import { 
   Dialog, 
   DialogContent, 
@@ -25,127 +23,196 @@ import {
 import { 
   GraduationCap, 
   Plus, 
-  Clock, 
   Users, 
-  CheckCircle,
-  Calendar,
-  User
+  BookOpen,
+  Clock,
+  CheckCircle
 } from 'lucide-react';
-import { Course, CourseRegistration as CourseRegistrationType } from '@/types/church';
+import { useToast } from '@/hooks/use-toast';
 
-// Mock data
-const courses: Course[] = [
-  {
-    id: '1',
-    name: 'Maturidade no Espírito',
-    description: 'Curso de crescimento espiritual e maturidade cristã, focado no desenvolvimento do caráter cristão e relacionamento com Deus.',
-    duration: '8 semanas',
-    price: 50,
-  },
-  {
-    id: '2', 
-    name: 'CTL',
-    description: 'Curso de Treinamento de Liderança para capacitar novos líderes de célula e desenvolver habilidades de liderança.',
-    duration: '12 semanas',
-    price: 80,
-  },
-];
+interface Course {
+  id: string;
+  name: 'Maturidade no Espírito' | 'CTL';
+  description: string;
+  duration: string;
+  price?: number;
+}
 
-const mockRegistrations: CourseRegistrationType[] = [
-  {
-    id: '1',
-    courseId: '1',
-    memberId: '1',
-    liderId: '4',
-    registrationDate: new Date('2024-12-01'),
-    status: 'approved',
-    paymentStatus: 'paid',
-  },
-  {
-    id: '2',
-    courseId: '2', 
-    memberId: '2',
-    liderId: '4',
-    registrationDate: new Date('2024-12-05'),
-    status: 'pending',
-    paymentStatus: 'pending',
-  },
-];
+interface Member {
+  id: string;
+  name: string;
+  type: 'member' | 'frequentador';
+}
+
+interface CourseRegistration {
+  id: string;
+  courseId: string;
+  memberId: string;
+  registrationDate: Date;
+  status: 'pending' | 'approved' | 'completed';
+  course?: Course;
+  member?: Member;
+}
 
 export function CourseRegistration() {
   const { user } = useAuth();
-  const [registrations, setRegistrations] = useState<CourseRegistrationType[]>(mockRegistrations);
-  const [isRegisterDialogOpen, setIsRegisterDialogOpen] = useState(false);
-  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
-  const [newRegistration, setNewRegistration] = useState({
-    participantName: '',
-    participantPhone: '',
-    participantEmail: '',
-    observations: '',
-  });
+  const { toast } = useToast();
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [registrations, setRegistrations] = useState<CourseRegistration[]>([]);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedCourse, setSelectedCourse] = useState('');
+  const [selectedMember, setSelectedMember] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  if (!user) return null;
+  useEffect(() => {
+    if (user && user.role === 'lider') {
+      loadData();
+    }
+  }, [user]);
 
-  const handleRegister = () => {
-    if (!selectedCourse) return;
+  const loadData = async () => {
+    await Promise.all([loadCourses(), loadMembers(), loadRegistrations()]);
+    setLoading(false);
+  };
 
-    const registration: CourseRegistrationType = {
-      id: Date.now().toString(),
-      courseId: selectedCourse.id,
-      memberId: Date.now().toString(), // In real app, this would be selected from members
-      liderId: user.id,
-      registrationDate: new Date(),
-      status: 'pending',
-      paymentStatus: 'pending',
-    };
+  const loadCourses = async () => {
+    const { data } = await supabase.from('courses').select('*').eq('active', true);
+    setCourses(data || []);
+  };
 
-    setRegistrations([...registrations, registration]);
-    setNewRegistration({
-      participantName: '',
-      participantPhone: '',
-      participantEmail: '',
-      observations: '',
+  const loadMembers = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('members')
+      .select('id, name, type')
+      .eq('lider_id', user.id)
+      .eq('active', true);
+    setMembers(data || []);
+  };
+
+  const loadRegistrations = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('course_registrations')
+      .select(`*, courses(*), members(id, name, type)`)
+      .eq('lider_id', user.id)
+      .order('registration_date', { ascending: false });
+
+    const formattedRegistrations: CourseRegistration[] = (data || []).map(reg => ({
+      id: reg.id,
+      courseId: reg.course_id,
+      memberId: reg.member_id,
+      registrationDate: new Date(reg.registration_date),
+      status: reg.status as 'pending' | 'approved' | 'completed',
+      course: reg.courses as Course,
+      member: reg.members as Member,
+    }));
+
+    setRegistrations(formattedRegistrations);
+  };
+
+  if (!user || user.role !== 'lider') {
+    return (
+      <div className="text-center py-12">
+        <p className="text-muted-foreground">Acesso restrito para líderes de célula.</p>
+      </div>
+    );
+  }
+
+  const handleRegisterMember = async () => {
+    if (!selectedCourse || !selectedMember || !user) return;
+
+    const { error } = await supabase
+      .from('course_registrations')
+      .insert([{
+        course_id: selectedCourse,
+        member_id: selectedMember,
+        lider_id: user.id,
+        status: 'pending',
+      }]);
+
+    if (error) {
+      toast({
+        title: "Erro",
+        description: "Não foi possível registrar o membro.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    await loadRegistrations();
+    setIsDialogOpen(false);
+    setSelectedCourse('');
+    setSelectedMember('');
+    
+    toast({
+      title: "Sucesso",
+      description: "Membro registrado no curso com sucesso!",
     });
-    setIsRegisterDialogOpen(false);
-    setSelectedCourse(null);
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'approved':
-        return <Badge variant="default" className="bg-success">Aprovado</Badge>;
-      case 'pending':
-        return <Badge variant="secondary">Pendente</Badge>;
-      case 'completed':
-        return <Badge variant="outline">Concluído</Badge>;
-      default:
-        return <Badge variant="secondary">{status}</Badge>;
-    }
-  };
-
-  const getPaymentBadge = (status?: string) => {
-    switch (status) {
-      case 'paid':
-        return <Badge variant="default" className="bg-success">Pago</Badge>;
-      case 'pending':
-        return <Badge variant="destructive">Pendente</Badge>;
-      default:
-        return <Badge variant="secondary">-</Badge>;
-    }
-  };
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 animate-fade-in">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Cursos</h1>
-          <p className="text-muted-foreground">Inscrições em cursos de crescimento</p>
+          <h1 className="text-3xl font-bold text-foreground">Inscrição em Cursos</h1>
+          <p className="text-muted-foreground">Gerencie as inscrições dos membros da sua célula</p>
         </div>
+        
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="gradient-primary">
+              <Plus className="w-4 h-4 mr-2" />
+              Nova Inscrição
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Inscrever Membro em Curso</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <Select value={selectedCourse} onValueChange={setSelectedCourse}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o curso" />
+                </SelectTrigger>
+                <SelectContent>
+                  {courses.map((course) => (
+                    <SelectItem key={course.id} value={course.id}>
+                      {course.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={selectedMember} onValueChange={setSelectedMember}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o membro" />
+                </SelectTrigger>
+                <SelectContent>
+                  {members.map((member) => (
+                    <SelectItem key={member.id} value={member.id}>
+                      {member.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button onClick={handleRegisterMember} className="w-full gradient-primary">
+                Inscrever
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
-      {/* Available Courses */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {courses.map((course) => (
           <Card key={course.id} className="hover:grape-glow transition-smooth">
             <CardHeader>
@@ -154,152 +221,62 @@ export function CourseRegistration() {
                 {course.name}
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-muted-foreground">{course.description}</p>
-              
-              <div className="flex items-center gap-4 text-sm">
-                <div className="flex items-center gap-1">
-                  <Clock className="w-4 h-4 text-muted-foreground" />
-                  <span>{course.duration}</span>
-                </div>
+            <CardContent>
+              <p className="text-muted-foreground mb-2">{course.description}</p>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">{course.duration}</span>
                 {course.price && (
-                  <div className="flex items-center gap-1">
-                    <span className="font-medium">R$ {course.price}</span>
-                  </div>
+                  <Badge variant="outline">R$ {course.price.toFixed(2)}</Badge>
                 )}
               </div>
-
-              <Dialog open={isRegisterDialogOpen && selectedCourse?.id === course.id} onOpenChange={(open) => {
-                setIsRegisterDialogOpen(open);
-                if (!open) setSelectedCourse(null);
-              }}>
-                <DialogTrigger asChild>
-                  <Button 
-                    className="w-full gradient-primary"
-                    onClick={() => setSelectedCourse(course)}
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Inscrever Pessoa
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-md">
-                  <DialogHeader>
-                    <DialogTitle>Inscrição - {course.name}</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="participantName">Nome do Participante</Label>
-                      <Input
-                        id="participantName"
-                        value={newRegistration.participantName}
-                        onChange={(e) => setNewRegistration({ ...newRegistration, participantName: e.target.value })}
-                        placeholder="Nome completo"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="participantPhone">Telefone</Label>
-                      <Input
-                        id="participantPhone"
-                        value={newRegistration.participantPhone}
-                        onChange={(e) => setNewRegistration({ ...newRegistration, participantPhone: e.target.value })}
-                        placeholder="(11) 99999-9999"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="participantEmail">Email</Label>
-                      <Input
-                        id="participantEmail"
-                        type="email"
-                        value={newRegistration.participantEmail}
-                        onChange={(e) => setNewRegistration({ ...newRegistration, participantEmail: e.target.value })}
-                        placeholder="email@exemplo.com"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="observations">Observações (opcional)</Label>
-                      <Textarea
-                        id="observations"
-                        value={newRegistration.observations}
-                        onChange={(e) => setNewRegistration({ ...newRegistration, observations: e.target.value })}
-                        placeholder="Informações adicionais..."
-                      />
-                    </div>
-                    
-                    <div className="bg-muted p-3 rounded-lg">
-                      <h4 className="font-medium mb-2">Resumo:</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Curso: {course.name}<br />
-                        Duração: {course.duration}<br />
-                        {course.price && `Valor: R$ ${course.price}`}
-                      </p>
-                    </div>
-
-                    <Button onClick={handleRegister} className="w-full gradient-primary">
-                      Confirmar Inscrição
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      {/* My Registrations */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Users className="w-5 h-5 text-primary" />
-            {user.role === 'lider' ? 'Inscrições da Minha Célula' : 'Todas as Inscrições'}
+            <BookOpen className="w-5 h-5 text-primary" />
+            Inscrições da Célula
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Curso</TableHead>
-                <TableHead>Participante</TableHead>
-                <TableHead>Data de Inscrição</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Pagamento</TableHead>
-                <TableHead>Líder</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {registrations.map((registration) => {
-                const course = courses.find(c => c.id === registration.courseId);
-                return (
+          {registrations.length === 0 ? (
+            <div className="text-center py-8">
+              <BookOpen className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-muted-foreground">Nenhuma inscrição realizada ainda.</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Membro</TableHead>
+                  <TableHead>Curso</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Data de Inscrição</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {registrations.map((registration) => (
                   <TableRow key={registration.id}>
                     <TableCell className="font-medium">
-                      <div className="flex items-center gap-2">
-                        <GraduationCap className="w-4 h-4 text-primary" />
-                        {course?.name}
-                      </div>
+                      {registration.member?.name}
+                    </TableCell>
+                    <TableCell>{registration.course?.name}</TableCell>
+                    <TableCell>
+                      <Badge variant={registration.status === 'approved' ? 'default' : 'secondary'}>
+                        {registration.status === 'pending' ? 'Pendente' : registration.status}
+                      </Badge>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <User className="w-4 h-4 text-muted-foreground" />
-                        Participante #{registration.memberId}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1 text-sm">
-                        <Calendar className="w-3 h-3" />
-                        {registration.registrationDate.toLocaleDateString('pt-BR')}
-                      </div>
-                    </TableCell>
-                    <TableCell>{getStatusBadge(registration.status)}</TableCell>
-                    <TableCell>{getPaymentBadge(registration.paymentStatus)}</TableCell>
-                    <TableCell>
-                      <span className="text-sm text-muted-foreground">
-                        {user.role === 'lider' ? 'Você' : 'Líder da Célula'}
-                      </span>
+                      {registration.registrationDate.toLocaleDateString('pt-BR')}
                     </TableCell>
                   </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>
