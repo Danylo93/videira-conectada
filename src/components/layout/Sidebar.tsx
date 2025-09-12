@@ -1,5 +1,6 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocation, NavLink } from 'react-router-dom';
+import { UserRole } from '@/types/auth';
 import {
   Home,
   Users,
@@ -22,7 +23,6 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar';
-import logoVideira from '@/assets/logo-videira.png';
 
 interface NavigationItem {
   title: string;
@@ -85,8 +85,9 @@ export function Sidebar() {
 
   const collapsed = state === "collapsed";
 
-  const filteredItems = navigationItems.filter(item => 
-    item.roles.includes(user.role)
+  const userRole = (user.role || '').toLowerCase() as UserRole;
+  const filteredItems = navigationItems.filter(item =>
+    item.roles.includes(userRole)
   );
 
   const isActive = (path: string) => location.pathname === path;
