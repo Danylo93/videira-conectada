@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -44,25 +44,14 @@ export function CellManagement() {
     type: 'member' as 'member' | 'frequentador',
   });
 
-  // Load members and subscribe to changes
+  // Load members on component mount
   useEffect(() => {
     if (user && user.role === 'lider') {
       loadMembers();
-
-      const channel = supabase
-        .channel('members_changes')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'members', filter: `lider_id=eq.${user.id}` }, () => {
-          loadMembers();
-        })
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
     }
-  }, [user, loadMembers]);
+  }, [user]);
 
-  const loadMembers = useCallback(async () => {
+  const loadMembers = async () => {
     if (!user) return;
     
     const { data, error } = await supabase
@@ -90,7 +79,7 @@ export function CellManagement() {
     }));
 
     setMembers(formattedMembers);
-  }, [user]);
+  };
 
   if (!user || user.role !== 'lider') {
     return (
@@ -122,8 +111,19 @@ export function CellManagement() {
       return;
     }
 
-    // Reload members to reflect new entry
-    await loadMembers();
+    // Add to local state
+    const newMemberData: Member = {
+      id: data.id,
+      name: data.name,
+      phone: data.phone,
+      email: data.email,
+      type: data.type as 'member' | 'frequentador',
+      liderId: data.lider_id,
+      joinDate: new Date(data.join_date),
+      active: data.active,
+    };
+
+    setMembers([newMemberData, ...members]);
     setNewMember({ name: '', phone: '', email: '', type: 'member' });
     setIsAddDialogOpen(false);
   };
