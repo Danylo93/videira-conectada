@@ -15,8 +15,8 @@ export interface CellReport {
   liderId: string;
   month: string; // YYYY-MM
   year: number;
-  membersPresent: string[];
-  visitorsPresent: string[];
+  members: Member[];
+  frequentadores: Member[];
   multiplicationDate?: Date;
   observations?: string;
   submittedAt: Date;

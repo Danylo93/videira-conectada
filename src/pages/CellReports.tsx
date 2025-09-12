@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
 import { 
   Dialog, 
   DialogContent, 
@@ -24,13 +23,17 @@ import {
   TableHeader, 
   TableRow 
 } from '@/components/ui/table';
-import {
-  FileText,
-  Plus,
-  Calendar
+import { 
+  FileText, 
+  Plus, 
+  Send, 
+  Calendar,
+  Users,
+  CheckCircle,
+  Clock,
+  AlertCircle
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { Member } from '@/types/church';
 
 interface CellReport {
   id: string;
@@ -40,8 +43,6 @@ interface CellReport {
   observations?: string;
   status: 'draft' | 'submitted' | 'approved';
   submittedAt: Date;
-  membersPresent: string[];
-  visitorsPresent: string[];
 }
 
 export function CellReports() {
@@ -53,38 +54,14 @@ export function CellReports() {
   const [multiplicationDate, setMultiplicationDate] = useState('');
   const [observations, setObservations] = useState('');
   const [loading, setLoading] = useState(true);
-  const [members, setMembers] = useState<Member[]>([]);
-  const [frequentadores, setFrequentadores] = useState<Member[]>([]);
-  const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
-  const [selectedVisitors, setSelectedVisitors] = useState<string[]>([]);
 
   useEffect(() => {
     if (user && user.role === 'lider') {
-      loadMembers();
       loadReports();
-
-      const reportsChannel = supabase
-        .channel('cell_reports_changes')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'cell_reports', filter: `lider_id=eq.${user.id}` }, () => {
-          loadReports();
-        })
-        .subscribe();
-
-      const membersChannel = supabase
-        .channel('members_for_reports')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'members', filter: `lider_id=eq.${user.id}` }, () => {
-          loadMembers();
-        })
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(reportsChannel);
-        supabase.removeChannel(membersChannel);
-      };
     }
-  }, [user, loadMembers, loadReports]);
+  }, [user]);
 
-  const loadReports = useCallback(async () => {
+  const loadReports = async () => {
     if (!user) return;
     
     const { data, error } = await supabase
@@ -107,41 +84,11 @@ export function CellReports() {
       observations: report.observations,
       status: report.status as 'draft' | 'submitted' | 'approved',
       submittedAt: new Date(report.submitted_at),
-      membersPresent: report.members_present || [],
-      visitorsPresent: report.frequentadores_present || [],
     }));
 
     setReports(formattedReports);
     setLoading(false);
-  }, [user]);
-
-  const loadMembers = useCallback(async () => {
-    if (!user) return;
-
-    const { data, error } = await supabase
-      .from('members')
-      .select('id, name, type')
-      .eq('lider_id', user.id)
-      .eq('active', true)
-      .order('name');
-
-    if (error) {
-      console.error('Error loading members:', error);
-      return;
-    }
-
-    const memberList: Member[] = (data || []).map(m => ({
-      id: m.id,
-      name: m.name,
-      type: m.type as 'member' | 'frequentador',
-      liderId: user.id,
-      joinDate: new Date(),
-      active: true,
-    }));
-
-    setMembers(memberList.filter(m => m.type === 'member'));
-    setFrequentadores(memberList.filter(m => m.type === 'frequentador'));
-  }, [user]);
+  };
 
   if (!user || user.role !== 'lider') {
     return (
@@ -164,8 +111,6 @@ export function CellReports() {
           multiplication_date: multiplicationDate || null,
           observations: observations || null,
           status: 'draft',
-          members_present: selectedMembers,
-          frequentadores_present: selectedVisitors,
         }
       ])
       .select()
@@ -185,8 +130,6 @@ export function CellReports() {
     setSelectedMonth('');
     setMultiplicationDate('');
     setObservations('');
-    setSelectedMembers([]);
-    setSelectedVisitors([]);
     
     toast({
       title: "Sucesso",
@@ -271,48 +214,6 @@ export function CellReports() {
                   rows={3}
                 />
               </div>
-              <div>
-                <Label>Membros Presentes</Label>
-                <div className="max-h-32 overflow-y-auto space-y-2 mt-2">
-                  {members.map((m) => (
-                    <div key={m.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`member-${m.id}`}
-                        checked={selectedMembers.includes(m.id)}
-                        onCheckedChange={(checked) => {
-                          setSelectedMembers(prev =>
-                            checked ? [...prev, m.id] : prev.filter(id => id !== m.id)
-                          );
-                        }}
-                      />
-                      <Label htmlFor={`member-${m.id}`} className="text-sm font-normal">
-                        {m.name}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <Label>Frequentadores Presentes</Label>
-                <div className="max-h-32 overflow-y-auto space-y-2 mt-2">
-                  {frequentadores.map((m) => (
-                    <div key={m.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`visitor-${m.id}`}
-                        checked={selectedVisitors.includes(m.id)}
-                        onCheckedChange={(checked) => {
-                          setSelectedVisitors(prev =>
-                            checked ? [...prev, m.id] : prev.filter(id => id !== m.id)
-                          );
-                        }}
-                      />
-                      <Label htmlFor={`visitor-${m.id}`} className="text-sm font-normal">
-                        {m.name}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-              </div>
               <Button onClick={handleCreateReport} className="w-full gradient-primary">
                 Criar Relatório
               </Button>
@@ -340,8 +241,6 @@ export function CellReports() {
                 <TableRow>
                   <TableHead>Período</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Membros</TableHead>
-                  <TableHead>Frequentadores</TableHead>
                   <TableHead>Data de Multiplicação</TableHead>
                   <TableHead>Data de Envio</TableHead>
                 </TableRow>
@@ -357,8 +256,6 @@ export function CellReports() {
                         {report.status === 'draft' ? 'Rascunho' : report.status === 'submitted' ? 'Enviado' : 'Aprovado'}
                       </Badge>
                     </TableCell>
-                    <TableCell>{report.membersPresent.length}</TableCell>
-                    <TableCell>{report.visitorsPresent.length}</TableCell>
                     <TableCell>
                       {report.multiplicationDate ? (
                         <div className="flex items-center gap-1 text-sm">
