@@ -26,7 +26,7 @@ export function Auth() {
     setIsLoading(true);
     try {
       await login(email, password);
-      navigate('/dashboard');
+      navigate('/');
     } catch (error) {
       toast({
         title: "Erro no login",
@@ -48,7 +48,7 @@ export function Auth() {
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/dashboard`,
+          emailRedirectTo: window.location.origin,
           data: {
             name: name,
           }
@@ -91,7 +91,7 @@ export function Auth() {
         email: demoEmail,
         password: '123456',
         options: {
-          emailRedirectTo: `${window.location.origin}/dashboard`,
+          emailRedirectTo: window.location.origin,
           data: {
             name: getDemoName(demoEmail),
           }
@@ -104,7 +104,7 @@ export function Auth() {
     // Now try to login
     try {
       await login(demoEmail, '123456');
-      navigate('/dashboard');
+      navigate('/');
     } catch (error) {
       toast({
         title: "Erro no login",
