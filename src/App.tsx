@@ -50,37 +50,21 @@ function AppContent() {
           <Auth />
         </PublicRoute>
       } />
-      <Route path="/" element={
-        <ProtectedRoute>
-          <DashboardLayout>
-            <Dashboard />
-          </DashboardLayout>
-        </ProtectedRoute>
-      } />
-      <Route path="/celula" element={
-        <ProtectedRoute>
-          <DashboardLayout>
-            <CellManagement />
-          </DashboardLayout>
-        </ProtectedRoute>
-      } />
-      <Route path="/relatorios" element={
-        <ProtectedRoute>
-          <DashboardLayout>
-            <CellReports />
-          </DashboardLayout>
-        </ProtectedRoute>
-      } />
-      <Route path="/cursos" element={
-        <ProtectedRoute>
-          <DashboardLayout>
-            <CourseRegistration />
-          </DashboardLayout>
-        </ProtectedRoute>
-      } />
-      <Route path="/eventos" element={<div>Eventos (Em breve)</div>} />
-      <Route path="/estatisticas" element={<div>Estatísticas (Em breve)</div>} />
-      <Route path="/gerenciar" element={<div>Gerenciar Igreja (Em breve)</div>} />
+      <Route
+        element={
+          <ProtectedRoute>
+            <DashboardLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/celula" element={<CellManagement />} />
+        <Route path="/relatorios" element={<CellReports />} />
+        <Route path="/cursos" element={<CourseRegistration />} />
+        <Route path="/eventos" element={<div>Eventos (Em breve)</div>} />
+        <Route path="/estatisticas" element={<div>Estatísticas (Em breve)</div>} />
+        <Route path="/gerenciar" element={<div>Gerenciar Igreja (Em breve)</div>} />
+      </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

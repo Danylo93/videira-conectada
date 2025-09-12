@@ -2,12 +2,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { SidebarProvider } from '@/components/ui/sidebar';
+import { Outlet } from 'react-router-dom';
 
-interface DashboardLayoutProps {
-  children: React.ReactNode;
-}
-
-export function DashboardLayout({ children }: DashboardLayoutProps) {
+export function DashboardLayout() {
   const { user } = useAuth();
 
   if (!user) return null;
@@ -19,7 +16,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <div className="flex-1 flex flex-col">
           <Header />
           <main className="flex-1 p-6">
-            {children}
+            <Outlet />
           </main>
         </div>
       </div>
