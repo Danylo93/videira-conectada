@@ -10,9 +10,17 @@ import { Dashboard } from "@/pages/Dashboard";
 import { CellManagement } from "@/pages/CellManagement";
 import { CourseRegistration } from "@/pages/CourseRegistration";
 import { CellReports } from "@/pages/CellReports";
+import { LeaderManagement } from "@/pages/LeaderManagement";
+import { NetworkReports } from "@/pages/NetworkReports";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
+
+function ReportsRouter() {
+  const { user } = useAuth();
+  if (!user) return null;
+  return user.role === "lider" ? <CellReports /> : <NetworkReports />;
+}
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
@@ -59,7 +67,8 @@ function AppContent() {
       >
         <Route path="/" element={<Dashboard />} />
         <Route path="/celula" element={<CellManagement />} />
-        <Route path="/relatorios" element={<CellReports />} />
+        <Route path="/lideres" element={<LeaderManagement />} />
+        <Route path="/relatorios" element={<ReportsRouter />} />
         <Route path="/cursos" element={<CourseRegistration />} />
         <Route path="/eventos" element={<div>Eventos (Em breve)</div>} />
         <Route path="/estatisticas" element={<div>Estatísticas (Em breve)</div>} />

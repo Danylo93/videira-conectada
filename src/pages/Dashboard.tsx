@@ -60,9 +60,9 @@ export function Dashboard() {
   const [annualAvg, setAnnualAvg] = useState<number>(0);
 
   const isLeader = user?.role === "lider";
-  if (!user) return null;
 
   useEffect(() => {
+    if (!user) return;
     (async () => {
       setLoading(true);
 
@@ -169,6 +169,8 @@ export function Dashboard() {
       setLoading(false);
     })();
   }, [user, isLeader]);
+
+  if (!user) return null;
 
   const greeting = roleGreetings[user.role];
   const statsPrimaryValue = isLeader ? membersCount : totalCells;

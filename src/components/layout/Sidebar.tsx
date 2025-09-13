@@ -45,6 +45,12 @@ const navigationItems: NavigationItem[] = [
     roles: ['lider'],
   },
   {
+    title: 'Meus Líderes',
+    url: '/lideres',
+    icon: Users,
+    roles: ['discipulador'],
+  },
+  {
     title: 'Relatórios de Célula',
     url: '/relatorios',
     icon: FileText,

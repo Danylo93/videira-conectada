@@ -224,7 +224,7 @@ export function CellReports() {
       }));
   }, [reports]);
 
-  const chartData: any[] = chartMode === "mensal" ? monthlyChartData : weeklyChartData;
+  const chartData = chartMode === "mensal" ? monthlyChartData : weeklyChartData;
   const xKey = chartMode === "mensal" ? "monthLabel" : "weekLabel";
 
   // ---- returns condicionais (depois dos hooks) -----------------------------
@@ -378,6 +378,19 @@ Observações: ${report.observations || ""}`;
       message
     )}`;
     window.open(url, "_blank");
+    if (report.status === "draft") {
+      supabase
+        .from("cell_reports")
+        .update({ status: "submitted" })
+        .eq("id", report.id)
+        .then(() => {
+          setReports((prev) =>
+            prev.map((r) =>
+              r.id === report.id ? { ...r, status: "submitted" } : r
+            )
+          );
+        });
+    }
   };
 
   // ---- UI ------------------------------------------------------------------
@@ -628,7 +641,7 @@ Observações: ${report.observations || ""}`;
             Presença {chartMode === "mensal" ? "Mensal" : "Semanal"}
           </CardTitle>
 
-          <Select value={chartMode} onValueChange={(v) => setChartMode(v as any)}>
+          <Select value={chartMode} onValueChange={(v) => setChartMode(v as 'mensal' | 'semanal')}>
             <SelectTrigger className="w-[140px]">
               <SelectValue placeholder="Mensal" />
             </SelectTrigger>
