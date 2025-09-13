@@ -19,37 +19,49 @@ export type Database = {
           created_at: string
           id: string
           lider_id: string
-          month: string
+          month: string | null
           multiplication_date: string | null
           observations: string | null
           status: string
           submitted_at: string
           updated_at: string
-          year: number
+          year: number | null
+          members_present: string[] | null
+          visitors_present: string[] | null
+          phase: string | null
+          week_start: string
         }
         Insert: {
           created_at?: string
           id?: string
           lider_id: string
-          month: string
+          month?: string | null
           multiplication_date?: string | null
           observations?: string | null
           status?: string
           submitted_at?: string
           updated_at?: string
-          year: number
+          year?: number | null
+          members_present?: string[] | null
+          visitors_present?: string[] | null
+          phase?: string | null
+          week_start: string
         }
         Update: {
           created_at?: string
           id?: string
           lider_id?: string
-          month?: string
+          month?: string | null
           multiplication_date?: string | null
           observations?: string | null
           status?: string
           submitted_at?: string
           updated_at?: string
-          year?: number
+          year?: number | null
+          members_present?: string[] | null
+          visitors_present?: string[] | null
+          phase?: string | null
+          week_start?: string
         }
         Relationships: [
           {

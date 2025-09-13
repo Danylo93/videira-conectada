@@ -13,10 +13,10 @@ export interface Member {
 export interface CellReport {
   id: string;
   liderId: string;
-  month: string; // YYYY-MM
-  year: number;
+  weekStart: Date;
   members: Member[];
   frequentadores: Member[];
+  phase: 'Comunhão' | 'Edificação' | 'Evangelismo' | 'Multiplicação';
   multiplicationDate?: Date;
   observations?: string;
   submittedAt: Date;
