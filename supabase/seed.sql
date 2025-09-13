@@ -1,5 +1,4 @@
--- Seed initial users for Videira São Miguel
--- Password for all users: Videira@123
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- Discipuladores
 WITH new_user AS (
@@ -14,12 +13,17 @@ WITH new_user AS (
     '{"provider":"email","providers":["email"]}',
     '{"name":"Marcos Moreira"}'
   )
-  RETURNING id
+  RETURNING id, email
+), ins_identity AS (
+  INSERT INTO auth.identities (id, user_id, provider, provider_id, identity_data, created_at, updated_at)
+  SELECT gen_random_uuid(), id, 'email', email,
+         jsonb_build_object('sub', id::text, 'email', email),
+         now(), now()
+  FROM new_user
 )
-UPDATE public.profiles p
-SET role = 'discipulador', phone = '(11)98752-6373'
-FROM new_user
-WHERE p.user_id = new_user.id;
+INSERT INTO public.profiles (user_id, name, email, phone, role)
+SELECT id, 'Marcos Moreira', 'marcos.moreira@videirasaomiguel.com', '(11)98752-6373', 'discipulador'
+FROM new_user;
 
 WITH new_user AS (
   INSERT INTO auth.users (id, email, encrypted_password, email_confirmed_at, aud, role, raw_app_meta_data, raw_user_meta_data)
@@ -33,12 +37,17 @@ WITH new_user AS (
     '{"provider":"email","providers":["email"]}',
     '{"name":"Dênis Sousa"}'
   )
-  RETURNING id
+  RETURNING id, email
+), ins_identity AS (
+  INSERT INTO auth.identities (id, user_id, provider, provider_id, identity_data, created_at, updated_at)
+  SELECT gen_random_uuid(), id, 'email', email,
+         jsonb_build_object('sub', id::text, 'email', email),
+         now(), now()
+  FROM new_user
 )
-UPDATE public.profiles p
-SET role = 'discipulador', phone = '(11)95892-6082'
-FROM new_user
-WHERE p.user_id = new_user.id;
+INSERT INTO public.profiles (user_id, name, email, phone, role)
+SELECT id, 'Dênis Sousa', 'denis.sousa@videirasaomiguel.com', '(11)95892-6082', 'discipulador'
+FROM new_user;
 
 WITH new_user AS (
   INSERT INTO auth.users (id, email, encrypted_password, email_confirmed_at, aud, role, raw_app_meta_data, raw_user_meta_data)
@@ -52,12 +61,17 @@ WITH new_user AS (
     '{"provider":"email","providers":["email"]}',
     '{"name":"Danylo Oliveira"}'
   )
-  RETURNING id
+  RETURNING id, email
+), ins_identity AS (
+  INSERT INTO auth.identities (id, user_id, provider, provider_id, identity_data, created_at, updated_at)
+  SELECT gen_random_uuid(), id, 'email', email,
+         jsonb_build_object('sub', id::text, 'email', email),
+         now(), now()
+  FROM new_user
 )
-UPDATE public.profiles p
-SET role = 'discipulador', phone = '(11)96489-1128'
-FROM new_user
-WHERE p.user_id = new_user.id;
+INSERT INTO public.profiles (user_id, name, email, phone, role)
+SELECT id, 'Danylo Oliveira', 'danylo.oliveira@videirasaomiguel.com', '(11)96489-1128', 'discipulador'
+FROM new_user;
 
 -- Pastor
 WITH new_user AS (
@@ -72,9 +86,14 @@ WITH new_user AS (
     '{"provider":"email","providers":["email"]}',
     '{"name":"Christian Almeida"}'
   )
-  RETURNING id
+  RETURNING id, email
+), ins_identity AS (
+  INSERT INTO auth.identities (id, user_id, provider, provider_id, identity_data, created_at, updated_at)
+  SELECT gen_random_uuid(), id, 'email', email,
+         jsonb_build_object('sub', id::text, 'email', email),
+         now(), now()
+  FROM new_user
 )
-UPDATE public.profiles p
-SET role = 'pastor', phone = '(11)93015-2797'
-FROM new_user
-WHERE p.user_id = new_user.id;
+INSERT INTO public.profiles (user_id, name, email, phone, role)
+SELECT id, 'Christian Almeida', 'christian.almeida@videirasaomiguel.com', '(11)93015-2797', 'pastor'
+FROM new_user;
