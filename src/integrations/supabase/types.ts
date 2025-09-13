@@ -311,6 +311,8 @@ export type Database = {
           created_at: string
           discipulador_id: string | null
           email: string
+          address: string | null
+          network: string | null
           id: string
           name: string
           pastor_id: string | null
@@ -324,6 +326,8 @@ export type Database = {
           created_at?: string
           discipulador_id?: string | null
           email: string
+          address?: string | null
+          network?: string | null
           id?: string
           name: string
           pastor_id?: string | null
@@ -337,6 +341,8 @@ export type Database = {
           created_at?: string
           discipulador_id?: string | null
           email?: string
+          address?: string | null
+          network?: string | null
           id?: string
           name?: string
           pastor_id?: string | null
