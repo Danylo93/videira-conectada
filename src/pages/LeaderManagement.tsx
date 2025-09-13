@@ -77,33 +77,41 @@ export function LeaderManagement() {
       return;
     }
 
-    const { error: profileError } = await supabase
+    const { error: profileError } = await supabaseAdmin
       .from('profiles')
-      .update({
-        discipulador_id: user.id,
-        pastor_id: user.pastorId || null,
-        role: 'lider',
-      })
-      .eq('id', authData.user.id);
+      .upsert(
+        {
+          id: authData.user.id,
+          name: newLeader.name,
+          email: newLeader.email,
+          phone: newLeader.phone || null,
+          discipulador_id: user.id,
+          pastor_id: user.pastorId || null,
+          role: 'lider',
+        },
+        { onConflict: 'id' }
+      );
 
     if (profileError) {
       console.error('Error updating profile:', profileError);
       return;
     }
 
-    const leaderData: Leader = {
-      id: authData.user.id,
-      name: newLeader.name,
-      email: newLeader.email,
-      phone: newLeader.phone || undefined,
-      discipuladorId: user.id,
-      pastorId: user.pastorId || undefined,
-      createdAt: new Date(),
-    };
+    if (!profileError) {
+      const leaderData: Leader = {
+        id: authData.user.id,
+        name: newLeader.name,
+        email: newLeader.email,
+        phone: newLeader.phone || undefined,
+        discipuladorId: user.id,
+        pastorId: user.pastorId || undefined,
+        createdAt: new Date(),
+      };
 
-    setLeaders([leaderData, ...leaders]);
-    setIsAddDialogOpen(false);
-    setNewLeader({ name: '', email: '', phone: '', password: '' });
+      setLeaders([leaderData, ...leaders]);
+      setIsAddDialogOpen(false);
+      setNewLeader({ name: '', email: '', phone: '', password: '' });
+    }
   };
 
   return (
