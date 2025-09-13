@@ -1,3 +1,13 @@
+export interface Leader {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  discipuladorId: string;
+  pastorId?: string;
+  createdAt: Date;
+}
+
 export interface Member {
   id: string;
   name: string;
