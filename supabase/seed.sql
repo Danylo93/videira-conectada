@@ -1,99 +1,92 @@
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+-- supabase/seed.sql
+create extension if not exists pgcrypto;
 
--- Discipuladores
-WITH new_user AS (
-  INSERT INTO auth.users (id, email, encrypted_password, email_confirmed_at, aud, role, raw_app_meta_data, raw_user_meta_data)
-  VALUES (
-    gen_random_uuid(),
-    'marcos.moreira@videirasaomiguel.com',
-    crypt('Videira@123', gen_salt('bf')),
-    now(),
-    'authenticated',
-    'authenticated',
-    '{"provider":"email","providers":["email"]}',
-    '{"name":"Marcos Moreira"}'
-  )
-  RETURNING id, email
-), ins_identity AS (
-  INSERT INTO auth.identities (id, user_id, provider, provider_id, identity_data, created_at, updated_at)
-  SELECT gen_random_uuid(), id, 'email', email,
-         jsonb_build_object('sub', id::text, 'email', email),
-         now(), now()
-  FROM new_user
-)
-INSERT INTO public.profiles (user_id, name, email, phone, role)
-SELECT id, 'Marcos Moreira', 'marcos.moreira@videirasaomiguel.com', '(11)98752-6373', 'discipulador'
-FROM new_user;
+-- Utilitário: cria/garante usuário, identidade e perfil
+-- Uso:
+--   DO $$ BEGIN PERFORM public._ensure_user(
+--     'email@dominio.com', 'SenhaForte123', 'Nome Completo', '(11)99999-9999', 'role'
+--   ); END $$;
 
-WITH new_user AS (
-  INSERT INTO auth.users (id, email, encrypted_password, email_confirmed_at, aud, role, raw_app_meta_data, raw_user_meta_data)
-  VALUES (
-    gen_random_uuid(),
-    'denis.sousa@videirasaomiguel.com',
-    crypt('Videira@123', gen_salt('bf')),
-    now(),
-    'authenticated',
-    'authenticated',
-    '{"provider":"email","providers":["email"]}',
-    '{"name":"Dênis Sousa"}'
-  )
-  RETURNING id, email
-), ins_identity AS (
-  INSERT INTO auth.identities (id, user_id, provider, provider_id, identity_data, created_at, updated_at)
-  SELECT gen_random_uuid(), id, 'email', email,
-         jsonb_build_object('sub', id::text, 'email', email),
-         now(), now()
-  FROM new_user
-)
-INSERT INTO public.profiles (user_id, name, email, phone, role)
-SELECT id, 'Dênis Sousa', 'denis.sousa@videirasaomiguel.com', '(11)95892-6082', 'discipulador'
-FROM new_user;
+create or replace function public._ensure_user(
+  p_email text,
+  p_password text,
+  p_name text,
+  p_phone text,
+  p_role text
+) returns void
+language plpgsql
+as $$
+declare
+  uid uuid;
+begin
+  -- Procura usuário por e-mail
+  select u.id into uid
+  from auth.users u
+  join auth.identities i on i.user_id = u.id and i.provider = 'email'
+  where i.provider_id = p_email
+  limit 1;
 
-WITH new_user AS (
-  INSERT INTO auth.users (id, email, encrypted_password, email_confirmed_at, aud, role, raw_app_meta_data, raw_user_meta_data)
-  VALUES (
-    gen_random_uuid(),
-    'danylo.oliveira@videirasaomiguel.com',
-    crypt('Videira@123', gen_salt('bf')),
-    now(),
-    'authenticated',
-    'authenticated',
-    '{"provider":"email","providers":["email"]}',
-    '{"name":"Danylo Oliveira"}'
-  )
-  RETURNING id, email
-), ins_identity AS (
-  INSERT INTO auth.identities (id, user_id, provider, provider_id, identity_data, created_at, updated_at)
-  SELECT gen_random_uuid(), id, 'email', email,
-         jsonb_build_object('sub', id::text, 'email', email),
-         now(), now()
-  FROM new_user
-)
-INSERT INTO public.profiles (user_id, name, email, phone, role)
-SELECT id, 'Danylo Oliveira', 'danylo.oliveira@videirasaomiguel.com', '(11)96489-1128', 'discipulador'
-FROM new_user;
+  -- Se não existir, cria em auth.users e auth.identities
+  if uid is null then
+    insert into auth.users (
+      id, email, encrypted_password, email_confirmed_at, aud, role,
+      raw_app_meta_data, raw_user_meta_data
+    )
+    values (
+      gen_random_uuid(),
+      p_email,
+      crypt(p_password, gen_salt('bf')),
+      now(),
+      'authenticated',
+      'authenticated',
+      '{"provider":"email","providers":["email"]}'::jsonb,
+      jsonb_build_object('name', p_name)
+    )
+    returning id into uid;
 
--- Pastor
-WITH new_user AS (
-  INSERT INTO auth.users (id, email, encrypted_password, email_confirmed_at, aud, role, raw_app_meta_data, raw_user_meta_data)
-  VALUES (
-    gen_random_uuid(),
-    'christian.almeida@videirasaomiguel.com',
-    crypt('Videira@123', gen_salt('bf')),
-    now(),
-    'authenticated',
-    'authenticated',
-    '{"provider":"email","providers":["email"]}',
-    '{"name":"Christian Almeida"}'
-  )
-  RETURNING id, email
-), ins_identity AS (
-  INSERT INTO auth.identities (id, user_id, provider, provider_id, identity_data, created_at, updated_at)
-  SELECT gen_random_uuid(), id, 'email', email,
-         jsonb_build_object('sub', id::text, 'email', email),
-         now(), now()
-  FROM new_user
-)
-INSERT INTO public.profiles (user_id, name, email, phone, role)
-SELECT id, 'Christian Almeida', 'christian.almeida@videirasaomiguel.com', '(11)93015-2797', 'pastor'
-FROM new_user;
+    insert into auth.identities (
+      id, user_id, provider, provider_id, identity_data, last_sign_in_at, created_at, updated_at
+    ) values (
+      gen_random_uuid(), uid, 'email', p_email,
+      jsonb_build_object('sub', uid::text, 'email', p_email),
+      now(), now(), now()
+    );
+  end if;
+
+  -- Upsert no perfil
+  insert into public.profiles (user_id, name, email, phone, role)
+  values (uid, p_name, p_email, nullif(p_phone,''), p_role)
+  on conflict (user_id) do update
+    set name  = excluded.name,
+        email = excluded.email,
+        phone = excluded.phone,
+        role  = excluded.role;
+end;
+$$;
+
+-- =========================
+-- SEMENTES (USUÁRIOS)
+-- =========================
+
+DO $$ BEGIN
+  PERFORM public._ensure_user('marcos.moreira@videirasaomiguel.com', 'Videira@123', 'Marcos Moreira', '(11)98752-6373', 'discipulador');
+END $$;
+
+DO $$ BEGIN
+  PERFORM public._ensure_user('denis.sousa@videirasaomiguel.com', 'Videira@123', 'Dênis Sousa', '(11)95892-6082', 'discipulador');
+END $$;
+
+DO $$ BEGIN
+  PERFORM public._ensure_user('danylo.oliveira@videirasaomiguel.com', 'Videira@123', 'Danylo Oliveira', '(11)96489-1128', 'discipulador');
+END $$;
+
+DO $$ BEGIN
+  PERFORM public._ensure_user('christian.almeida@videirasaomiguel.com', 'Videira@123', 'Christian Almeida', '(11)93015-2797', 'pastor');
+END $$;
+
+-- Caso queira um líder de teste:
+-- DO $$ BEGIN
+--   PERFORM public._ensure_user('lider.teste@videirasaomiguel.com', 'Videira@123', 'Líder Teste', '(11)90000-0000', 'lider');
+-- END $$;
+
+-- Dica: você pode inserir também alguns eventos/membros aqui, se quiser.
