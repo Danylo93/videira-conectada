@@ -10,19 +10,17 @@ import { Dashboard } from "@/pages/Dashboard";
 import { CellManagement } from "@/pages/CellManagement";
 import { CourseRegistration } from "@/pages/CourseRegistration";
 import { CellReports } from "@/pages/CellReports";
+import { Events } from "@/pages/Events";
 import NotFound from "./pages/NotFound";
+import LoadingSpinner from "@/components/ui/loading-spinner";
 
 const queryClient = new QueryClient();
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
-  
+
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
+    return <LoadingSpinner className="min-h-screen" />;
   }
   
   return isAuthenticated ? <>{children}</> : <Navigate to="/auth" replace />;
@@ -30,13 +28,9 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
-  
+
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
+    return <LoadingSpinner className="min-h-screen" />;
   }
   
   return isAuthenticated ? <Navigate to="/" replace /> : <>{children}</>;
@@ -61,7 +55,7 @@ function AppContent() {
         <Route path="/celula" element={<CellManagement />} />
         <Route path="/relatorios" element={<CellReports />} />
         <Route path="/cursos" element={<CourseRegistration />} />
-        <Route path="/eventos" element={<div>Eventos (Em breve)</div>} />
+        <Route path="/eventos" element={<Events />} />
         <Route path="/estatisticas" element={<div>Estatísticas (Em breve)</div>} />
         <Route path="/gerenciar" element={<div>Gerenciar Igreja (Em breve)</div>} />
       </Route>

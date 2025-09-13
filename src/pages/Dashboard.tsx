@@ -326,14 +326,16 @@ export function Dashboard() {
 
             {!isLeader && (
               <>
-                <Button
-                  className="w-full justify-start"
-                  variant="outline"
-                  onClick={() => navigate("/eventos", { state: { openCreate: true } })}
-                >
-                  <Calendar className="w-4 h-4 mr-2" />
-                  Criar Evento
-                </Button>
+                {user.role === "pastor" && (
+                  <Button
+                    className="w-full justify-start"
+                    variant="outline"
+                    onClick={() => navigate("/eventos", { state: { openCreate: true } })}
+                  >
+                    <Calendar className="w-4 h-4 mr-2" />
+                    Criar Evento
+                  </Button>
+                )}
                 <Button
                   className="w-full justify-start"
                   variant="outline"
