@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { supabaseAdmin } from '@/integrations/supabase/admin';
+import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +14,7 @@ import { Leader } from '@/types/church';
 
 export function LeaderManagement() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [leaders, setLeaders] = useState<Leader[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newLeader, setNewLeader] = useState({
@@ -74,6 +76,11 @@ export function LeaderManagement() {
 
     if (authError || !authData.user) {
       console.error('Error creating leader user:', authError);
+      toast({
+        title: 'Erro',
+        description: 'Falha ao criar usuário do líder.',
+        variant: 'destructive',
+      });
       return;
     }
 
@@ -82,6 +89,7 @@ export function LeaderManagement() {
       .upsert(
         {
           id: authData.user.id,
+          user_id: authData.user.id,
           name: newLeader.name,
           email: newLeader.email,
           phone: newLeader.phone || null,
@@ -94,24 +102,28 @@ export function LeaderManagement() {
 
     if (profileError) {
       console.error('Error updating profile:', profileError);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível salvar o perfil do líder.',
+        variant: 'destructive',
+      });
       return;
     }
 
-    if (!profileError) {
-      const leaderData: Leader = {
-        id: authData.user.id,
-        name: newLeader.name,
-        email: newLeader.email,
-        phone: newLeader.phone || undefined,
-        discipuladorId: user.id,
-        pastorId: user.pastorId || undefined,
-        createdAt: new Date(),
-      };
+    const leaderData: Leader = {
+      id: authData.user.id,
+      name: newLeader.name,
+      email: newLeader.email,
+      phone: newLeader.phone || undefined,
+      discipuladorId: user.id,
+      pastorId: user.pastorId || undefined,
+      createdAt: new Date(),
+    };
 
-      setLeaders([leaderData, ...leaders]);
-      setIsAddDialogOpen(false);
-      setNewLeader({ name: '', email: '', phone: '', password: '' });
-    }
+    setLeaders([leaderData, ...leaders]);
+    setIsAddDialogOpen(false);
+    setNewLeader({ name: '', email: '', phone: '', password: '' });
+    toast({ title: 'Sucesso', description: 'Líder cadastrado com sucesso!' });
   };
 
   return (
