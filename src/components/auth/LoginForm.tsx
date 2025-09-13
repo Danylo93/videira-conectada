@@ -92,17 +92,6 @@ export function LoginForm() {
               )}
             </Button>
           </form>
-          
-          <div className="mt-6 p-4 bg-muted rounded-lg">
-            <p className="text-sm text-muted-foreground mb-2">Contas de teste:</p>
-            <div className="space-y-1 text-xs">
-              <p><strong>Pastor:</strong> pastor@videirasaomiguel.com</p>
-              <p><strong>Obreiro:</strong> obreiro@videirasaomiguel.com</p>  
-              <p><strong>Discipulador:</strong> discipulador@videirasaomiguel.com</p>
-              <p><strong>Líder:</strong> lider@videirasaomiguel.com</p>
-              <p><strong>Senha:</strong> 123456</p>
-            </div>
-          </div>
         </CardContent>
       </Card>
     </div>
