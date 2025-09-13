@@ -44,30 +44,20 @@ export function Auth() {
 
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: window.location.origin,
           data: {
-            name: name,
-          }
-        }
+            name,
+          },
+        },
       });
 
       if (error) throw error;
 
-      if (data.user) {
-        toast({
-          title: "Cadastro realizado!",
-          description: "Verifique seu email para confirmar a conta.",
-        });
-        
-        // Switch to login tab
-        setEmail('');
-        setPassword('');
-        setName('');
-      }
+      await login(email, password);
+      navigate('/');
     } catch (error) {
       toast({
         title: "Erro no cadastro",
@@ -81,40 +71,36 @@ export function Auth() {
 
   // Demo login buttons
   const handleDemoLogin = async (demoEmail: string) => {
-    setEmail(demoEmail);
-    setPassword('123456');
-
-    // Create demo account if it doesn't exist
-    try {
-      // Try to sign up first (will fail if user exists)
-      await supabase.auth.signUp({
-        email: demoEmail,
-        password: '123456',
-        options: {
-          emailRedirectTo: window.location.origin,
-          data: {
-            name: getDemoName(demoEmail),
-          }
-        }
-      });
-    } catch (error) {
-      // User might already exist, that's fine
-    }
-
-    // Ensure roles and hierarchy for demo accounts
-    await ensureDemoHierarchy();
-
-    // Now try to login
+    setIsLoading(true);
     try {
       await login(demoEmail, '123456');
-      navigate('/');
-    } catch (error) {
-      toast({
-        title: "Erro no login",
-        description: "Erro ao fazer login com conta demo",
-        variant: "destructive",
-      });
+    } catch (_) {
+      try {
+        const { error } = await supabase.auth.signUp({
+          email: demoEmail,
+          password: '123456',
+          options: {
+            data: {
+              name: getDemoName(demoEmail),
+            },
+          },
+        });
+        if (error) throw error;
+        await login(demoEmail, '123456');
+      } catch {
+        toast({
+          title: "Erro no login",
+          description: "Erro ao fazer login com conta demo",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+      }
     }
+
+    await ensureDemoHierarchy();
+    navigate('/');
+    setIsLoading(false);
   };
 
   const getDemoName = (email: string) => {
