@@ -68,33 +68,63 @@ export function CellReports() {
   const [allMembers, setAllMembers] = useState<Member[]>([]);
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
   const [selectedVisitorIds, setSelectedVisitorIds] = useState<string[]>([]);
-  const [editingReport, setEditingReport] = useState<CellReportType | null>(
-    null
-  );
+  const [editingReport, setEditingReport] = useState<CellReportType | null>(null);
   const [loading, setLoading] = useState(true);
   const [chartMode, setChartMode] = useState<"mensal" | "semanal">("mensal");
+  const [leaders, setLeaders] = useState<{ id: string; name: string }[]>([]);
+  const [discipuladores, setDiscipuladores] = useState<{ id: string; name: string }[]>([]);
+  const [selectedLeader, setSelectedLeader] = useState("all");
+  const [selectedDiscipulador, setSelectedDiscipulador] = useState("all");
 
   const memberOptions = allMembers.filter((m) => m.type === "member");
   const visitorOptions = allMembers.filter((m) => m.type === "frequentador");
 
   // ---- data load -----------------------------------------------------------
   useEffect(() => {
-    if (user && user.role === "lider") {
-      loadMembers().then(loadReports);
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    if (user.role === "lider") {
+      loadReports([user.id]);
+    } else if (user.role === "discipulador") {
+      loadLeaders();
+    } else if (user.role === "pastor" || user.role === "obreiro") {
+      loadDiscipuladores();
     } else {
-      // caso não tenha user ainda, mantenha a tela em loading curto
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  const loadMembers = async (): Promise<Member[]> => {
-    if (!user) return [];
+  useEffect(() => {
+    if (user?.role === "discipulador") {
+      const ids =
+        selectedLeader === "all"
+          ? leaders.map((l) => l.id)
+          : [selectedLeader];
+      loadReports(ids);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedLeader]);
 
+  useEffect(() => {
+    if (user && (user.role === "pastor" || user.role === "obreiro")) {
+      const ids =
+        selectedDiscipulador === "all"
+          ? discipuladores.map((d) => d.id)
+          : [selectedDiscipulador];
+      loadReportsForDiscipuladores(ids);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDiscipulador]);
+
+  const loadMembers = async (leaderIds: string[]): Promise<Member[]> => {
     const { data, error } = await supabase
       .from("members")
       .select("*")
-      .eq("lider_id", user.id)
+      .in("lider_id", leaderIds)
       .eq("active", true);
 
     if (error) {
@@ -116,20 +146,26 @@ export function CellReports() {
       active: member.active,
     }));
 
-    setAllMembers(formatted);
     return formatted;
   };
 
-  const loadReports = async () => {
-    if (!user) return;
+  const loadReports = async (leaderIds: string[]) => {
+    if (leaderIds.length === 0) {
+      setReports([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
 
-    // garante consistência entre lista de membros e reports
-    const membersList = allMembers.length === 0 ? await loadMembers() : allMembers;
+    const membersList = await loadMembers(leaderIds);
+    if (user?.role === "lider") {
+      setAllMembers(membersList);
+    }
 
     const { data, error } = await supabase
       .from("cell_reports")
       .select("*")
-      .eq("lider_id", user.id)
+      .in("lider_id", leaderIds)
       .order("week_start", { ascending: false });
 
     if (error) {
@@ -162,6 +198,60 @@ export function CellReports() {
 
     setReports(formattedReports);
     setLoading(false);
+  };
+
+  const loadLeaders = async () => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id, name")
+      .eq("role", "lider")
+      .eq("discipulador_id", user.id);
+    if (error) {
+      console.error("Error loading leaders:", error);
+      setLoading(false);
+      return;
+    }
+    const leadersData = data || [];
+    setLeaders(leadersData);
+    const ids = leadersData.map((l) => l.id);
+    await loadReports(ids);
+  };
+
+  const loadDiscipuladores = async () => {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id, name")
+      .eq("role", "discipulador");
+    if (error) {
+      console.error("Error loading discipuladores:", error);
+      setLoading(false);
+      return;
+    }
+    const discs = data || [];
+    setDiscipuladores(discs);
+    const ids = discs.map((d) => d.id);
+    await loadReportsForDiscipuladores(ids);
+  };
+
+  const loadReportsForDiscipuladores = async (discIds: string[]) => {
+    if (discIds.length === 0) {
+      setReports([]);
+      setLoading(false);
+      return;
+    }
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id, discipulador_id")
+      .eq("role", "lider")
+      .in("discipulador_id", discIds);
+    if (error) {
+      console.error("Error loading leaders for discipuladores:", error);
+      setLoading(false);
+      return;
+    }
+    const leaderIds = (data || []).map((l) => l.id);
+    await loadReports(leaderIds);
   };
 
   // ---- DERIVED DATA (hooks SEMPRE antes de qualquer return condicional) ----
@@ -222,16 +312,20 @@ export function CellReports() {
         members: r.members.length,
         frequentadores: r.frequentadores.length,
       }));
-  }, [reports]);
+  }, [reports, weekLabel]);
 
-  const chartData: any[] = chartMode === "mensal" ? monthlyChartData : weeklyChartData;
+  const chartData =
+    chartMode === "mensal" ? monthlyChartData : weeklyChartData;
   const xKey = chartMode === "mensal" ? "monthLabel" : "weekLabel";
 
   // ---- returns condicionais (depois dos hooks) -----------------------------
-  if (!user || user.role !== "lider") {
+  if (
+    !user ||
+    !["lider", "discipulador", "pastor", "obreiro"].includes(user.role)
+  ) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">Acesso restrito para líderes de célula.</p>
+        <p className="text-muted-foreground">Acesso restrito.</p>
       </div>
     );
   }
@@ -270,7 +364,7 @@ export function CellReports() {
       return;
     }
 
-    await loadReports();
+    await loadReports([user.id]);
     setIsCreateDialogOpen(false);
     setSelectedWeek("");
     setMultiplicationDate("");
@@ -321,7 +415,7 @@ export function CellReports() {
       return;
     }
 
-    await loadReports();
+    await loadReports([user.id]);
     setIsEditDialogOpen(false);
     setEditingReport(null);
     setSelectedWeek("");
@@ -345,7 +439,7 @@ export function CellReports() {
       return;
     }
 
-    await loadReports();
+    await loadReports([user.id]);
     toast({ title: "Sucesso", description: "Relatório excluído com sucesso!" });
   };
 
@@ -388,9 +482,12 @@ Observações: ${report.observations || ""}`;
           <h1 className="text-3xl font-bold text-foreground">
             Relatórios de Célula
           </h1>
-          <p className="text-muted-foreground">{user.celula}</p>
+          {user.role === "lider" && (
+            <p className="text-muted-foreground">{user.celula}</p>
+          )}
         </div>
 
+        {user.role === "lider" && (
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
             <Button className="gradient-primary">
@@ -499,8 +596,50 @@ Observações: ${report.observations || ""}`;
             </div>
           </DialogContent>
         </Dialog>
+        )}
+      </div>
 
-        {/* ======= Editar Relatório ======= */}
+      {user.role === "discipulador" && (
+        <div className="max-w-xs">
+          <Label>Filtrar por Líder</Label>
+          <Select value={selectedLeader} onValueChange={setSelectedLeader}>
+            <SelectTrigger>
+              <SelectValue placeholder="Todos os líderes" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              {leaders.map((l) => (
+                <SelectItem key={l.id} value={l.id}>
+                  {l.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+      {(user.role === "pastor" || user.role === "obreiro") && (
+        <div className="max-w-xs">
+          <Label>Filtrar por Discipulador</Label>
+          <Select
+            value={selectedDiscipulador}
+            onValueChange={setSelectedDiscipulador}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Todos os discipuladores" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              {discipuladores.map((d) => (
+                <SelectItem key={d.id} value={d.id}>
+                  {d.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {/* ======= Editar Relatório ======= */}
 <Dialog
   open={isEditDialogOpen}
   onOpenChange={(open) => {
@@ -618,17 +757,18 @@ Observações: ${report.observations || ""}`;
       </div>
     </div>
   </DialogContent>
-</Dialog>
+  </Dialog>
 
-      </div>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>
+              Presença {chartMode === "mensal" ? "Mensal" : "Semanal"}
+            </CardTitle>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>
-            Presença {chartMode === "mensal" ? "Mensal" : "Semanal"}
-          </CardTitle>
-
-          <Select value={chartMode} onValueChange={(v) => setChartMode(v as any)}>
+            <Select
+              value={chartMode}
+              onValueChange={(v: "mensal" | "semanal") => setChartMode(v)}
+            >
             <SelectTrigger className="w-[140px]">
               <SelectValue placeholder="Mensal" />
             </SelectTrigger>
@@ -740,34 +880,38 @@ Observações: ${report.observations || ""}`;
                       </div>
                     </TableCell>
                     <TableCell className="text-right space-x-2">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => openEditReport(report)}
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => handleDeleteReport(report.id)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => handleExportReport(report)}
-                      >
-                        <Download className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => handleShareReport(report)}
-                      >
-                        <Send className="w-4 h-4" />
-                      </Button>
+                      {user.role === "lider" && (
+                        <>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => openEditReport(report)}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleDeleteReport(report.id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleExportReport(report)}
+                          >
+                            <Download className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleShareReport(report)}
+                          >
+                            <Send className="w-4 h-4" />
+                          </Button>
+                        </>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
