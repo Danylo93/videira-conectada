@@ -44,30 +44,20 @@ export function Auth() {
 
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: window.location.origin,
           data: {
-            name: name,
-          }
-        }
+            name,
+          },
+        },
       });
 
       if (error) throw error;
 
-      if (data.user) {
-        toast({
-          title: "Cadastro realizado!",
-          description: "Verifique seu email para confirmar a conta.",
-        });
-        
-        // Switch to login tab
-        setEmail('');
-        setPassword('');
-        setName('');
-      }
+      await login(email, password);
+      navigate('/');
     } catch (error) {
       toast({
         title: "Erro no cadastro",
@@ -81,37 +71,36 @@ export function Auth() {
 
   // Demo login buttons
   const handleDemoLogin = async (demoEmail: string) => {
-    setEmail(demoEmail);
-    setPassword('123456');
-    
-    // Create demo account if it doesn't exist
-    try {
-      // Try to sign up first (will fail if user exists)
-      await supabase.auth.signUp({
-        email: demoEmail,
-        password: '123456',
-        options: {
-          emailRedirectTo: window.location.origin,
-          data: {
-            name: getDemoName(demoEmail),
-          }
-        }
-      });
-    } catch (error) {
-      // User might already exist, that's fine
-    }
-    
-    // Now try to login
+    setIsLoading(true);
     try {
       await login(demoEmail, '123456');
-      navigate('/');
-    } catch (error) {
-      toast({
-        title: "Erro no login",
-        description: "Erro ao fazer login com conta demo",
-        variant: "destructive",
-      });
+    } catch (_) {
+      try {
+        const { error } = await supabase.auth.signUp({
+          email: demoEmail,
+          password: '123456',
+          options: {
+            data: {
+              name: getDemoName(demoEmail),
+            },
+          },
+        });
+        if (error) throw error;
+        await login(demoEmail, '123456');
+      } catch {
+        toast({
+          title: "Erro no login",
+          description: "Erro ao fazer login com conta demo",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+      }
     }
+
+    await ensureDemoHierarchy();
+    navigate('/');
+    setIsLoading(false);
   };
 
   const getDemoName = (email: string) => {
@@ -122,6 +111,60 @@ export function Auth() {
       'lider@videirasaomiguel.com': 'Líder Ana Costa',
     };
     return names[email as keyof typeof names] || 'Usuário Demo';
+  };
+
+  // Ensure demo users have the correct roles and relationships
+  const ensureDemoHierarchy = async () => {
+    // Fetch demo profiles
+    const { data: pastor } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('email', 'pastor@videirasaomiguel.com')
+      .single();
+
+    const { data: discipulador } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('email', 'discipulador@videirasaomiguel.com')
+      .single();
+
+    const { data: obreiro } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('email', 'obreiro@videirasaomiguel.com')
+      .single();
+
+    const { data: lider } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('email', 'lider@videirasaomiguel.com')
+      .single();
+
+    // Update roles and links
+    if (pastor) {
+      await supabase.from('profiles').update({ role: 'pastor' }).eq('id', pastor.id);
+    }
+
+    if (discipulador && pastor) {
+      await supabase
+        .from('profiles')
+        .update({ role: 'discipulador', pastor_id: pastor.id })
+        .eq('id', discipulador.id);
+    }
+
+    if (obreiro && pastor) {
+      await supabase
+        .from('profiles')
+        .update({ role: 'obreiro', pastor_id: pastor.id })
+        .eq('id', obreiro.id);
+    }
+
+    if (lider && discipulador && pastor) {
+      await supabase
+        .from('profiles')
+        .update({ role: 'lider', discipulador_id: discipulador.id, pastor_id: pastor.id })
+        .eq('id', lider.id);
+    }
   };
 
   return (
@@ -202,7 +245,7 @@ export function Auth() {
                     <Label htmlFor="login-email">Email</Label>
                     <Input
                       id="login-email"
-                      type="email"
+                      type="text"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="seu@email.com"
@@ -253,7 +296,7 @@ export function Auth() {
                     <Label htmlFor="signup-email">Email</Label>
                     <Input
                       id="signup-email"
-                      type="email"
+                      type="text"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="seu@email.com"
