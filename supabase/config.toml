@@ -1,1 +1,4 @@
 project_id = "wkdfeizgfdkkkyatevpc"
+
+[seed]
+file = "seed.sql"
