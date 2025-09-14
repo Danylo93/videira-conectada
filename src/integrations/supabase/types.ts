@@ -309,11 +309,11 @@ export type Database = {
         Row: {
           celula: string | null
           created_at: string
-          discipulador_id: string | null
+          discipulador_uuid: string | null
           email: string
           id: string
           name: string
-          pastor_id: string | null
+          pastor_uuid: string | null
           phone: string | null
           role: Database["public"]["Enums"]["app_role"]
           updated_at: string
@@ -322,11 +322,11 @@ export type Database = {
         Insert: {
           celula?: string | null
           created_at?: string
-          discipulador_id?: string | null
+          discipulador_uuid?: string | null
           email: string
           id?: string
           name: string
-          pastor_id?: string | null
+          pastor_uuid?: string | null
           phone?: string | null
           role: Database["public"]["Enums"]["app_role"]
           updated_at?: string
@@ -335,11 +335,11 @@ export type Database = {
         Update: {
           celula?: string | null
           created_at?: string
-          discipulador_id?: string | null
+          discipulador_uuid?: string | null
           email?: string
           id?: string
           name?: string
-          pastor_id?: string | null
+          pastor_uuid?: string | null
           phone?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           updated_at?: string
@@ -347,15 +347,15 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "profiles_discipulador_id_fkey"
-            columns: ["discipulador_id"]
+            foreignKeyName: "profiles_discipulador_uuid_fkey"
+            columns: ["discipulador_uuid"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "profiles_pastor_id_fkey"
-            columns: ["pastor_id"]
+            foreignKeyName: "profiles_pastor_uuid_fkey"
+            columns: ["pastor_uuid"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]

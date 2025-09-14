@@ -34,8 +34,8 @@ export function LeaderManagement() {
     if (!user) return;
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, name, email, phone, created_at, pastor_id')
-      .eq('discipulador_id', user.id)
+      .select('id, name, email, phone, created_at, pastor_uuid')
+      .eq('discipulador_uuid', user.id)
       .eq('role', 'lider')
       .order('created_at', { ascending: false });
 
@@ -50,7 +50,7 @@ export function LeaderManagement() {
       email: l.email,
       phone: l.phone || undefined,
       discipuladorId: user.id,
-      pastorId: l.pastor_id || undefined,
+      pastorId: l.pastor_uuid || undefined,
       createdAt: new Date(l.created_at),
     }));
     setLeaders(formatted);
@@ -84,34 +84,57 @@ export function LeaderManagement() {
       return;
     }
 
-    const { error: profileError } = await supabaseAdmin
-      .from('profiles')
-      .upsert(
-        {
-          id: authData.user.id,
-          user_id: authData.user.id,
-          name: newLeader.name,
-          email: newLeader.email,
-          phone: newLeader.phone || null,
-          discipulador_id: user.id,
-          pastor_id: user.pastorId || null,
-          role: 'lider',
-        },
-        { onConflict: 'id' }
-      );
+    const profilePayload = {
+      user_id: authData.user.id,
+      name: newLeader.name,
+      email: newLeader.email,
+      phone: newLeader.phone || null,
+      discipulador_uuid: user.id,
+      pastor_uuid: user.pastorId || null,
+      role: 'lider' as const,
+    };
 
-    if (profileError) {
-      console.error('Error updating profile:', profileError);
+    let profileId: string | null = null;
+
+    const { data: insertData, error: insertError } = await supabaseAdmin
+      .from('profiles')
+      .insert(profilePayload)
+      .select('id')
+      .single();
+
+    if (insertError && insertError.code === '23505') {
+      const { data: updateData, error: updateError } = await supabaseAdmin
+        .from('profiles')
+        .update(profilePayload)
+        .eq('user_id', authData.user.id)
+        .select('id')
+        .single();
+
+      if (updateError || !updateData) {
+        console.error('Error updating profile:', updateError);
+        toast({
+          title: 'Erro',
+          description: 'Não foi possível salvar o perfil do líder.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      profileId = updateData.id;
+    } else if (insertError || !insertData) {
+      console.error('Error inserting profile:', insertError);
       toast({
         title: 'Erro',
         description: 'Não foi possível salvar o perfil do líder.',
         variant: 'destructive',
       });
       return;
+    } else {
+      profileId = insertData.id;
     }
 
     const leaderData: Leader = {
-      id: authData.user.id,
+      id: profileId,
       name: newLeader.name,
       email: newLeader.email,
       phone: newLeader.phone || undefined,
@@ -121,6 +144,7 @@ export function LeaderManagement() {
     };
 
     setLeaders([leaderData, ...leaders]);
+    await loadLeaders();
     setIsAddDialogOpen(false);
     setNewLeader({ name: '', email: '', phone: '', password: '' });
     toast({ title: 'Sucesso', description: 'Líder cadastrado com sucesso!' });

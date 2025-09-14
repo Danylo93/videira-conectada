@@ -33,7 +33,7 @@ export function NetworkReports() {
     const { data, error } = await supabase
       .from('profiles')
       .select('id, name, email')
-      .eq('discipulador_id', user.id)
+      .eq('discipulador_uuid', user.id)
       .eq('role', 'lider')
       .order('name');
     if (error) {

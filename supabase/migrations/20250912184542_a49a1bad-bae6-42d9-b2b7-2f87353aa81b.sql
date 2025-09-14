@@ -9,8 +9,8 @@ CREATE TABLE public.profiles (
   email TEXT NOT NULL,
   phone TEXT,
   role app_role NOT NULL,
-  discipulador_id UUID REFERENCES public.profiles(id),
-  pastor_id UUID REFERENCES public.profiles(id),
+  discipulador_uuid UUID REFERENCES public.profiles(id),
+  pastor_uuid UUID REFERENCES public.profiles(id),
   celula TEXT,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
   updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()

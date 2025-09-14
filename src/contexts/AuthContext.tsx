@@ -28,8 +28,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             email: profile.email,
             role: profile.role,
             phone: profile.phone,
-            discipuladorId: profile.discipulador_id,
-            pastorId: profile.pastor_id,
+            discipuladorId: profile.discipulador_uuid,
+            pastorId: profile.pastor_uuid,
             celula: profile.celula,
             createdAt: new Date(profile.created_at),
           };
