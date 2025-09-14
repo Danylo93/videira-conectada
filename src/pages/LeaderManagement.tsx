@@ -84,11 +84,10 @@ export function LeaderManagement() {
       return;
     }
 
-    const { error: profileError } = await supabaseAdmin
+    const { data: profileData, error: profileError } = await supabaseAdmin
       .from('profiles')
       .upsert(
         {
-          id: authData.user.id,
           user_id: authData.user.id,
           name: newLeader.name,
           email: newLeader.email,
@@ -97,10 +96,12 @@ export function LeaderManagement() {
           pastor_uuid: user.pastorId || null,
           role: 'lider',
         },
-        { onConflict: 'id' }
-      );
+        { onConflict: 'user_id' }
+      )
+      .select('id')
+      .single();
 
-    if (profileError) {
+    if (profileError || !profileData) {
       console.error('Error updating profile:', profileError);
       toast({
         title: 'Erro',
@@ -111,7 +112,7 @@ export function LeaderManagement() {
     }
 
     const leaderData: Leader = {
-      id: authData.user.id,
+      id: profileData.id,
       name: newLeader.name,
       email: newLeader.email,
       phone: newLeader.phone || undefined,
