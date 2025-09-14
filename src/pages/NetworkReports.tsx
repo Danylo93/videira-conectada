@@ -415,132 +415,49 @@ export function NetworkReports() {
       </TabsContent>
 
       <TabsContent value="network">
-        <div className="space-y-8">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <h1 className="text-3xl font-bold text-foreground">Relatório da Rede</h1>
-            <div className="flex gap-4">
-              <Select value={chartMode} onValueChange={(v) => setChartMode(v as 'mensal' | 'semanal')}>
-                <SelectTrigger className="w-[150px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="mensal">Mensal</SelectItem>
-                  <SelectItem value="semanal">Semanal</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button size="sm" className="flex items-center gap-1" onClick={handleExportNetwork}>
-                <Download className="w-4 h-4" /> Excel
-              </Button>
-            </div>
-          </div>
+  <div className="space-y-8">
+    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <h1 className="text-3xl font-bold text-foreground">Relatório da Rede</h1>
+      <div className="flex gap-4">
+        <Select value={chartMode} onValueChange={(v) => setChartMode(v as 'mensal' | 'semanal')}>
+          <SelectTrigger className="w-[150px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="mensal">Mensal</SelectItem>
+            <SelectItem value="semanal">Semanal</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button size="sm" className="flex items-center gap-1" onClick={handleExportNetwork}>
+          <Download className="w-4 h-4" /> Excel
+        </Button>
+      </div>
+    </div>
 
-          <Card className="hover:grape-glow transition-smooth">
-            <CardHeader>
-              <CardTitle>Resumo</CardTitle>
-            </CardHeader>
-            <CardContent className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={networkChartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="members" name="Membros" stroke="#8884d8" />
-                  <Line type="monotone" dataKey="frequentadores" name="Frequentadores" stroke="#82ca9d" />
-                </LineChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+    {/* Resumo (gráfico) da Rede */}
+    <Card className="hover:grape-glow transition-smooth">
+      <CardHeader>
+        <CardTitle>Resumo</CardTitle>
+      </CardHeader>
+      <CardContent className="h-[300px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={networkChartData}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="name" />
+            <YAxis />
+            <Tooltip />
+            <Legend />
+            <Line type="monotone" dataKey="members" name="Membros" stroke="#8884d8" />
+            <Line type="monotone" dataKey="frequentadores" name="Frequentadores" stroke="#82ca9d" />
+          </LineChart>
+        </ResponsiveContainer>
+      </CardContent>
+    </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="w-5 h-5 text-primary" /> Relatórios
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {networkReports.length === 0 ? (
-                <div className="text-center py-8">
-                  <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">Nenhum relatório encontrado.</p>
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Semana</TableHead>
-                      <TableHead>Líder</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Fase</TableHead>
-                      <TableHead>Data de Multiplicação</TableHead>
-                      <TableHead>Data de Envio</TableHead>
-                      <TableHead className="text-right">Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {networkReports.map((r) => (
-                      <TableRow key={r.id}>
-                        <TableCell className="font-medium">
-                          {r.weekStart.toLocaleDateString('pt-BR')}
-                        </TableCell>
-                        <TableCell>
-                          {leaders.find((l) => l.id === r.liderId)?.name || r.liderId}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={r.status === 'approved' ? 'default' : r.status === 'needs_correction' ? 'destructive' : 'secondary'}>
-                            {r.status === 'submitted'
-                              ? 'Enviado'
-                              : r.status === 'approved'
-                              ? 'Aprovado'
-                              : r.status === 'needs_correction'
-                              ? 'Correção'
-                              : 'Rascunho'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{r.phase}</TableCell>
-                        <TableCell>
-                          {r.multiplicationDate ? (
-                            <div className="flex items-center gap-1 text-sm">
-                              <Calendar className="w-3 h-3" />
-                              {r.multiplicationDate.toLocaleDateString('pt-BR')}
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1 text-sm">
-                            <Calendar className="w-3 h-3" />
-                            {r.submittedAt.toLocaleDateString('pt-BR')}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right space-x-2">
-                          {r.status === 'submitted' && (
-                            <>
-                              <Button size="sm" className="inline-flex items-center gap-1" onClick={() => handleApprove(r.id)}>
-                                <CheckCircle2 className="w-4 h-4" /> Aprovar
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="secondary"
-                                className="inline-flex items-center gap-1"
-                                onClick={() => handleRequestCorrection(r)}
-                              >
-                                <XCircle className="w-4 h-4" /> Correção
-                              </Button>
-                            </>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </TabsContent>
+    {/* 🔕 Removido: Card com a tabela de Relatórios na visão "Rede" */}
+  </div>
+</TabsContent>
+
     </Tabs>
   );
 }
