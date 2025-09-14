@@ -108,7 +108,7 @@ export function Dashboard() {
             .select("id")
             .eq("role", "lider")
             .eq("discipulador_uuid", user.id);
-          const ids = (leaderIds ?? []).map((l: any) => l.id);
+          const ids = (leaderIds ?? []).map((l: { id: string }) => l.id);
           query = ids.length > 0 ? query.in("lider_id", ids) : query.eq("lider_id", ""); // retorna 0
         }
         const { count } = await query;
@@ -123,7 +123,7 @@ export function Dashboard() {
         .order("date", { ascending: true })
         .limit(2);
       setEvents(
-        (ev ?? []).map((e: any) => ({
+        (ev ?? []).map((e: { id: string | number; title?: string | null; date: string }) => ({
           id: String(e.id),
           title: e.title ?? "Evento",
           date: e.date,
@@ -149,7 +149,7 @@ export function Dashboard() {
           .select("id")
           .eq("role", "lider")
           .eq("discipulador_uuid", user.id);
-        const ids = (leaderIds ?? []).map((l: any) => l.id);
+        const ids = (leaderIds ?? []).map((l: { id: string }) => l.id);
         reportsQuery = ids.length > 0 ? reportsQuery.in("lider_id", ids) : reportsQuery.eq("lider_id", "");
       }
 
