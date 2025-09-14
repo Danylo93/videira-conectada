@@ -156,7 +156,11 @@ export function CellReports() {
         ? new Date(report.multiplication_date)
         : undefined,
       observations: report.observations,
-      status: report.status as "draft" | "submitted" | "approved",
+      status: report.status as
+        | "draft"
+        | "submitted"
+        | "approved"
+        | "needs_correction",
       submittedAt: new Date(report.submitted_at),
     }));
 
@@ -725,13 +729,19 @@ Observações: ${report.observations || ""}`;
                     <TableCell>
                       <Badge
                         variant={
-                          report.status === "approved" ? "default" : "secondary"
+                          report.status === "approved"
+                            ? "default"
+                            : report.status === "needs_correction"
+                            ? "destructive"
+                            : "secondary"
                         }
                       >
                         {report.status === "draft"
                           ? "Rascunho"
                           : report.status === "submitted"
                           ? "Enviado"
+                          : report.status === "needs_correction"
+                          ? "Correção"
                           : "Aprovado"}
                       </Badge>
                     </TableCell>

@@ -30,7 +30,7 @@ export interface CellReport {
   multiplicationDate?: Date;
   observations?: string;
   submittedAt: Date;
-  status: 'draft' | 'submitted' | 'approved';
+  status: 'draft' | 'submitted' | 'approved' | 'needs_correction';
 }
 
 export interface Course {
