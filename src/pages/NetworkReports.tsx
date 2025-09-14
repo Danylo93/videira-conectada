@@ -24,7 +24,7 @@ export function NetworkReports() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (user && user.role === 'discipulador') {
+    if (user && (user.role === 'discipulador' || user.role === 'pastor')) {
       loadLeaders();
     } else {
       setLoading(false);
@@ -33,12 +33,18 @@ export function NetworkReports() {
 
   const loadLeaders = async () => {
     if (!user) return;
-    const { data, error } = await supabase
+    let query = supabase
       .from('profiles')
-      .select('id, name, email')
-      .eq('discipulador_uuid', user.id)
-      .eq('role', 'lider')
-      .order('name');
+      .select('id, name, email, discipulador_uuid')
+      .eq('role', 'lider');
+
+    if (user.role === 'discipulador') {
+      query = query.eq('discipulador_uuid', user.id);
+    } else if (user.role === 'pastor') {
+      query = query.eq('pastor_uuid', user.id);
+    }
+
+    const { data, error } = await query.order('name');
     if (error) {
       console.error('Error loading leaders:', error);
       setLoading(false);
@@ -49,8 +55,8 @@ export function NetworkReports() {
       name: l.name,
       email: l.email || '',
       phone: undefined,
-      discipuladorId: user.id,
-      pastorId: undefined,
+      discipuladorId: l.discipulador_uuid || user.id,
+      pastorId: user.role === 'pastor' ? user.id : undefined,
       createdAt: new Date(),
     }));
     setLeaders(formatted);
@@ -248,10 +254,10 @@ export function NetworkReports() {
     toast({ title: 'Correção solicitada!' });
   };
 
-  if (!user || user.role !== 'discipulador') {
+  if (!user || !['discipulador', 'pastor'].includes(user.role)) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">Acesso restrito para discipuladores.</p>
+        <p className="text-muted-foreground">Acesso restrito para discipuladores e pastores.</p>
       </div>
     );
   }

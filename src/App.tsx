@@ -12,6 +12,7 @@ import { CourseRegistration } from "@/pages/CourseRegistration";
 import { CellReports } from "@/pages/CellReports";
 import { LeaderManagement } from "@/pages/LeaderManagement";
 import { NetworkReports } from "@/pages/NetworkReports";
+import { Statistics } from "@/pages/Statistics";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -71,7 +72,7 @@ function AppContent() {
         <Route path="/relatorios" element={<ReportsRouter />} />
         <Route path="/cursos" element={<CourseRegistration />} />
         <Route path="/eventos" element={<div>Eventos (Em breve)</div>} />
-        <Route path="/estatisticas" element={<div>Estatísticas (Em breve)</div>} />
+        <Route path="/estatisticas" element={<Statistics />} />
         <Route path="/gerenciar" element={<div>Gerenciar Igreja (Em breve)</div>} />
       </Route>
       <Route path="*" element={<NotFound />} />
