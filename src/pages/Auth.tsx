@@ -148,21 +148,21 @@ export function Auth() {
     if (discipulador && pastor) {
       await supabase
         .from('profiles')
-        .update({ role: 'discipulador', pastor_id: pastor.id })
+        .update({ role: 'discipulador', pastor_uuid: pastor.id })
         .eq('id', discipulador.id);
     }
 
     if (obreiro && pastor) {
       await supabase
         .from('profiles')
-        .update({ role: 'obreiro', pastor_id: pastor.id })
+        .update({ role: 'obreiro', pastor_uuid: pastor.id })
         .eq('id', obreiro.id);
     }
 
     if (lider && discipulador && pastor) {
       await supabase
         .from('profiles')
-        .update({ role: 'lider', discipulador_id: discipulador.id, pastor_id: pastor.id })
+        .update({ role: 'lider', discipulador_uuid: discipulador.id, pastor_uuid: pastor.id })
         .eq('id', lider.id);
     }
   };

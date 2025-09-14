@@ -34,8 +34,8 @@ export function LeaderManagement() {
     if (!user) return;
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, name, email, phone, created_at, pastor_id')
-      .eq('discipulador_id', user.id)
+      .select('id, name, email, phone, created_at, pastor_uuid')
+      .eq('discipulador_uuid', user.id)
       .eq('role', 'lider')
       .order('created_at', { ascending: false });
 
@@ -50,7 +50,7 @@ export function LeaderManagement() {
       email: l.email,
       phone: l.phone || undefined,
       discipuladorId: user.id,
-      pastorId: l.pastor_id || undefined,
+      pastorId: l.pastor_uuid || undefined,
       createdAt: new Date(l.created_at),
     }));
     setLeaders(formatted);
@@ -93,8 +93,8 @@ export function LeaderManagement() {
           name: newLeader.name,
           email: newLeader.email,
           phone: newLeader.phone || null,
-          discipulador_id: user.id,
-          pastor_id: user.pastorId || null,
+          discipulador_uuid: user.id,
+          pastor_uuid: user.pastorId || null,
           role: 'lider',
         },
         { onConflict: 'id' }
