@@ -1,5 +1,4 @@
 project_id = "wkdfeizgfdkkkyatevpc"
-project_id = "wkdfeizgfdkkkyatevpc"
 
 [db.seed]
 enabled = true
