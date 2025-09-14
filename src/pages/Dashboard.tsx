@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,8 +15,7 @@ import {
   Plus,
 } from "lucide-react";
 
-type EventItem = { id: string; title: string; date: string };
-
+// Labels para saudação por papel
 const roleGreetings = {
   pastor: "Pastor",
   obreiro: "Obreiro",
@@ -25,12 +23,7 @@ const roleGreetings = {
   lider: "Líder",
 } as const;
 
-function endOfMonth(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
-}
-function startOfMonth(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0);
-}
+// Funções utilitárias de data
 function formatBRLong(d: Date) {
   return d.toLocaleDateString("pt-BR", {
     weekday: "long",
@@ -48,137 +41,155 @@ export function Dashboard() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
 
-  const [membersCount, setMembersCount] = useState<number>(0);
-  const [totalCells, setTotalCells] = useState<number>(0);
-  const [pendingReports, setPendingReports] = useState<number>(0);
-  const [events, setEvents] = useState<EventItem[]>([]);
-
-  // crescimento e média do ano com base nos relatórios (attendance)
+  // Estatísticas que variam conforme o papel
+  const [membersCount, setMembersCount] = useState(0);
+  const [visitorsCount, setVisitorsCount] = useState(0);
+  const [leadersCount, setLeadersCount] = useState(0);
+  const [pendingReports, setPendingReports] = useState(0);
+  const [events, setEvents] = useState<{ id: string; title: string; date: string }[]>([]);
   const [growthPct, setGrowthPct] = useState<number | null>(null);
-  const [currentMonthTotal, setCurrentMonthTotal] = useState<number>(0);
-  const [prevMonthTotal, setPrevMonthTotal] = useState<number>(0);
-  const [annualAvg, setAnnualAvg] = useState<number>(0);
+  const [currentMonthTotal, setCurrentMonthTotal] = useState(0);
+  const [prevMonthTotal, setPrevMonthTotal] = useState(0);
 
   const isLeader = user?.role === "lider";
+  const isDiscipulador = user?.role === "discipulador";
 
   useEffect(() => {
     if (!user) return;
     (async () => {
       setLoading(true);
 
-      // 1) Membros (líder) / Total de Células (demais perfis)
+      // 1) Número de membros/frequentadores ou líderes
       if (isLeader) {
-        const { count } = await supabase
+        // Conta membros ativos (type qualquer) e frequentadores separados
+        const { count: totalMembers } = await supabase
           .from("members")
           .select("id", { count: "exact", head: true })
           .eq("lider_id", user.id)
           .eq("active", true);
-        setMembersCount(count ?? 0);
+        setMembersCount(totalMembers ?? 0);
+
+        const { count: totalVisitors } = await supabase
+          .from("members")
+          .select("id", { count: "exact", head: true })
+          .eq("lider_id", user.id)
+          .eq("active", true)
+          .eq("type", "frequentador");
+        setVisitorsCount(totalVisitors ?? 0);
       } else {
-        const { count } = await supabase
+        // Discipulador: conta líderes da rede; Pastor/Obreiro: todos os líderes
+        let query = supabase
           .from("profiles")
           .select("id", { count: "exact", head: true })
           .eq("role", "lider");
-        setTotalCells(count ?? 0);
+        if (isDiscipulador) {
+          query = query.eq("discipulador_uuid", user.id);
+        }
+        const { count } = await query;
+        setLeadersCount(count ?? 0);
       }
 
-      // 2) Relatórios pendentes no mês atual
-      const now = new Date();
-      const monthStart = startOfMonth(now);
-      const monthEnd = endOfMonth(now);
+      // 2) Relatórios pendentes: correção (líder) ou aprovação (discipulador/pastor/obreiro)
+      if (isLeader) {
+        const { count } = await supabase
+          .from("cell_reports")
+          .select("id", { count: "exact", head: true })
+          .eq("lider_id", user.id)
+          .eq("status", "needs_correction");
+        setPendingReports(count ?? 0);
+      } else {
+        let query = supabase
+          .from("cell_reports")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "submitted");
+        if (isDiscipulador) {
+          const { data: leaderIds } = await supabase
+            .from("profiles")
+            .select("id")
+            .eq("role", "lider")
+            .eq("discipulador_uuid", user.id);
+          const ids = (leaderIds ?? []).map((l: any) => l.id);
+          query = ids.length > 0 ? query.in("lider_id", ids) : query.eq("lider_id", ""); // retorna 0
+        }
+        const { count } = await query;
+        setPendingReports(count ?? 0);
+      }
 
-      const { count: sentCount } = await supabase
-        .from("cell_reports")
-        .select("id", { count: "exact", head: true })
-        .eq("lider_id", user.id)
-        .gte("week_start", monthStart.toISOString())
-        .lte("week_start", monthEnd.toISOString())
-        .in("status", ["submitted", "approved"]);
-
-      const daysInMonth = monthEnd.getDate();
-      const expectedWeeks = daysInMonth >= 29 ? 5 : 4;
-      setPendingReports(Math.max(0, expectedWeeks - (sentCount ?? 0)));
-
-      // 3) Próximos eventos (reais)
+      // 3) Próximos eventos (até dois próximos)
       const { data: ev } = await supabase
         .from("events")
-        .select("*")
+        .select("id,title,date")
         .gte("date", new Date().toISOString())
         .order("date", { ascending: true })
         .limit(2);
       setEvents(
-        (ev ?? []).map((e) => ({
+        (ev ?? []).map((e: any) => ({
           id: String(e.id),
           title: e.title ?? "Evento",
           date: e.date,
         }))
       );
 
-      // 4) Crescimento e Média do Ano (YTD) com UMA query do ano todo
-      const year = now.getFullYear();
-      const yearStart = new Date(year, 0, 1);
-      const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999);
+      // 4) Crescimento: soma de presenças no mês atual vs anterior (líder, rede ou global)
+      const now = new Date();
+      const yearStart = new Date(now.getFullYear(), 0, 1);
+      const yearEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
 
-      let yearQuery = supabase
+      let reportsQuery = supabase
         .from("cell_reports")
-        .select("members_present, visitors_present, week_start, lider_id")
+        .select("members_present,visitors_present,week_start,lider_id")
         .gte("week_start", yearStart.toISOString())
         .lte("week_start", yearEnd.toISOString());
 
       if (isLeader) {
-        yearQuery = yearQuery.eq("lider_id", user.id);
+        reportsQuery = reportsQuery.eq("lider_id", user.id);
+      } else if (isDiscipulador) {
+        const { data: leaderIds } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("role", "lider")
+          .eq("discipulador_uuid", user.id);
+        const ids = (leaderIds ?? []).map((l: any) => l.id);
+        reportsQuery = ids.length > 0 ? reportsQuery.in("lider_id", ids) : reportsQuery.eq("lider_id", "");
       }
-      const { data: yearReports } = await yearQuery;
 
-      // Agrupa por mês (YYYY-MM) somando membros + frequentadores por relatório
-      const monthlyTotals = new Map<string, number>();
+      const { data: yearReports } = await reportsQuery;
+      const monthlyTotals: Record<string, number> = {};
       for (const r of yearReports ?? []) {
-        const d = new Date(r.week_start);
-        const key = monthKeyOf(d);
-        const lenMembers = Array.isArray(r.members_present)
-          ? r.members_present.length
-          : 0;
-        const lenVisitors = Array.isArray(r.visitors_present)
-          ? r.visitors_present.length
-          : 0;
-        const add = lenMembers + lenVisitors;
-        monthlyTotals.set(key, (monthlyTotals.get(key) ?? 0) + add);
+        const date = new Date(r.week_start);
+        const key = monthKeyOf(date);
+        const membersLen = Array.isArray(r.members_present) ? r.members_present.length : 0;
+        const visitorsLen = Array.isArray(r.visitors_present) ? r.visitors_present.length : 0;
+        monthlyTotals[key] = (monthlyTotals[key] ?? 0) + membersLen + visitorsLen;
       }
 
-      // Totais do mês atual e anterior
       const curKey = monthKeyOf(now);
-      const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const prevKey = monthKeyOf(prev);
+      const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const prevKey = monthKeyOf(prevDate);
 
-      const curTotal = monthlyTotals.get(curKey) ?? 0;
-      const prevTotal = monthlyTotals.get(prevKey) ?? 0;
-
+      const curTotal = monthlyTotals[curKey] ?? 0;
+      const prevTotal = monthlyTotals[prevKey] ?? 0;
       setCurrentMonthTotal(curTotal);
       setPrevMonthTotal(prevTotal);
       setGrowthPct(prevTotal > 0 ? ((curTotal - prevTotal) / prevTotal) * 100 : null);
 
-      // Média do ano (YTD) — considera de janeiro até o mês atual, meses sem relatório contam como 0
-      const monthsSoFar = now.getMonth() + 1; // jan = 0
-      let sumYTD = 0;
-      for (let m = 0; m < monthsSoFar; m++) {
-        const key = `${year}-${String(m + 1).padStart(2, "0")}`;
-        sumYTD += monthlyTotals.get(key) ?? 0;
-      }
-      setAnnualAvg(monthsSoFar > 0 ? sumYTD / monthsSoFar : 0);
-
       setLoading(false);
     })();
-  }, [user, isLeader]);
+  }, [user]);
 
   if (!user) return null;
 
-  const greeting = roleGreetings[user.role];
-  const statsPrimaryValue = isLeader ? membersCount : totalCells;
-  const yearNow = new Date().getFullYear();
+  const greeting = roleGreetings[user.role as keyof typeof roleGreetings] ?? "Usuário";
+  const statsPrimaryValue = isLeader ? `${membersCount}` : `${leadersCount}`;
+  const subtitle = isLeader
+    ? `Membros: ${membersCount}  Frequentadores: ${visitorsCount}`
+    : isDiscipulador
+    ? "Contagem de líderes na sua rede"
+    : "Contagem de líderes na igreja";
 
   return (
     <div className="space-y-8 animate-fade-in">
-      {/* Welcome Section */}
+      {/* Saudação */}
       <div className="gradient-primary rounded-xl p-8 text-white relative overflow-hidden">
         <div className="relative z-10">
           <div className="flex items-center gap-4 mb-4">
@@ -198,12 +209,12 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* Quick Stats */}
+      {/* Indicadores */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card className="hover:grape-glow transition-smooth">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              {isLeader ? "Membros da Célula" : "Total de Células"}
+              {isLeader ? "Membros da Célula" : isDiscipulador ? "Líderes da Rede" : "Total de Líderes"}
             </CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -211,34 +222,28 @@ export function Dashboard() {
             <div className="text-2xl font-bold text-primary">
               {loading ? "…" : statsPrimaryValue}
             </div>
-            {isLeader && (
-              <p className="text-xs text-muted-foreground">
-                Contagem real da sua célula
-              </p>
-            )}
+            <p className="text-xs text-muted-foreground">{subtitle}</p>
           </CardContent>
         </Card>
 
         <Card className="hover:grape-glow transition-smooth">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Relatórios Pendentes
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Relatórios Pendentes</CardTitle>
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-primary">
               {loading ? "…" : pendingReports}
             </div>
-            <p className="text-xs text-muted-foreground">Para este mês</p>
+            <p className="text-xs text-muted-foreground">
+              {isLeader ? "Relatórios a corrigir" : "Relatórios aguardando aprovação"}
+            </p>
           </CardContent>
         </Card>
 
         <Card className="hover:grape-glow transition-smooth">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Próximos Eventos
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Próximos Eventos</CardTitle>
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -271,26 +276,16 @@ export function Dashboard() {
                 : `${growthPct >= 0 ? "+" : ""}${Math.round(growthPct)}%`}
             </div>
             <p className="text-xs text-muted-foreground">
-              {growthPct === null
-                ? "Sem dados do mês anterior"
-                : "Variação do mês atual vs. anterior"}
+              {growthPct === null ? "Sem dados do mês anterior" : "Variação do mês atual vs. anterior"}
             </p>
-
-            {/* Média do ano (YTD) */}
-        
-            {/* (opcional) Totais brutos para debug */}
             <p className="text-[11px] text-muted-foreground mt-1">
-              {loading
-                ? ""
-                : `Mês: ${currentMonthTotal}${
-                    growthPct === null ? "" : ` · Mês ant.: ${prevMonthTotal}`
-                  }`}
+              {loading ? "" : `Mês atual: ${currentMonthTotal}${growthPct === null ? "" : ` · Mês ant.: ${prevMonthTotal}`}`}
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Ações Rápidas + Eventos */}
+      {/* Ações rápidas e eventos */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
@@ -305,27 +300,21 @@ export function Dashboard() {
                 <Button
                   className="w-full justify-start"
                   variant="outline"
-                  onClick={() =>
-                    navigate("/relatorios", { state: { openCreate: true } })
-                  }
+                  onClick={() => navigate("/relatorios", { state: { openCreate: true } })}
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   Novo Relatório de Célula
                 </Button>
-
                 <Button
                   className="w-full justify-start"
                   variant="outline"
-                  onClick={() =>
-                    navigate("/celula", { state: { openCreateMember: true } })
-                  }
+                  onClick={() => navigate("/celula", { state: { openCreateMember: true } })}
                 >
                   <Users className="w-4 h-4 mr-2" />
                   Adicionar Membro
                 </Button>
               </>
             )}
-
             {!isLeader && (
               <>
                 <Button
@@ -346,12 +335,7 @@ export function Dashboard() {
                 </Button>
               </>
             )}
-
-            <Button
-              className="w-full justify-start"
-              variant="outline"
-              onClick={() => navigate("/cursos")}
-            >
+            <Button className="w-full justify-start" variant="outline" onClick={() => navigate("/cursos")}>
               <GraduationCap className="w-4 h-4 mr-2" />
               Inscrições em Cursos
             </Button>
@@ -366,17 +350,10 @@ export function Dashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {events.length === 0 && (
-              <p className="text-muted-foreground">Sem eventos futuros.</p>
-            )}
-
+            {events.length === 0 && <p className="text-muted-foreground">Sem eventos futuros.</p>}
             {events.map((e, idx) => (
               <div key={e.id} className="flex items-center gap-3 p-3 bg-muted rounded-lg">
-                <div
-                  className={`w-2 h-8 rounded-full ${
-                    idx % 2 === 0 ? "bg-primary" : "bg-accent"
-                  }`}
-                />
+                <div className={`w-2 h-8 rounded-full ${idx % 2 === 0 ? "bg-primary" : "bg-accent"}`} />
                 <div className="flex-1">
                   <h4 className="font-medium">{e.title}</h4>
                   <p className="text-sm text-muted-foreground">
@@ -389,7 +366,6 @@ export function Dashboard() {
                 </div>
               </div>
             ))}
-
             <Button variant="outline" className="w-full" onClick={() => navigate("/eventos")}>
               Ver Todos os Eventos
             </Button>
