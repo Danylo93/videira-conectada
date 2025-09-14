@@ -11,6 +11,7 @@ import { CellManagement } from "@/pages/CellManagement";
 import { CourseRegistration } from "@/pages/CourseRegistration";
 import { CellReports } from "@/pages/CellReports";
 import { LeaderManagement } from "@/pages/LeaderManagement";
+import { DiscipuladorManagement } from "@/pages/DiscipuladorManagement";
 import { NetworkReports } from "@/pages/NetworkReports";
 import { Statistics } from "@/pages/Statistics";
 import NotFound from "./pages/NotFound";
@@ -69,6 +70,7 @@ function AppContent() {
         <Route path="/" element={<Dashboard />} />
         <Route path="/celula" element={<CellManagement />} />
         <Route path="/lideres" element={<LeaderManagement />} />
+        <Route path="/discipuladores" element={<DiscipuladorManagement />} />
         <Route path="/relatorios" element={<ReportsRouter />} />
         <Route path="/cursos" element={<CourseRegistration />} />
         <Route path="/eventos" element={<div>Eventos (Em breve)</div>} />
