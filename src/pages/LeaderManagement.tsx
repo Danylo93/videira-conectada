@@ -84,35 +84,57 @@ export function LeaderManagement() {
       return;
     }
 
-    const { data: profileData, error: profileError } = await supabaseAdmin
+    const profilePayload = {
+      user_id: authData.user.id,
+      name: newLeader.name,
+      email: newLeader.email,
+      phone: newLeader.phone || null,
+      discipulador_uuid: user.id,
+      pastor_uuid: user.pastorId || null,
+      role: 'lider' as const,
+    };
+
+    let profileId: string | null = null;
+
+    const { data: insertData, error: insertError } = await supabaseAdmin
       .from('profiles')
-      .upsert(
-        {
-          user_id: authData.user.id,
-          name: newLeader.name,
-          email: newLeader.email,
-          phone: newLeader.phone || null,
-          discipulador_uuid: user.id,
-          pastor_uuid: user.pastorId || null,
-          role: 'lider',
-        },
-        { onConflict: 'user_id' }
-      )
+      .insert(profilePayload)
       .select('id')
       .single();
 
-    if (profileError || !profileData) {
-      console.error('Error updating profile:', profileError);
+    if (insertError && insertError.code === '23505') {
+      const { data: updateData, error: updateError } = await supabaseAdmin
+        .from('profiles')
+        .update(profilePayload)
+        .eq('user_id', authData.user.id)
+        .select('id')
+        .single();
+
+      if (updateError || !updateData) {
+        console.error('Error updating profile:', updateError);
+        toast({
+          title: 'Erro',
+          description: 'Não foi possível salvar o perfil do líder.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      profileId = updateData.id;
+    } else if (insertError || !insertData) {
+      console.error('Error inserting profile:', insertError);
       toast({
         title: 'Erro',
         description: 'Não foi possível salvar o perfil do líder.',
         variant: 'destructive',
       });
       return;
+    } else {
+      profileId = insertData.id;
     }
 
     const leaderData: Leader = {
-      id: profileData.id,
+      id: profileId,
       name: newLeader.name,
       email: newLeader.email,
       phone: newLeader.phone || undefined,
@@ -122,6 +144,7 @@ export function LeaderManagement() {
     };
 
     setLeaders([leaderData, ...leaders]);
+    await loadLeaders();
     setIsAddDialogOpen(false);
     setNewLeader({ name: '', email: '', phone: '', password: '' });
     toast({ title: 'Sucesso', description: 'Líder cadastrado com sucesso!' });
