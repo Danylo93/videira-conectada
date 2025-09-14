@@ -8,6 +8,15 @@ export interface Leader {
   createdAt: Date;
 }
 
+export interface Discipulador {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  pastorId: string;
+  createdAt: Date;
+}
+
 export interface Member {
   id: string;
   name: string;
