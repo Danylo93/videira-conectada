@@ -14,6 +14,7 @@ import { LeaderManagement } from "@/pages/LeaderManagement";
 import { DiscipuladorManagement } from "@/pages/DiscipuladorManagement";
 import { NetworkReports } from "@/pages/NetworkReports";
 import { Statistics } from "@/pages/Statistics";
+import { ChurchManagement } from "@/pages/ChurchManagement";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -75,7 +76,7 @@ function AppContent() {
         <Route path="/cursos" element={<CourseRegistration />} />
         <Route path="/eventos" element={<div>Eventos (Em breve)</div>} />
         <Route path="/estatisticas" element={<Statistics />} />
-        <Route path="/gerenciar" element={<div>Gerenciar Igreja (Em breve)</div>} />
+        <Route path="/gerenciar" element={<ChurchManagement />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>
