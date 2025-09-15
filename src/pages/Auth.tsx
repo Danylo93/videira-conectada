@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import type { AuthTransition } from '@/types/auth';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +10,7 @@ import { Grape, Loader2 } from 'lucide-react';
 
 import { useDelayedLoading } from '@/hooks/useDelayedLoading';
 import FancyLoader from '@/components/FancyLoader';
+import { AuthTransition } from '@/types/auth';
 
 type AuthLoaderCopy = {
   message: string;
@@ -49,7 +49,7 @@ export function Auth() {
   const [bootReady, setBootReady] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { login, authTransition } = useAuth();
+  const { login, authTransition} = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -79,7 +79,7 @@ export function Auth() {
   };
 
   if (showLoader) {
-    const loader = AUTH_LOADER_COPY[authTransition] ?? AUTH_LOADER_COPY.initial;
+   const loader = AUTH_LOADER_COPY[authTransition] ?? AUTH_LOADER_COPY.initial;
     return <FancyLoader message={loader.message} tips={loader.tips} />;
   }
 

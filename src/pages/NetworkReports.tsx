@@ -27,16 +27,52 @@ export function NetworkReports() {
   const [chartMode, setChartMode] = useState<'mensal' | 'semanal'>('mensal');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (user && (user.role === 'discipulador' || user.role === 'pastor')) {
-      if (user.role === 'pastor') {
-        void loadDiscipuladores();
+  const loadReportsForLeaders = useCallback(
+    async (
+      leaderIds: string[],
+      setter: React.Dispatch<React.SetStateAction<CellReportType[]>>
+    ) => {
+      if (leaderIds.length === 0) {
+        setter([]);
+        return;
       }
-      void loadLeaders();
-    } else {
-      setLoading(false);
-    }
-  }, [user, loadDiscipuladores, loadLeaders]);
+      const { data, error } = await supabase
+        .from('cell_reports')
+        .select('*')
+        .in('lider_id', leaderIds)
+        .order('week_start', { ascending: true });
+      if (error) {
+        console.error('Error loading network reports:', error);
+        return;
+      }
+      const formatted: CellReportType[] = (data || []).map((r) => ({
+        id: r.id,
+        liderId: r.lider_id,
+        weekStart: new Date(r.week_start),
+        members: (r.members_present || []).map((id: string) => ({
+          id,
+          name: id,
+          type: 'member',
+          liderId: r.lider_id,
+          joinDate: new Date(),
+          active: true,
+        })),
+        frequentadores: (r.visitors_present || []).map((id: string) => ({
+          id,
+          name: id,
+          type: 'frequentador',
+          liderId: r.lider_id,
+          joinDate: new Date(),
+          active: true,
+        })),
+        phase: r.phase as 'Comunhão' | 'Edificação' | 'Evangelismo' | 'Multiplicação' | undefined,
+        multiplicationDate: r.multiplication_date ? new Date(r.multiplication_date) : undefined,
+        observations: r.observations || undefined,
+        submittedAt: new Date(r.submitted_at),
+        status: r.status as 'draft' | 'submitted' | 'approved' | 'needs_correction',
+      }));
+      setter(formatted);
+    }, []);
 
   const loadDiscipuladores = useCallback(async () => {
     if (!user) return;
@@ -100,19 +136,15 @@ export function NetworkReports() {
   }, [user, loadReportsForLeaders]);
 
   useEffect(() => {
-    if (selectedLeader) {
-      void loadReports();
+    if (user && (user.role === 'discipulador' || user.role === 'pastor')) {
+      if (user.role === 'pastor') {
+        void loadDiscipuladores();
+      }
+      void loadLeaders();
+    } else {
+      setLoading(false);
     }
-  }, [selectedLeader, loadReports]);
-
-  useEffect(() => {
-    if (user?.role === 'pastor' && selectedDiscipulador) {
-      const leaderIds = leaders
-        .filter((l) => l.discipuladorId === selectedDiscipulador)
-        .map((l) => l.id);
-      void loadReportsForLeaders(leaderIds, setNetworkReports);
-    }
-  }, [selectedDiscipulador, leaders, user, loadReportsForLeaders]);
+  }, [user, loadDiscipuladores, loadLeaders]);
 
   const loadReports = useCallback(async () => {
     const { data, error } = await supabase
@@ -153,52 +185,20 @@ export function NetworkReports() {
     setReports(formatted);
   }, [selectedLeader]);
 
-  const loadReportsForLeaders = useCallback(
-    async (
-      leaderIds: string[],
-      setter: React.Dispatch<React.SetStateAction<CellReportType[]>>
-    ) => {
-      if (leaderIds.length === 0) {
-        setter([]);
-        return;
-      }
-    const { data, error } = await supabase
-      .from('cell_reports')
-      .select('*')
-      .in('lider_id', leaderIds)
-      .order('week_start', { ascending: true });
-    if (error) {
-      console.error('Error loading network reports:', error);
-      return;
+  useEffect(() => {
+    if (selectedLeader) {
+      void loadReports();
     }
-    const formatted: CellReportType[] = (data || []).map((r) => ({
-      id: r.id,
-      liderId: r.lider_id,
-      weekStart: new Date(r.week_start),
-      members: (r.members_present || []).map((id: string) => ({
-        id,
-        name: id,
-        type: 'member',
-        liderId: r.lider_id,
-        joinDate: new Date(),
-        active: true,
-      })),
-      frequentadores: (r.visitors_present || []).map((id: string) => ({
-        id,
-        name: id,
-        type: 'frequentador',
-        liderId: r.lider_id,
-        joinDate: new Date(),
-        active: true,
-      })),
-      phase: r.phase as 'Comunhão' | 'Edificação' | 'Evangelismo' | 'Multiplicação' | undefined,
-      multiplicationDate: r.multiplication_date ? new Date(r.multiplication_date) : undefined,
-      observations: r.observations || undefined,
-      submittedAt: new Date(r.submitted_at),
-      status: r.status as 'draft' | 'submitted' | 'approved' | 'needs_correction',
-    }));
-    setter(formatted);
-  }, []);
+  }, [selectedLeader, loadReports]);
+
+  useEffect(() => {
+    if (user?.role === 'pastor' && selectedDiscipulador) {
+      const leaderIds = leaders
+        .filter((l) => l.discipuladorId === selectedDiscipulador)
+        .map((l) => l.id);
+      void loadReportsForLeaders(leaderIds, setNetworkReports);
+    }
+  }, [selectedDiscipulador, leaders, user, loadReportsForLeaders]);
 
   const chartData = useMemo(() => {
     if (chartMode === 'mensal') {

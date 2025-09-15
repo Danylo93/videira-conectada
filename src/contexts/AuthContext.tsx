@@ -3,6 +3,42 @@ import { Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { User, AuthState, AuthTransition } from '@/types/auth';
 
+import { useDelayedLoading } from '@/hooks/useDelayedLoading';
+import FancyLoader from '@/components/FancyLoader';
+
+type AuthLoaderCopy = {
+  message: string;
+  tips: string[];
+};
+
+const AUTH_LOADER_COPY: Record<AuthTransition, AuthLoaderCopy> = {
+  initial: {
+    message: 'Aquecendo o coração da Videira',
+    tips: [
+      'Conferindo se o seu login está no rol dos santos digitais…',
+      'Chamando Gabriel pra guardar a senha…',
+      'Espremendo uvas fresquinhas pra sessão começar!',
+    ],
+  },
+  login: {
+    message: 'Conferindo os pergaminhos do seu acesso',
+    tips: [
+      'Girando as chaves de Pedro pra abrir a porta certa…',
+      'Procurando o selo real com o seu nome carimbado…',
+      'Mandando um aleluia pro servidor antes de liberar a entrada…',
+    ],
+  },
+  logout: {
+    message: 'Recolhendo as cadeiras da célula com carinho',
+    tips: [
+      'Guardando o cajado do líder até a próxima batalha…',
+      'Encerrando o culto digital com bênção apostólica…',
+      'Lustrando o cálice pra quando você voltar sedento…',
+    ],
+  },
+};
+
+
 const AuthContext = createContext<AuthState | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -12,6 +48,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const handleSession = async (currentSession: Session | null) => {
+     
+
       if (currentSession?.user) {
         const { data: profile } = await supabase
           .from('profiles')
@@ -38,7 +76,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       setLoading(false);
-
       setAuthTransition(prev => {
         if (currentSession?.user) {
           return prev === 'login' ? 'initial' : prev;
@@ -63,10 +100,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string) => {
-    setAuthTransition('login');
     setLoading(true);
-
-    const { error } = await supabase.auth.signInWithPassword({
+    
+   const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -76,13 +112,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setAuthTransition('initial');
       throw new Error(error.message);
     }
+    
+    setLoading(false);
     // The onAuthStateChange callback will handle setting the user
   };
 
   const logout = async () => {
     setAuthTransition('logout');
     setLoading(true);
-
     const { error } = await supabase.auth.signOut();
     if (error) {
       setLoading(false);
@@ -98,7 +135,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     login,
     logout,
     loading,
-    authTransition,
+    authTransition
   };
 
   return (

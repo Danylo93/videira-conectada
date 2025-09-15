@@ -26,6 +26,8 @@ import { Auth } from "./pages/Auth";
 // CURSOS
 import Courses from "./pages/cursos/Courses";          // <-- roteador (Pastor/Discipulador/Líder)
 import CourseAdmin from "./pages/cursos/CourseAdmin";  // <-- admin do Pastor (rota separada /admin-cursos)
+import type { AuthTransition } from "@/types/auth";
+import { ReactNode, useEffect, useState } from "react";
 
 const queryClient = new QueryClient();
 
@@ -98,23 +100,28 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
   const { isAuthenticated, loading, authTransition } = useAuth();
   const [loaderCopy, setLoaderCopy] = useState<LoaderCopy>(PROTECTED_LOADER_COPY.initial);
 
+
   useEffect(() => {
     if (loading) {
       setLoaderCopy(PROTECTED_LOADER_COPY[authTransition] ?? PROTECTED_LOADER_COPY.initial);
     }
   }, [authTransition, loading]);
+    
+    const showLoader = useDelayedLoading(!loading, 2600);
+    if (showLoader) {
+
 
   // mostra o loader até a auth terminar + garante um tempo mínimo pra animação
-  const showLoader = useDelayedLoading(!loading, 2600);
-  if (showLoader) {
-    return <FancyLoader message={loaderCopy.message} tips={loaderCopy.tips} />;
-  }
-
+  return <FancyLoader message={loaderCopy.message} tips={loaderCopy.tips} />;
+    }
   return isAuthenticated ? <>{children}</> : <Navigate to="/auth" replace />;
 }
 
-function PublicRoute({ children }: { children: ReactNode }) {
-  const { isAuthenticated, loading, authTransition } = useAuth();
+
+function PublicRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, loading,authTransition } = useAuth();
+
+
 
   // mesmo esquema aqui pra deixar a transição suave
   const showLoader = useDelayedLoading(!loading, 1200);
