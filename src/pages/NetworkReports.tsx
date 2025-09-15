@@ -200,71 +200,166 @@ export function NetworkReports() {
 
   const chartData = useMemo(() => {
     if (chartMode === 'mensal') {
-      const groups: Record<string, { members: number; frequentadores: number }> = {};
+      const groups: Record<string, { members: number; frequentadores: number; count: number }> = {};
       reports.forEach((r) => {
-        const key = `${r.weekStart.getFullYear()}-${r.weekStart.getMonth() + 1}`;
+        const key = `${r.weekStart.getFullYear()}-${String(r.weekStart.getMonth() + 1).padStart(2, '0')}`;
         if (!groups[key]) {
-          groups[key] = { members: 0, frequentadores: 0 };
+          groups[key] = { members: 0, frequentadores: 0, count: 0 };
         }
         groups[key].members += r.members.length;
         groups[key].frequentadores += r.frequentadores.length;
+        groups[key].count += 1;
       });
-      return Object.entries(groups).map(([key, value]) => {
-        const [year, month] = key.split('-');
-        return { name: `${month}/${year}`, ...value };
-      });
+      return Object.entries(groups)
+        .sort((a, b) => new Date(`${a[0]}-01`).getTime() - new Date(`${b[0]}-01`).getTime())
+        .map(([key, value]) => {
+          const [year, month] = key.split('-');
+          return {
+            name: `${month}/${year}`,
+            members: Math.round(value.members / value.count),
+            frequentadores: Math.round(value.frequentadores / value.count),
+          };
+        });
     }
-    return reports.map((r) => ({
-      name: r.weekStart.toLocaleDateString('pt-BR'),
-      members: r.members.length,
-      frequentadores: r.frequentadores.length,
-    }));
+
+    const weeklyGroups: Record<string, { start: Date; members: number; frequentadores: number; count: number }> = {};
+    reports.forEach((r) => {
+      const key = r.weekStart.toISOString().split('T')[0];
+      if (!weeklyGroups[key]) {
+        weeklyGroups[key] = { start: r.weekStart, members: 0, frequentadores: 0, count: 0 };
+      }
+      weeklyGroups[key].members += r.members.length;
+      weeklyGroups[key].frequentadores += r.frequentadores.length;
+      weeklyGroups[key].count += 1;
+    });
+
+    return Object.values(weeklyGroups)
+      .sort((a, b) => a.start.getTime() - b.start.getTime())
+      .map((w) => ({
+        name: w.start.toLocaleDateString('pt-BR'),
+        members: Math.round(w.members / w.count),
+        frequentadores: Math.round(w.frequentadores / w.count),
+      }));
   }, [reports, chartMode]);
 
   const networkChartData = useMemo(() => {
     if (chartMode === 'mensal') {
-      const groups: Record<string, { members: number; frequentadores: number }> = {};
+      const groups: Record<string, Record<string, { members: number; frequentadores: number; count: number }>> = {};
       networkReports.forEach((r) => {
-        const key = `${r.weekStart.getFullYear()}-${r.weekStart.getMonth() + 1}`;
-        if (!groups[key]) {
-          groups[key] = { members: 0, frequentadores: 0 };
+        const monthKey = `${r.weekStart.getFullYear()}-${String(r.weekStart.getMonth() + 1).padStart(2, '0')}`;
+        if (!groups[monthKey]) {
+          groups[monthKey] = {};
         }
-        groups[key].members += r.members.length;
-        groups[key].frequentadores += r.frequentadores.length;
+        if (!groups[monthKey][r.liderId]) {
+          groups[monthKey][r.liderId] = { members: 0, frequentadores: 0, count: 0 };
+        }
+        groups[monthKey][r.liderId].members += r.members.length;
+        groups[monthKey][r.liderId].frequentadores += r.frequentadores.length;
+        groups[monthKey][r.liderId].count += 1;
       });
-      return Object.entries(groups).map(([key, value]) => {
-        const [year, month] = key.split('-');
-        return { name: `${month}/${year}`, ...value };
-      });
+      return Object.entries(groups)
+        .sort((a, b) => new Date(`${a[0]}-01`).getTime() - new Date(`${b[0]}-01`).getTime())
+        .map(([key, leadersData]) => {
+          const [year, month] = key.split('-');
+          let members = 0;
+          let frequentadores = 0;
+          Object.values(leadersData).forEach((l) => {
+            members += Math.round(l.members / l.count);
+            frequentadores += Math.round(l.frequentadores / l.count);
+          });
+          return { name: `${month}/${year}`, members, frequentadores };
+        });
     }
-    return networkReports.map((r) => ({
-      name: r.weekStart.toLocaleDateString('pt-BR'),
-      members: r.members.length,
-      frequentadores: r.frequentadores.length,
-    }));
+
+    const weeklyGroups: Record<string, Record<string, { start: Date; members: number; frequentadores: number; count: number }>> = {};
+    networkReports.forEach((r) => {
+      const weekKey = r.weekStart.toISOString().split('T')[0];
+      if (!weeklyGroups[weekKey]) {
+        weeklyGroups[weekKey] = {};
+      }
+      if (!weeklyGroups[weekKey][r.liderId]) {
+        weeklyGroups[weekKey][r.liderId] = { start: r.weekStart, members: 0, frequentadores: 0, count: 0 };
+      }
+      weeklyGroups[weekKey][r.liderId].members += r.members.length;
+      weeklyGroups[weekKey][r.liderId].frequentadores += r.frequentadores.length;
+      weeklyGroups[weekKey][r.liderId].count += 1;
+    });
+
+    return Object.entries(weeklyGroups)
+      .sort((a, b) => a[1][Object.keys(a[1])[0]].start.getTime() - b[1][Object.keys(b[1])[0]].start.getTime())
+      .map(([key, leadersData]) => {
+        let members = 0;
+        let frequentadores = 0;
+        Object.values(leadersData).forEach((l) => {
+          members += Math.round(l.members / l.count);
+          frequentadores += Math.round(l.frequentadores / l.count);
+        });
+        return {
+          name: new Date(key).toLocaleDateString('pt-BR'),
+          members,
+          frequentadores,
+        };
+      });
   }, [networkReports, chartMode]);
 
   const churchChartData = useMemo(() => {
     if (chartMode === 'mensal') {
-      const groups: Record<string, { members: number; frequentadores: number }> = {};
+      const groups: Record<string, Record<string, { members: number; frequentadores: number; count: number }>> = {};
       churchReports.forEach((r) => {
-        const key = `${r.weekStart.getFullYear()}-${r.weekStart.getMonth() + 1}`;
-        if (!groups[key]) {
-          groups[key] = { members: 0, frequentadores: 0 };
+        const monthKey = `${r.weekStart.getFullYear()}-${String(r.weekStart.getMonth() + 1).padStart(2, '0')}`;
+        if (!groups[monthKey]) {
+          groups[monthKey] = {};
         }
-        groups[key].members += r.members.length;
-        groups[key].frequentadores += r.frequentadores.length;
+        if (!groups[monthKey][r.liderId]) {
+          groups[monthKey][r.liderId] = { members: 0, frequentadores: 0, count: 0 };
+        }
+        groups[monthKey][r.liderId].members += r.members.length;
+        groups[monthKey][r.liderId].frequentadores += r.frequentadores.length;
+        groups[monthKey][r.liderId].count += 1;
       });
-      return Object.entries(groups).map(([key, value]) => {
-        const [year, month] = key.split('-');
-        return { name: `${month}/${year}`, ...value };
-      });
+      return Object.entries(groups)
+        .sort((a, b) => new Date(`${a[0]}-01`).getTime() - new Date(`${b[0]}-01`).getTime())
+        .map(([key, leadersData]) => {
+          const [year, month] = key.split('-');
+          let members = 0;
+          let frequentadores = 0;
+          Object.values(leadersData).forEach((l) => {
+            members += Math.round(l.members / l.count);
+            frequentadores += Math.round(l.frequentadores / l.count);
+          });
+          return { name: `${month}/${year}`, members, frequentadores };
+        });
     }
-    return churchReports.map((r) => ({
-      name: r.weekStart.toLocaleDateString('pt-BR'),
-      members: r.members.length,
-      frequentadores: r.frequentadores.length,
-    }));
+
+    const weeklyGroups: Record<string, Record<string, { start: Date; members: number; frequentadores: number; count: number }>> = {};
+    churchReports.forEach((r) => {
+      const weekKey = r.weekStart.toISOString().split('T')[0];
+      if (!weeklyGroups[weekKey]) {
+        weeklyGroups[weekKey] = {};
+      }
+      if (!weeklyGroups[weekKey][r.liderId]) {
+        weeklyGroups[weekKey][r.liderId] = { start: r.weekStart, members: 0, frequentadores: 0, count: 0 };
+      }
+      weeklyGroups[weekKey][r.liderId].members += r.members.length;
+      weeklyGroups[weekKey][r.liderId].frequentadores += r.frequentadores.length;
+      weeklyGroups[weekKey][r.liderId].count += 1;
+    });
+
+    return Object.entries(weeklyGroups)
+      .sort((a, b) => a[1][Object.keys(a[1])[0]].start.getTime() - b[1][Object.keys(b[1])[0]].start.getTime())
+      .map(([key, leadersData]) => {
+        let members = 0;
+        let frequentadores = 0;
+        Object.values(leadersData).forEach((l) => {
+          members += Math.round(l.members / l.count);
+          frequentadores += Math.round(l.frequentadores / l.count);
+        });
+        return {
+          name: new Date(key).toLocaleDateString('pt-BR'),
+          members,
+          frequentadores,
+        };
+      });
   }, [churchReports, chartMode]);
 
   const handleExportChurch = () => {
