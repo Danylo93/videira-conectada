@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import FancyLoader from "@/components/FancyLoader";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import {
   Church,
   Grape,
   Plus,
+  type LucideIcon,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -169,8 +171,9 @@ export function Dashboard() {
         .gte("date", new Date().toISOString())
         .order("date", { ascending: true })
         .limit(2);
+      type EventRow = { id: string | number; title?: string | null; date: string };
       setEvents(
-        (ev ?? []).map((e: any) => ({ id: String(e.id), title: e.title ?? "Evento", date: e.date }))
+        ((ev as EventRow[] | null) ?? []).map((e) => ({ id: String(e.id), title: e.title ?? "Evento", date: e.date }))
       );
 
       /* ---- CRESCIMENTO + MENSAL ---- */
@@ -199,7 +202,13 @@ export function Dashboard() {
       const { data: yearReports } = await reportsQuery;
 
       const monthly = new Map<string, { members: number; visitors: number; total: number }>();
-      (yearReports ?? []).forEach((r: any) => {
+      type ReportRow = {
+        week_start: string;
+        members_present: string[] | null;
+        visitors_present: string[] | null;
+      };
+
+      ((yearReports as ReportRow[] | null) ?? []).forEach((r) => {
         const d = new Date(r.week_start);
         const key = monthKeyOf(d);
         const m = Array.isArray(r.members_present) ? r.members_present.length : 0;
@@ -228,7 +237,7 @@ export function Dashboard() {
 
       setLoading(false);
     })();
-  }, [user]);
+  }, [user, isLeader, isDiscipulador, isPastor]);
 
   const greeting = roleGreetings[user?.role as keyof typeof roleGreetings] ?? "Usuário";
 
@@ -245,7 +254,7 @@ export function Dashboard() {
     title: string;
     value: string | number;
     subtitle?: string;
-    icon: any;
+    icon: LucideIcon;
   }) => (
     <Card className="hover:grape-glow transition-smooth">
       <CardHeader className="pb-1 flex flex-row items-center justify-between">
@@ -261,8 +270,21 @@ export function Dashboard() {
 
   if (!user) return null;
 
+  if (loading) {
+    return (
+      <FancyLoader
+        message="Preparando o panorama da sua rede"
+        tips={[
+          "Organizando as tábuas dos relatórios como Moisés na montanha…",
+          "Contando ovelhas uma a uma pra não fugir nenhuma…",
+          "Afiando a espada de Gideão contra os atrasos de dados…",
+        ]}
+      />
+    );
+  }
+
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in pb-12">
       {/* Saudação */}
       <div className="gradient-primary rounded-xl p-6 md:p-8 text-white relative overflow-hidden">
         <div className="relative z-10">

@@ -12,10 +12,13 @@ export interface User {
   createdAt: Date;
 }
 
+export type AuthTransition = 'initial' | 'login' | 'logout';
+
 export interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   loading: boolean;
+  authTransition: AuthTransition;
 }

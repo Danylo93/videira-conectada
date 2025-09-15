@@ -19,14 +19,14 @@ type Lesson = { id: string; subject_id: string; class_date: string };
 type Attendance = { id: string; lesson_id: string; registration_id: string; present: boolean };
 
 const tips = [
-  "“O obreiro é digno do seu salário.” (Lc 10:7)",
-  "“Tudo com decência e ordem.” (1Co 14:40)",
+  "Organizando a sala da rede como Neemias com as muralhas…",
+  "Separando as apostilas e afinando o violão do louvor…",
+  "Abençoando cada líder com café quentinho e Palavra viva…",
 ];
 
 export default function CoursesDiscipulador() {
   const { user } = useAuth();
   const { toast } = useToast();
-  if (!user) return null;
 
   const [loading, setLoading] = useState(true);
 
@@ -41,6 +41,10 @@ export default function CoursesDiscipulador() {
   const [newLessonDate, setNewLessonDate] = useState<string>("");
 
   useEffect(() => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
     let mounted = true;
     (async () => {
       setLoading(true);
@@ -51,12 +55,12 @@ export default function CoursesDiscipulador() {
       setLoading(false);
     })();
     return () => { mounted = false; };
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
-      if (!courseId) {
+      if (!courseId || !user) {
         setRegistrations([]); setSubjects([]); setLessons([]); setAttendance([]);
         return;
       }
@@ -82,19 +86,19 @@ export default function CoursesDiscipulador() {
       ]);
 
       if (!mounted) return;
-      setRegistrations((regs ?? []) as any);
-      setSubjects((subs ?? []) as any);
+      setRegistrations((regs ?? []).map((item) => item as Registration));
+      setSubjects((subs ?? []).map((item) => item as Subject));
       setSubjectId("");
       setLessons([]); setAttendance([]);
       setLoading(false);
     })();
     return () => { mounted = false; };
-  }, [courseId, user.id]);
+  }, [courseId, user]);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
-      if (!subjectId) { setLessons([]); setAttendance([]); return; }
+      if (!subjectId || !user) { setLessons([]); setAttendance([]); return; }
       setLoading(true);
       const { data: les } = await supabase
         .from("course_lessons")
@@ -113,12 +117,12 @@ export default function CoursesDiscipulador() {
       }
 
       if (!mounted) return;
-      setLessons(les ?? []);
-      setAttendance(att);
+      setLessons((les ?? []).map((lesson) => lesson as Lesson));
+      setAttendance(att.map((item) => item as Attendance));
       setLoading(false);
     })();
     return () => { mounted = false; };
-  }, [subjectId]);
+  }, [subjectId, user]);
 
   const attendanceMatrix = useMemo(() => {
     const map = new Map<string, Record<string, boolean>>();
@@ -156,7 +160,7 @@ export default function CoursesDiscipulador() {
         .select()
         .single();
       if (error) return toast({ title: "Erro", description: "Falha ao lançar presença.", variant: "destructive" });
-      setAttendance((prev) => [...prev, data as any]);
+      setAttendance((prev) => [...prev, data as Attendance]);
     }
   };
 
@@ -173,19 +177,29 @@ export default function CoursesDiscipulador() {
     setLessons(les ?? []);
   };
 
-  if (loading) return <FancyLoader message="Carregando cursos da sua rede…" tips={tips} />;
+  if (!user) {
+    return null;
+  }
+
+  if (loading)
+    return (
+      <FancyLoader
+        message="Ajeitando os cursos da sua rede"
+        tips={tips}
+      />
+    );
 
   return (
-    <div className="space-y-8 animate-fade-in">
-      <div className="flex flex-col md:flex-row md:items-end gap-4">
+    <div className="space-y-8 animate-fade-in pb-12">
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div className="flex-1">
-          <h1 className="text-3xl font-bold">Cursos — Discipulador</h1>
-          <p className="text-muted-foreground">Acompanhe e marque presenças da sua rede</p>
+          <h1 className="text-2xl md:text-3xl font-bold">Cursos — Discipulador</h1>
+          <p className="text-sm md:text-base text-muted-foreground">Acompanhe e marque presenças da sua rede</p>
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
           <Select value={courseId} onValueChange={(v) => setCourseId(v)}>
-            <SelectTrigger className="w-[260px]"><SelectValue placeholder="Selecione o curso" /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-[260px]"><SelectValue placeholder="Selecione o curso" /></SelectTrigger>
             <SelectContent>
               {courses.map((c) => (<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>))}
             </SelectContent>
@@ -193,7 +207,7 @@ export default function CoursesDiscipulador() {
 
           {courseId && (
             <Select value={subjectId} onValueChange={setSubjectId}>
-              <SelectTrigger className="w-[260px]"><SelectValue placeholder="Matéria" /></SelectTrigger>
+              <SelectTrigger className="w-full sm:w-[260px]"><SelectValue placeholder="Matéria" /></SelectTrigger>
               <SelectContent>
                 {subjects.map((s) => (<SelectItem key={s.id} value={s.id}>{s.title}</SelectItem>))}
               </SelectContent>
@@ -220,8 +234,8 @@ export default function CoursesDiscipulador() {
               ) : !subjectId || lessons.length === 0 ? (
                 <p className="text-muted-foreground">Escolha uma matéria para ver as aulas e faltas.</p>
               ) : (
-                <div className="overflow-auto">
-                  <Table>
+                <div className="overflow-x-auto">
+                  <Table className="min-w-[720px]">
                     <TableHeader>
                       <TableRow>
                         <TableHead>Aluno</TableHead>
@@ -276,8 +290,8 @@ export default function CoursesDiscipulador() {
               {lessons.length === 0 ? (
                 <p className="text-muted-foreground">Nenhuma aula cadastrada para esta matéria.</p>
               ) : (
-                <div className="overflow-auto">
-                  <Table>
+                <div className="overflow-x-auto">
+                  <Table className="min-w-[720px]">
                     <TableHeader>
                       <TableRow>
                         <TableHead>Aluno</TableHead>
