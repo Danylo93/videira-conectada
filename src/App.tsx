@@ -16,6 +16,7 @@ import { DiscipuladorManagement } from "@/pages/DiscipuladorManagement";
 import { CellReports } from "@/pages/CellReports";
 import { NetworkReports } from "@/pages/NetworkReports";
 import { Statistics } from "@/pages/Statistics";
+import { ChurchManagement } from "@/pages/ChurchManagement";
 import NotFound from "./pages/NotFound";
 
 import FancyLoader from "./components/FancyLoader";
@@ -163,7 +164,7 @@ function AppContent() {
         <Route path="/admin-cursos" element={<CourseAdmin />} />  {/* <- admin do Pastor direto */}
         <Route path="/eventos" element={<div>Eventos (Em breve)</div>} />
         <Route path="/estatisticas" element={<Statistics />} />
-        <Route path="/gerenciar" element={<div>Gerenciar Igreja (Em breve)</div>} />
+        <Route path="/gerenciar" element={<ChurchManagement />} />
       </Route>
 
       {/* 404 */}
