@@ -151,7 +151,7 @@ export function DiscipuladorManagement() {
   return (
     <div className="space-y-8 animate-fade-in">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-foreground">Meus Discipuladores</h1>
+        <h1 className="text-3xl font-bold text-foreground">Discipuladores</h1>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
             <Button className="gradient-primary">

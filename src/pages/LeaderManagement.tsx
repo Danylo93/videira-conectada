@@ -153,7 +153,7 @@ export function LeaderManagement() {
   return (
     <div className="space-y-8 animate-fade-in">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-foreground">Meus Líderes</h1>
+        <h1 className="text-3xl font-bold text-foreground">Líderes</h1>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
             <Button className="gradient-primary">

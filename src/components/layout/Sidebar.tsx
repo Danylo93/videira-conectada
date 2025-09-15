@@ -45,13 +45,13 @@ const navigationItems: NavigationItem[] = [
     roles: ['lider'],
   },
   {
-    title: 'Meus Líderes',
+    title: 'Líderes',
     url: '/lideres',
     icon: Users,
     roles: ['discipulador'],
   },
   {
-    title: 'Meus Discipuladores',
+    title: 'Discipuladores',
     url: '/discipuladores',
     icon: Users,
     roles: ['pastor'],
