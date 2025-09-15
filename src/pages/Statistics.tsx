@@ -19,7 +19,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
-import { Grape } from 'lucide-react';
+import FancyLoader from '@/components/FancyLoader';
 import { CellReport as CellReportType } from '@/types/church';
 
 interface SimpleUser {
@@ -38,56 +38,6 @@ function linearRegressionForecast(values: number[]): number | null {
   const intercept = sumY / n - slope * (sumX / n);
   const nextX = n + 1;
   return Math.round(intercept + slope * nextX);
-}
-
-/** Overlay de carregamento interativo (bloqueia cliques) */
-function LoadingOverlay({ tip }: { tip?: string }) {
-  const tips = [
-    'Espremendo uvas…',
-    'Organizando as células…',
-    'Contando membros…',
-    'Aquecendo o coração ❤️‍🔥…',
-    'Alinhando relatórios…',
-  ];
-  const safeTip = tip ?? tips[Math.floor((Date.now() / 1000) % tips.length)];
-
-  return (
-    <div
-      className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center pointer-events-auto"
-      role="alert"
-      aria-busy="true"
-      aria-live="polite"
-    >
-      <div className="relative w-[90%] max-w-sm rounded-2xl border bg-card shadow-xl p-6 text-center">
-        <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-primary to-fuchsia-600 flex items-center justify-center shadow-lg animate-pulse">
-          <Grape className="w-8 h-8 text-white" />
-        </div>
-
-        <div className="mt-4 text-sm text-muted-foreground">{safeTip}</div>
-
-        {/* Pontinhos pulando */}
-        <div className="mt-3 flex items-center justify-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-primary/80 animate-bounce [animation-delay:-0.3s]" />
-          <span className="w-2 h-2 rounded-full bg-primary/80 animate-bounce [animation-delay:-0.15s]" />
-          <span className="w-2 h-2 rounded-full bg-primary/80 animate-bounce" />
-        </div>
-
-        {/* Barra de progresso falsa só pra vibe */}
-        <div className="mt-5 h-2 w-full bg-muted rounded-full overflow-hidden">
-          <div className="h-full w-1/3 bg-gradient-to-r from-primary to-fuchsia-600 animate-[loading_1.2s_ease-in-out_infinite]" />
-        </div>
-
-        {/* keyframes inline via Tailwind arbitrary value */}
-        <style>{`
-          @keyframes loading {
-            0%   { transform: translateX(-100%); }
-            50%  { transform: translateX(50%);   }
-            100% { transform: translateX(200%);  }
-          }
-        `}</style>
-      </div>
-    </div>
-  );
 }
 
 export function Statistics() {
@@ -269,22 +219,31 @@ export function Statistics() {
     );
   }
 
+  if (loading) {
+    return (
+      <FancyLoader
+        message="Interpretando os números do Reino"
+        tips={[
+          'Afiando a pena dos escribas para escrever o relatório…',
+          'Contando os peixinhos multiplicados nas células…',
+          'Pedindo sabedoria a Salomão para ler os gráficos…',
+        ]}
+      />
+    );
+  }
+
   const totalPeople = membersCount + visitorsCount;
 
   return (
-    <div className="space-y-8 animate-fade-in relative">
-      {/* Overlay bloqueador */}
-      {loading && <LoadingOverlay />}
-
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <h1 className="text-3xl font-bold text-foreground">Estatísticas</h1>
-        <div className="flex flex-col md:flex-row gap-4">
+    <div className="space-y-10 animate-fade-in pb-16">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <h1 className="text-2xl md:text-3xl font-bold text-foreground">Estatísticas</h1>
+        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
           <Select
             value={filterType}
             onValueChange={(v: 'geral' | 'discipulador' | 'lider') => setFilterType(v)}
-            disabled={loading}
           >
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full sm:w-[200px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -300,9 +259,8 @@ export function Statistics() {
             <Select
               value={selectedDiscipulador}
               onValueChange={setSelectedDiscipulador}
-              disabled={loading}
             >
-              <SelectTrigger className="w-[200px]">
+              <SelectTrigger className="w-full sm:w-[220px]">
                 <SelectValue placeholder="Selecione" />
               </SelectTrigger>
               <SelectContent>
@@ -319,9 +277,8 @@ export function Statistics() {
             <Select
               value={selectedLeader}
               onValueChange={setSelectedLeader}
-              disabled={loading}
             >
-              <SelectTrigger className="w-[200px]">
+              <SelectTrigger className="w-full sm:w-[220px]">
                 <SelectValue placeholder="Selecione" />
               </SelectTrigger>
               <SelectContent>
@@ -334,8 +291,8 @@ export function Statistics() {
             </Select>
           )}
 
-          <Select value={chartMode} onValueChange={(v: 'mensal' | 'semanal') => setChartMode(v)} disabled={loading}>
-            <SelectTrigger className="w-[150px]">
+          <Select value={chartMode} onValueChange={(v: 'mensal' | 'semanal') => setChartMode(v)}>
+            <SelectTrigger className="w-full sm:w-[180px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -365,7 +322,7 @@ export function Statistics() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
         <Card className="hover:grape-glow transition-smooth">
           <CardHeader>
             <CardTitle>Membros</CardTitle>

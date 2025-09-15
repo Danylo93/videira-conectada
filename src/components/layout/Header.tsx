@@ -30,20 +30,20 @@ export function Header() {
     .toUpperCase();
 
   return (
-    <header className="h-16 border-b bg-card flex items-center justify-between px-6">
-      <div className="flex items-center gap-4">
+    <header className="h-16 border-b bg-card flex items-center justify-between px-4 sm:px-6">
+      <div className="flex items-center gap-3 sm:gap-4">
         <SidebarTrigger />
         <div>
-          <h1 className="text-lg font-semibold text-foreground">
+          <h1 className="text-base sm:text-lg font-semibold text-foreground">
             Sistema Videira São Miguel
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs sm:text-sm text-muted-foreground">
             {roleNames[user.role]} - {user.name}
           </p>
         </div>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 sm:gap-4">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-10 w-10 rounded-full">

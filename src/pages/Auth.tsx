@@ -46,7 +46,16 @@ export function Auth() {
   };
 
   if (showLoader) {
-    return <FancyLoader tip="Sincronizando com o servidor…" />;
+    return (
+      <FancyLoader
+        message="Aquecendo o coração da Videira"
+        tips={[
+          "Conferindo se o seu login está no rol dos santos digitais…",
+          "Chamando Gabriel pra guardar a senha…",
+          "Espremendo uvas fresquinhas pra sessão começar!",
+        ]}
+      />
+    );
   }
 
   return (

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { supabaseAdmin } from '@/integrations/supabase/admin';
@@ -11,11 +11,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Users, Plus, Phone, Mail } from 'lucide-react';
 import { Discipulador } from '@/types/church';
+import FancyLoader from '@/components/FancyLoader';
 
 export function DiscipuladorManagement() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [discipuladores, setDiscipuladores] = useState<Discipulador[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newDiscipulador, setNewDiscipulador] = useState({
     name: '',
@@ -24,14 +26,12 @@ export function DiscipuladorManagement() {
     password: '',
   });
 
-  useEffect(() => {
-    if (user && user.role === 'pastor') {
-      loadDiscipuladores();
+  const loadDiscipuladores = useCallback(async () => {
+    if (!user) {
+      setLoading(false);
+      return;
     }
-  }, [user]);
-
-  const loadDiscipuladores = async () => {
-    if (!user) return;
+    setLoading(true);
     const { data, error } = await supabase
       .from('profiles')
       .select('id, name, email, phone, created_at')
@@ -41,6 +41,7 @@ export function DiscipuladorManagement() {
 
     if (error) {
       console.error('Error loading discipuladores:', error);
+      setLoading(false);
       return;
     }
 
@@ -53,13 +54,35 @@ export function DiscipuladorManagement() {
       createdAt: new Date(d.created_at),
     }));
     setDiscipuladores(formatted);
-  };
+    setLoading(false);
+  }, [user]);
+
+  useEffect(() => {
+    if (user && user.role === 'pastor') {
+      void loadDiscipuladores();
+    } else {
+      setLoading(false);
+    }
+  }, [user, loadDiscipuladores]);
 
   if (!user || user.role !== 'pastor') {
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground">Acesso restrito para pastores.</p>
       </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <FancyLoader
+        message="Reunindo discipuladores frutíferos"
+        tips={[
+          'Afinando os instrumentos da orquestra pastoral…',
+          'Separando os melhores cachos da Videira…',
+          'Chamando Barnabé pra animar a tropa…',
+        ]}
+      />
     );
   }
 
@@ -149,9 +172,9 @@ export function DiscipuladorManagement() {
   };
 
   return (
-    <div className="space-y-8 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-foreground">Discipuladores</h1>
+    <div className="space-y-8 animate-fade-in pb-12">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-2xl md:text-3xl font-bold text-foreground">Discipuladores</h1>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
             <Button className="gradient-primary">
@@ -159,7 +182,7 @@ export function DiscipuladorManagement() {
               Novo Discipulador
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Adicionar Discipulador</DialogTitle>
             </DialogHeader>
@@ -213,13 +236,13 @@ export function DiscipuladorManagement() {
             Lista de Discipuladores
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <Table>
+        <CardContent className="overflow-x-auto">
+          <Table className="min-w-[640px]">
             <TableHeader>
               <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Telefone</TableHead>
+                <TableHead className="min-w-[200px]">Nome</TableHead>
+                <TableHead className="min-w-[220px]">Email</TableHead>
+                <TableHead className="min-w-[160px]">Telefone</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

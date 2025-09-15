@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,6 +52,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Member, CellReport as CellReportType } from "@/types/church";
 import * as XLSX from "xlsx";
+import FancyLoader from "@/components/FancyLoader";
 
 export function CellReports() {
   const { user } = useAuth();
@@ -212,18 +213,21 @@ export function CellReports() {
   }, [reports]);
 
   // "10/agosto/25"
-  const fmtPtWeekPart = (d: Date) => {
+  const fmtPtWeekPart = useCallback((d: Date) => {
     const dia = String(d.getDate()).padStart(2, "0");
     const mes = d.toLocaleDateString("pt-BR", { month: "long" });
     const ano2 = String(d.getFullYear()).slice(-2);
     return `${dia}/${mes}/${ano2}`;
-  };
+  }, []);
 
-  const weekLabel = (start: Date) => {
-    const end = new Date(start);
-    end.setDate(end.getDate() + 6);
-    return `${fmtPtWeekPart(start)} - ${fmtPtWeekPart(end)}`;
-  };
+  const weekLabel = useCallback(
+    (start: Date) => {
+      const end = new Date(start);
+      end.setDate(end.getDate() + 6);
+      return `${fmtPtWeekPart(start)} - ${fmtPtWeekPart(end)}`;
+    },
+    [fmtPtWeekPart],
+  );
 
   // dados semanais (média por semana)
   const weeklyChartData = useMemo(() => {
@@ -250,7 +254,7 @@ export function CellReports() {
         members: Math.round(w.members / w.count),
         frequentadores: Math.round(w.frequentadores / w.count),
       }));
-  }, [reports]);
+  }, [reports, weekLabel]);
 
   const chartData = chartMode === "mensal" ? monthlyChartData : weeklyChartData;
   const xKey = chartMode === "mensal" ? "monthLabel" : "weekLabel";
@@ -266,9 +270,14 @@ export function CellReports() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
+      <FancyLoader
+        message="Folheando os diários da sua célula"
+        tips={[
+          "Contando quantos peixinhos chegaram na última reunião…",
+          "Separando pãozinho fresco pros visitantes…",
+          "Polindo a armadura da célula pro próximo encontro…",
+        ]}
+      />
     );
   }
 
@@ -423,13 +432,13 @@ Observações: ${report.observations || ""}`;
 
   // ---- UI ------------------------------------------------------------------
   return (
-    <div className="space-y-8 animate-fade-in">
-      <div className="flex items-center justify-between">
+    <div className="space-y-10 animate-fade-in pb-16">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground">
             Relatórios de Célula
           </h1>
-          <p className="text-muted-foreground">{user.celula}</p>
+          <p className="text-sm md:text-base text-muted-foreground">{user.celula}</p>
         </div>
 
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
@@ -439,7 +448,7 @@ Observações: ${report.observations || ""}`;
               Novo Relatório
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
             <DialogHeader>
               <DialogTitle>Criar Novo Relatório</DialogTitle>
             </DialogHeader>
@@ -549,7 +558,7 @@ Observações: ${report.observations || ""}`;
     if (!open) setEditingReport(null);
   }}
 >
-  <DialogContent>
+  <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
     <DialogHeader>
       <DialogTitle>Editar Relatório</DialogTitle>
     </DialogHeader>
@@ -664,13 +673,13 @@ Observações: ${report.observations || ""}`;
       </div>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>
+        <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <CardTitle className="text-xl">
             Presença {chartMode === "mensal" ? "Mensal" : "Semanal"}
           </CardTitle>
 
           <Select value={chartMode} onValueChange={(v) => setChartMode(v as 'mensal' | 'semanal')}>
-            <SelectTrigger className="w-[140px]">
+            <SelectTrigger className="w-full md:w-[160px]">
               <SelectValue placeholder="Mensal" />
             </SelectTrigger>
             <SelectContent>
@@ -726,22 +735,22 @@ Observações: ${report.observations || ""}`;
             Histórico de Relatórios
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="overflow-x-auto">
           {reports.length === 0 ? (
             <div className="text-center py-8">
               <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
               <p className="text-muted-foreground">Nenhum relatório criado ainda.</p>
             </div>
           ) : (
-            <Table>
+            <Table className="min-w-[820px]">
               <TableHeader>
                 <TableRow>
-                  <TableHead>Semana</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Fase</TableHead>
-                  <TableHead>Data de Multiplicação</TableHead>
-                  <TableHead>Data de Envio</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
+                  <TableHead className="min-w-[140px]">Semana</TableHead>
+                  <TableHead className="min-w-[130px]">Status</TableHead>
+                  <TableHead className="min-w-[140px]">Fase</TableHead>
+                  <TableHead className="min-w-[200px]">Data de Multiplicação</TableHead>
+                  <TableHead className="min-w-[170px]">Data de Envio</TableHead>
+                  <TableHead className="min-w-[200px] text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -786,35 +795,41 @@ Observações: ${report.observations || ""}`;
                         {report.submittedAt.toLocaleDateString("pt-BR")}
                       </div>
                     </TableCell>
-                    <TableCell className="text-right space-x-2">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => openEditReport(report)}
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => handleDeleteReport(report.id)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => handleExportReport(report)}
-                      >
-                        <Download className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => handleShareReport(report)}
-                      >
-                        <Send className="w-4 h-4" />
-                      </Button>
+                    <TableCell className="text-right">
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => openEditReport(report)}
+                          aria-label="Editar relatório"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => handleDeleteReport(report.id)}
+                          aria-label="Excluir relatório"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => handleExportReport(report)}
+                          aria-label="Exportar relatório"
+                        >
+                          <Download className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => handleShareReport(report)}
+                          aria-label="Compartilhar relatório"
+                        >
+                          <Send className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

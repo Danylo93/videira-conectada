@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,6 +12,7 @@ import { FileText, Calendar, CheckCircle2, XCircle, Download } from 'lucide-reac
 import * as XLSX from 'xlsx';
 import { Leader, Discipulador, CellReport as CellReportType } from '@/types/church';
 import { useToast } from '@/hooks/use-toast';
+import FancyLoader from '@/components/FancyLoader';
 
 export function NetworkReports() {
   const { user } = useAuth();
@@ -29,15 +30,15 @@ export function NetworkReports() {
   useEffect(() => {
     if (user && (user.role === 'discipulador' || user.role === 'pastor')) {
       if (user.role === 'pastor') {
-        loadDiscipuladores();
+        void loadDiscipuladores();
       }
-      loadLeaders();
+      void loadLeaders();
     } else {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, loadDiscipuladores, loadLeaders]);
 
-  const loadDiscipuladores = async () => {
+  const loadDiscipuladores = useCallback(async () => {
     if (!user) return;
     const { data, error } = await supabase
       .from('profiles')
@@ -60,9 +61,9 @@ export function NetworkReports() {
       createdAt: new Date(d.created_at),
     }));
     setDiscipuladores(formatted);
-  };
+  }, [user]);
 
-  const loadLeaders = async () => {
+  const loadLeaders = useCallback(async () => {
     if (!user) return;
     let query = supabase
       .from('profiles')
@@ -96,24 +97,24 @@ export function NetworkReports() {
       user.role === 'pastor' ? setChurchReports : setNetworkReports
     );
     setLoading(false);
-  };
+  }, [user, loadReportsForLeaders]);
 
   useEffect(() => {
     if (selectedLeader) {
-      loadReports();
+      void loadReports();
     }
-  }, [selectedLeader]);
+  }, [selectedLeader, loadReports]);
 
   useEffect(() => {
     if (user?.role === 'pastor' && selectedDiscipulador) {
       const leaderIds = leaders
         .filter((l) => l.discipuladorId === selectedDiscipulador)
         .map((l) => l.id);
-      loadReportsForLeaders(leaderIds, setNetworkReports);
+      void loadReportsForLeaders(leaderIds, setNetworkReports);
     }
-  }, [selectedDiscipulador, leaders, user]);
+  }, [selectedDiscipulador, leaders, user, loadReportsForLeaders]);
 
-  const loadReports = async () => {
+  const loadReports = useCallback(async () => {
     const { data, error } = await supabase
       .from('cell_reports')
       .select('*')
@@ -150,16 +151,17 @@ export function NetworkReports() {
       status: r.status as 'draft' | 'submitted' | 'approved' | 'needs_correction',
     }));
     setReports(formatted);
-  };
+  }, [selectedLeader]);
 
-  const loadReportsForLeaders = async (
-    leaderIds: string[],
-    setter: React.Dispatch<React.SetStateAction<CellReportType[]>>
-  ) => {
-    if (leaderIds.length === 0) {
-      setter([]);
-      return;
-    }
+  const loadReportsForLeaders = useCallback(
+    async (
+      leaderIds: string[],
+      setter: React.Dispatch<React.SetStateAction<CellReportType[]>>
+    ) => {
+      if (leaderIds.length === 0) {
+        setter([]);
+        return;
+      }
     const { data, error } = await supabase
       .from('cell_reports')
       .select('*')
@@ -196,7 +198,7 @@ export function NetworkReports() {
       status: r.status as 'draft' | 'submitted' | 'approved' | 'needs_correction',
     }));
     setter(formatted);
-  };
+  }, []);
 
   const chartData = useMemo(() => {
     if (chartMode === 'mensal') {
@@ -450,9 +452,14 @@ export function NetworkReports() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
+      <FancyLoader
+        message="Conectando as redes da Videira"
+        tips={[
+          'Chamando cada líder pelo nome, como Jesus fez com os discípulos…',
+          'Organizando rolos e pergaminhos dos relatórios…',
+          'Acendendo tochas pra iluminar os dados da sua rede…',
+        ]}
+      />
     );
   }
   if (user.role === 'pastor') {
@@ -465,11 +472,11 @@ export function NetworkReports() {
 
         <TabsContent value="church">
           <div className="space-y-8">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <h1 className="text-3xl font-bold text-foreground">Relatório da Igreja</h1>
-              <div className="flex gap-4">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <h1 className="text-2xl md:text-3xl font-bold text-foreground">Relatório da Igreja</h1>
+              <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
                 <Select value={chartMode} onValueChange={(v) => setChartMode(v as 'mensal' | 'semanal')}>
-                  <SelectTrigger className="w-[150px]">
+                  <SelectTrigger className="w-full sm:w-[200px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -477,7 +484,11 @@ export function NetworkReports() {
                     <SelectItem value="semanal">Semanal</SelectItem>
                   </SelectContent>
                 </Select>
-                <Button size="sm" className="flex items-center gap-1" onClick={handleExportChurch}>
+                <Button
+                  size="sm"
+                  className="flex items-center justify-center gap-1 sm:w-auto"
+                  onClick={handleExportChurch}
+                >
                   <Download className="w-4 h-4" /> Excel
                 </Button>
               </div>
@@ -509,23 +520,23 @@ export function NetworkReports() {
                   Relatórios
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="overflow-x-auto">
                 {churchReports.length === 0 ? (
                   <div className="text-center py-8">
                     <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                     <p className="text-muted-foreground">Nenhum relatório encontrado.</p>
                   </div>
                 ) : (
-                  <Table>
+                  <Table className="min-w-[880px]">
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Líder</TableHead>
-                        <TableHead>Semana</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Fase</TableHead>
-                        <TableHead>Data de Multiplicação</TableHead>
-                        <TableHead>Data de Envio</TableHead>
-                        <TableHead className="text-right">Ações</TableHead>
+                        <TableHead className="min-w-[200px]">Líder</TableHead>
+                        <TableHead className="min-w-[130px]">Semana</TableHead>
+                        <TableHead className="min-w-[120px]">Status</TableHead>
+                        <TableHead className="min-w-[130px]">Fase</TableHead>
+                        <TableHead className="min-w-[200px]">Data de Multiplicação</TableHead>
+                        <TableHead className="min-w-[180px]">Data de Envio</TableHead>
+                        <TableHead className="min-w-[220px] text-right">Ações</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -563,10 +574,14 @@ export function NetworkReports() {
                               {r.submittedAt.toLocaleDateString('pt-BR')}
                             </div>
                           </TableCell>
-                          <TableCell className="text-right space-x-2">
+                          <TableCell className="text-right">
                             {r.status === 'submitted' && (
-                              <>
-                                <Button size="sm" className="inline-flex items-center gap-1" onClick={() => handleApprove(r.id)}>
+                              <div className="flex flex-col items-end gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+                                <Button
+                                  size="sm"
+                                  className="inline-flex items-center gap-1"
+                                  onClick={() => handleApprove(r.id)}
+                                >
                                   <CheckCircle2 className="w-4 h-4" /> Aprovar
                                 </Button>
                                 <Button
@@ -577,7 +592,7 @@ export function NetworkReports() {
                                 >
                                   <XCircle className="w-4 h-4" /> Correção
                                 </Button>
-                              </>
+                              </div>
                             )}
                           </TableCell>
                         </TableRow>
@@ -592,11 +607,11 @@ export function NetworkReports() {
 
         <TabsContent value="networks">
           <div className="space-y-8">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <h1 className="text-3xl font-bold text-foreground">Relatórios das Redes</h1>
-              <div className="flex gap-4">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <h1 className="text-2xl md:text-3xl font-bold text-foreground">Relatórios das Redes</h1>
+              <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
                 <Select value={selectedDiscipulador} onValueChange={setSelectedDiscipulador}>
-                  <SelectTrigger className="w-[200px]">
+                  <SelectTrigger className="w-full sm:w-[220px]">
                     <SelectValue placeholder="Selecione um discipulador" />
                   </SelectTrigger>
                   <SelectContent>
@@ -608,7 +623,7 @@ export function NetworkReports() {
                   </SelectContent>
                 </Select>
                 <Select value={chartMode} onValueChange={(v) => setChartMode(v as 'mensal' | 'semanal')}>
-                  <SelectTrigger className="w-[150px]">
+                  <SelectTrigger className="w-full sm:w-[180px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -617,7 +632,11 @@ export function NetworkReports() {
                   </SelectContent>
                 </Select>
                 {selectedDiscipulador && (
-                  <Button size="sm" className="flex items-center gap-1" onClick={handleExportNetwork}>
+                  <Button
+                    size="sm"
+                    className="flex items-center justify-center gap-1 sm:w-auto"
+                    onClick={handleExportNetwork}
+                  >
                     <Download className="w-4 h-4" /> Excel
                   </Button>
                 )}
@@ -652,23 +671,23 @@ export function NetworkReports() {
                       Relatórios
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="overflow-x-auto">
                     {networkReports.length === 0 ? (
                       <div className="text-center py-8">
                         <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                         <p className="text-muted-foreground">Nenhum relatório encontrado.</p>
                       </div>
                     ) : (
-                      <Table>
+                      <Table className="min-w-[880px]">
                         <TableHeader>
                           <TableRow>
-                            <TableHead>Líder</TableHead>
-                            <TableHead>Semana</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Fase</TableHead>
-                            <TableHead>Data de Multiplicação</TableHead>
-                            <TableHead>Data de Envio</TableHead>
-                            <TableHead className="text-right">Ações</TableHead>
+                            <TableHead className="min-w-[200px]">Líder</TableHead>
+                            <TableHead className="min-w-[130px]">Semana</TableHead>
+                            <TableHead className="min-w-[120px]">Status</TableHead>
+                            <TableHead className="min-w-[130px]">Fase</TableHead>
+                            <TableHead className="min-w-[200px]">Data de Multiplicação</TableHead>
+                            <TableHead className="min-w-[180px]">Data de Envio</TableHead>
+                            <TableHead className="min-w-[220px] text-right">Ações</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -706,23 +725,27 @@ export function NetworkReports() {
                                   {r.submittedAt.toLocaleDateString('pt-BR')}
                                 </div>
                               </TableCell>
-                              <TableCell className="text-right space-x-2">
-                                {r.status === 'submitted' && (
-                                  <>
-                                    <Button size="sm" className="inline-flex items-center gap-1" onClick={() => handleApprove(r.id)}>
-                                      <CheckCircle2 className="w-4 h-4" /> Aprovar
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="secondary"
-                                      className="inline-flex items-center gap-1"
-                                      onClick={() => handleRequestCorrection(r)}
-                                    >
-                                      <XCircle className="w-4 h-4" /> Correção
-                                    </Button>
-                                  </>
-                                )}
-                              </TableCell>
+                            <TableCell className="text-right">
+                              {r.status === 'submitted' && (
+                                <div className="flex flex-col items-end gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+                                  <Button
+                                    size="sm"
+                                    className="inline-flex items-center gap-1"
+                                    onClick={() => handleApprove(r.id)}
+                                  >
+                                    <CheckCircle2 className="w-4 h-4" /> Aprovar
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    className="inline-flex items-center gap-1"
+                                    onClick={() => handleRequestCorrection(r)}
+                                  >
+                                    <XCircle className="w-4 h-4" /> Correção
+                                  </Button>
+                                </div>
+                              )}
+                            </TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -747,11 +770,11 @@ export function NetworkReports() {
 
       <TabsContent value="leader">
         <div className="space-y-8">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <h1 className="text-3xl font-bold text-foreground">Relatórios dos Líderes</h1>
-            <div className="flex gap-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <h1 className="text-2xl md:text-3xl font-bold text-foreground">Relatórios dos Líderes</h1>
+            <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
               <Select value={selectedLeader} onValueChange={setSelectedLeader}>
-                <SelectTrigger className="w-[200px]">
+                <SelectTrigger className="w-full sm:w-[220px]">
                   <SelectValue placeholder="Selecione um líder" />
                 </SelectTrigger>
                 <SelectContent>
@@ -763,7 +786,7 @@ export function NetworkReports() {
                 </SelectContent>
               </Select>
               <Select value={chartMode} onValueChange={(v) => setChartMode(v as 'mensal' | 'semanal')}>
-                <SelectTrigger className="w-[150px]">
+                <SelectTrigger className="w-full sm:w-[180px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -807,22 +830,22 @@ export function NetworkReports() {
                     Relatórios
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="overflow-x-auto">
                   {reports.length === 0 ? (
                     <div className="text-center py-8">
                       <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                       <p className="text-muted-foreground">Nenhum relatório encontrado.</p>
                     </div>
                   ) : (
-                    <Table>
+                    <Table className="min-w-[760px]">
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Semana</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Fase</TableHead>
-                          <TableHead>Data de Multiplicação</TableHead>
-                          <TableHead>Data de Envio</TableHead>
-                          <TableHead className="text-right">Ações</TableHead>
+                          <TableHead className="min-w-[140px]">Semana</TableHead>
+                          <TableHead className="min-w-[120px]">Status</TableHead>
+                          <TableHead className="min-w-[130px]">Fase</TableHead>
+                          <TableHead className="min-w-[200px]">Data de Multiplicação</TableHead>
+                          <TableHead className="min-w-[170px]">Data de Envio</TableHead>
+                          <TableHead className="min-w-[200px] text-right">Ações</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -859,10 +882,14 @@ export function NetworkReports() {
                                 {r.submittedAt.toLocaleDateString('pt-BR')}
                               </div>
                             </TableCell>
-                            <TableCell className="text-right space-x-2">
+                            <TableCell className="text-right">
                               {r.status === 'submitted' && (
-                                <>
-                                  <Button size="sm" className="inline-flex items-center gap-1" onClick={() => handleApprove(r.id)}>
+                                <div className="flex flex-col items-end gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+                                  <Button
+                                    size="sm"
+                                    className="inline-flex items-center gap-1"
+                                    onClick={() => handleApprove(r.id)}
+                                  >
                                     <CheckCircle2 className="w-4 h-4" /> Aprovar
                                   </Button>
                                   <Button
@@ -873,7 +900,7 @@ export function NetworkReports() {
                                   >
                                     <XCircle className="w-4 h-4" /> Correção
                                   </Button>
-                                </>
+                                </div>
                               )}
                             </TableCell>
                           </TableRow>

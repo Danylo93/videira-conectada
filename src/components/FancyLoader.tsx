@@ -13,8 +13,8 @@ export default function FancyLoader({
     tips.length > 0 ? tips[Math.floor(Date.now() / 3000) % tips.length] : "";
 
   return (
-    <div className="fixed inset-0 z-[60] grid place-items-center bg-gradient-to-br from-background via-background to-primary/10">
-      <div className="relative w-full max-w-sm px-6 py-8 rounded-2xl border bg-background/80 backdrop-blur shadow-[0_0_40px_-10px_theme(colors.primary/50%)]">
+    <div className="fixed inset-0 z-[60] grid place-items-center bg-gradient-to-br from-background via-background to-primary/10 px-4">
+      <div className="relative w-full max-w-sm px-6 py-8 rounded-2xl border bg-background/85 backdrop-blur shadow-[0_0_40px_-10px_theme(colors.primary/50%)]">
         {/* orbit animation */}
         <div className="absolute -top-8 left-1/2 -translate-x-1/2">
           <div className="relative w-20 h-20">

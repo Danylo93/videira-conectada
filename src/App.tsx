@@ -41,11 +41,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   if (showLoader) {
     return (
       <FancyLoader
-        message="Carregando dados…"
+        message="Colhendo os frutos do seu painel"
         tips={[
-          "Conferindo conexões…",
-          "Atualizando informações…",
-          "Organizando a visualização…",
+          "Azeitando as engrenagens do templo digital…",
+          "Conferindo se o maná dos relatórios já caiu…",
+          "Separando pão e peixe pra alimentar os gráficos…",
         ]}
       />
     );
@@ -62,11 +62,11 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   if (showLoader) {
     return (
       <FancyLoader
-        message="Preparando a entrada…"
+        message="Abrindo os portões da Videira"
         tips={[
-          "Verificando suas credenciais…",
-          "Abençoando a sessão 🙌",
-          "Quase lá…",
+          "Conferindo seu nome no Livro da Vida digital…",
+          "Polindo o cálice da sessão 🙌",
+          "Chamando os levitas da autenticação…",
         ]}
       />
     );

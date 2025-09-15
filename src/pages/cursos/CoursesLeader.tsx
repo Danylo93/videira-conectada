@@ -24,17 +24,14 @@ type Lesson = { id: string; subject_id: string; class_date: string };
 type Attendance = { id: string; lesson_id: string; registration_id: string; present: boolean };
 
 const tips = [
-  "“Ensina a criança no caminho…” (Pv 22:6)",
-  "“Fazei tudo com decência e ordem.” (1Co 14:40)",
-  "“Sede prontos para ouvir.” (Tg 1:19)",
+  "Separando os rolos do curso como Esdras na praça…",
+  "Conferindo se todo mundo trouxe o caderninho de Atos…",
+  "Preparando café e pãozinho para a célula dos estudos…",
 ];
 
 export default function CoursesLeader() {
   const { user } = useAuth();
   const { toast } = useToast();
-
-  // guards
-  if (!user) return null;
 
   const [loading, setLoading] = useState(true);
 
@@ -56,6 +53,10 @@ export default function CoursesLeader() {
   const [paymentAmount, setPaymentAmount] = useState<string>("");
 
   useEffect(() => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
     let mounted = true;
     (async () => {
       setLoading(true);
@@ -78,13 +79,13 @@ export default function CoursesLeader() {
       setLoading(false);
     })();
     return () => { mounted = false; };
-  }, [user.id]);
+  }, [user]);
 
   // quando escolher curso -> carrega subjects, registrations e presenças
   useEffect(() => {
     let mounted = true;
     (async () => {
-      if (!courseId) {
+      if (!courseId || !user) {
         setRegistrations([]); setSubjects([]); setLessons([]); setAttendance([]);
         return;
       }
@@ -106,14 +107,14 @@ export default function CoursesLeader() {
       ]);
 
       if (!mounted) return;
-      setRegistrations((regs ?? []) as any);
-      setSubjects((subs ?? []) as any);
+      setRegistrations((regs ?? []).map((item) => item as Registration));
+      setSubjects((subs ?? []).map((item) => item as Subject));
       setSubjectId(""); // reset
       setLessons([]); setAttendance([]);
       setLoading(false);
     })();
     return () => { mounted = false; };
-  }, [courseId, user.id]);
+  }, [courseId, user]);
 
   // quando escolher matéria -> aulas e presenças
   useEffect(() => {
@@ -139,8 +140,8 @@ export default function CoursesLeader() {
       }
 
       if (!mounted) return;
-      setLessons(les ?? []);
-      setAttendance(att);
+      setLessons((les ?? []).map((lesson) => lesson as Lesson));
+      setAttendance(att.map((entry) => entry as Attendance));
       setLoading(false);
     })();
     return () => { mounted = false; };
@@ -171,7 +172,7 @@ export default function CoursesLeader() {
 
   // ações
   const enroll = async () => {
-    if (!memberToEnroll || !courseId) return;
+    if (!memberToEnroll || !courseId || !user) return;
     const { error, data } = await supabase
       .from("course_registrations")
       .insert({
@@ -203,29 +204,38 @@ export default function CoursesLeader() {
       .eq("course_id", courseId)
       .eq("lider_id", user.id);
 
-    setRegistrations((regs ?? []) as any);
+    setRegistrations((regs ?? []).map((item) => item as Registration));
     setMemberToEnroll("");
     setPaymentAmount("");
     toast({ title: "Inscrito com sucesso!" });
   };
 
+  if (!user) {
+    return null;
+  }
+
   if (loading) {
-    return <FancyLoader message="Carregando cursos do líder…" tips={tips} />;
+    return (
+      <FancyLoader
+        message="Arrumando a sala da Escola de Líderes"
+        tips={tips}
+      />
+    );
   }
 
   const selectedCourse = courses.find((c) => c.id === courseId);
 
   return (
-    <div className="space-y-8 animate-fade-in">
-      <div className="flex flex-col md:flex-row md:items-end gap-4">
+    <div className="space-y-8 animate-fade-in pb-12">
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div className="flex-1">
-          <h1 className="text-3xl font-bold">Cursos — Líder</h1>
-          <p className="text-muted-foreground">Inscreva membros e acompanhe presenças</p>
+          <h1 className="text-2xl md:text-3xl font-bold">Cursos — Líder</h1>
+          <p className="text-sm md:text-base text-muted-foreground">Inscreva membros e acompanhe presenças</p>
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
           <Select value={courseId} onValueChange={(v) => { setCourseId(v); }}>
-            <SelectTrigger className="w-[260px]"><SelectValue placeholder="Selecione o curso" /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-[260px]"><SelectValue placeholder="Selecione o curso" /></SelectTrigger>
             <SelectContent>
               {courses.map((c) => (<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>))}
             </SelectContent>
@@ -233,7 +243,7 @@ export default function CoursesLeader() {
 
           {courseId && (
             <Select value={subjectId} onValueChange={setSubjectId}>
-              <SelectTrigger className="w-[260px]"><SelectValue placeholder="Matéria (opcional)" /></SelectTrigger>
+              <SelectTrigger className="w-full sm:w-[260px]"><SelectValue placeholder="Matéria (opcional)" /></SelectTrigger>
               <SelectContent>
                 {subjects.map((s) => (<SelectItem key={s.id} value={s.id}>{s.title}</SelectItem>))}
               </SelectContent>
@@ -256,7 +266,7 @@ export default function CoursesLeader() {
                 <GraduationCap className="w-5 h-5 text-primary" /> Inscrever membro no curso
               </CardTitle>
             </CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-4">
+            <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div className="md:col-span-2">
                 <Label>Membro / Frequentador</Label>
                 <Select value={memberToEnroll} onValueChange={setMemberToEnroll}>
@@ -314,8 +324,8 @@ export default function CoursesLeader() {
               {registrations.length === 0 ? (
                 <p className="text-muted-foreground">Nenhuma inscrição neste curso.</p>
               ) : subjectId && lessons.length > 0 ? (
-                <div className="overflow-auto">
-                  <Table>
+                <div className="overflow-x-auto">
+                  <Table className="min-w-[720px]">
                     <TableHeader>
                       <TableRow>
                         <TableHead>Aluno</TableHead>
