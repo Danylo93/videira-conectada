@@ -1,22 +1,31 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Grape, Loader2, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Grape, Loader2 } from 'lucide-react';
+
+import { useDelayedLoading } from '@/hooks/useDelayedLoading';
+import FancyLoader from '@/components/FancyLoader';
 
 export function Auth() {
+  const [isLoading, setIsLoading] = useState(false);
+  const [bootReady, setBootReady] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const { login } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setBootReady(true), 200);
+    return () => clearTimeout(t);
+  }, []);
+
+  const showLoader = useDelayedLoading(!isLoading && bootReady, 3500);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,73 +45,104 @@ export function Auth() {
     }
   };
 
-  return (
-    <div className="relative min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background via-background to-primary/10 overflow-hidden">
-      {/* animações de fundo */}
-      <div className="absolute -top-32 -left-32 h-96 w-96 rounded-full bg-primary blur-3xl opacity-30 animate-pulse" />
-      <div className="absolute bottom-0 right-0 h-96 w-96 rounded-full bg-primary/70 blur-3xl opacity-20 animate-pulse" />
+  if (showLoader) {
+    return <FancyLoader tip="Sincronizando com o servidor…" />;
+  }
 
-      <Card className="relative w-full max-w-md backdrop-blur-md bg-background/70 border border-primary/30 shadow-xl">
-        <CardHeader className="text-center space-y-4">
-          <div className="flex justify-center">
-            <div className="w-16 h-16 bg-gradient-to-br from-primary to-primary-glow rounded-xl flex items-center justify-center shadow-md">
-              <Grape className="w-8 h-8 text-white" />
-            </div>
-          </div>
-          <div>
-            <h1 className="text-3xl font-extrabold bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
-              Sistema de Gestão de Células
-            </h1>
-            <p className="text-muted-foreground">Faça login para acessar o sistema</p>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="seu@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={isLoading}
-              />
-            </div>
-            <div>
-              <Label htmlFor="password">Senha</Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={isLoading}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  className="absolute inset-y-0 right-2 flex items-center px-2 text-muted-foreground hover:text-primary"
-                  aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
+  return (
+    <div className="relative min-h-screen overflow-hidden">
+      {/* Background */}
+      <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/15 via-background to-background" />
+      <div className="pointer-events-none absolute -top-32 -left-32 h-80 w-80 rounded-full bg-primary/20 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-32 -right-32 h-80 w-80 rounded-full bg-accent/20 blur-3xl" />
+
+      <div className="mx-auto flex min-h-screen max-w-6xl items-center px-4">
+        {/* Left side (brand) */}
+        <div className="hidden flex-1 md:block">
+          <div className="max-w-md">
+            <div className="mb-6 flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/60 shadow-lg">
+                <Grape className="h-7 w-7 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight">Sistema de Gestão de Células</h1>
+                <p className="text-sm text-muted-foreground">Videira São Miguel</p>
               </div>
             </div>
-            <Button type="submit" className="w-full gradient-primary" disabled={isLoading}>
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Entrando...
-                </>
-              ) : (
-                'Entrar'
-              )}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+            <p className="text-muted-foreground">
+              Acesse o painel e gerencie células, líderes e relatórios com praticidade. Segurança e simplicidade em um só lugar.
+            </p>
+          </div>
+        </div>
+
+        {/* Auth Card */}
+        <div className="mx-auto w-full max-w-md flex-1">
+          <Card className="border-primary/20 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-lg">
+            <CardContent className="p-6 md:p-8">
+              <div className="mb-6 text-center md:text-left">
+                <h2 className="text-2xl font-semibold">Entrar</h2>
+                <p className="text-sm text-muted-foreground">Use seu e‑mail e senha cadastrados</p>
+              </div>
+
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">E‑mail</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="voce@igreja.com"
+                    autoComplete="email"
+                    disabled={isLoading}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="password">Senha</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    autoComplete="current-password"
+                    disabled={isLoading}
+                    required
+                  />
+                </div>
+
+                <Button type="submit" className="w-full gradient-primary" disabled={isLoading}>
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Entrando…
+                    </>
+                  ) : (
+                    'Acessar'
+                  )}
+                </Button>
+              </form>
+
+              <div className="mt-4 text-center text-xs text-muted-foreground">
+                Problemas para acessar? Procure um administrador.
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Mobile brand footer */}
+          <div className="mt-6 flex items-center justify-center gap-2 md:hidden">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/60 shadow">
+              <Grape className="h-5 w-5 text-white" />
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-medium">Sistema de Gestão de Células</p>
+              <p className="text-xs text-muted-foreground">Videira São Miguel</p>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

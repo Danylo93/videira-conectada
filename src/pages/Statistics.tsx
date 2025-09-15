@@ -19,6 +19,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
+import { Grape } from 'lucide-react';
 import { CellReport as CellReportType } from '@/types/church';
 
 interface SimpleUser {
@@ -39,6 +40,56 @@ function linearRegressionForecast(values: number[]): number | null {
   return Math.round(intercept + slope * nextX);
 }
 
+/** Overlay de carregamento interativo (bloqueia cliques) */
+function LoadingOverlay({ tip }: { tip?: string }) {
+  const tips = [
+    'Espremendo uvas…',
+    'Organizando as células…',
+    'Contando membros…',
+    'Aquecendo o coração ❤️‍🔥…',
+    'Alinhando relatórios…',
+  ];
+  const safeTip = tip ?? tips[Math.floor((Date.now() / 1000) % tips.length)];
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center pointer-events-auto"
+      role="alert"
+      aria-busy="true"
+      aria-live="polite"
+    >
+      <div className="relative w-[90%] max-w-sm rounded-2xl border bg-card shadow-xl p-6 text-center">
+        <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-primary to-fuchsia-600 flex items-center justify-center shadow-lg animate-pulse">
+          <Grape className="w-8 h-8 text-white" />
+        </div>
+
+        <div className="mt-4 text-sm text-muted-foreground">{safeTip}</div>
+
+        {/* Pontinhos pulando */}
+        <div className="mt-3 flex items-center justify-center gap-1">
+          <span className="w-2 h-2 rounded-full bg-primary/80 animate-bounce [animation-delay:-0.3s]" />
+          <span className="w-2 h-2 rounded-full bg-primary/80 animate-bounce [animation-delay:-0.15s]" />
+          <span className="w-2 h-2 rounded-full bg-primary/80 animate-bounce" />
+        </div>
+
+        {/* Barra de progresso falsa só pra vibe */}
+        <div className="mt-5 h-2 w-full bg-muted rounded-full overflow-hidden">
+          <div className="h-full w-1/3 bg-gradient-to-r from-primary to-fuchsia-600 animate-[loading_1.2s_ease-in-out_infinite]" />
+        </div>
+
+        {/* keyframes inline via Tailwind arbitrary value */}
+        <style>{`
+          @keyframes loading {
+            0%   { transform: translateX(-100%); }
+            50%  { transform: translateX(50%);   }
+            100% { transform: translateX(200%);  }
+          }
+        `}</style>
+      </div>
+    </div>
+  );
+}
+
 export function Statistics() {
   const { user } = useAuth();
   const [discipuladores, setDiscipuladores] = useState<SimpleUser[]>([]);
@@ -55,10 +106,15 @@ export function Statistics() {
 
   useEffect(() => {
     if (user && ['pastor', 'obreiro', 'discipulador'].includes(user.role)) {
-      loadUsers();
+      (async () => {
+        setLoading(true);
+        await loadUsers();
+        setLoading(false);
+      })();
     } else {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const loadUsers = async () => {
@@ -72,6 +128,7 @@ export function Statistics() {
         .eq('pastor_uuid', user.id)
         .order('name');
       setDiscipuladores((discipulos || []).map((d) => ({ id: d.id, name: d.name })));
+
       const { data: lData } = await supabase
         .from('profiles')
         .select('id, name')
@@ -90,13 +147,16 @@ export function Statistics() {
     }
 
     await loadReports();
-    setLoading(false);
   };
 
   useEffect(() => {
-    if (user) {
-      loadReports();
-    }
+    if (!user) return;
+    (async () => {
+      setLoading(true);
+      await loadReports();
+      setLoading(false);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterType, selectedDiscipulador, selectedLeader]);
 
   const loadReports = async () => {
@@ -129,10 +189,12 @@ export function Statistics() {
       .select('*')
       .in('lider_id', leaderIds)
       .order('week_start', { ascending: true });
+
     if (error) {
       console.error('Error loading reports:', error);
       return;
     }
+
     const formatted: CellReportType[] = (data || []).map((r) => ({
       id: r.id,
       liderId: r.lider_id,
@@ -159,12 +221,11 @@ export function Statistics() {
       submittedAt: new Date(r.submitted_at),
       status: r.status as 'draft' | 'submitted' | 'approved' | 'needs_correction',
     }));
+
     setReports(formatted);
+
     const membersTotal = formatted.reduce((sum, r) => sum + r.members.length, 0);
-    const visitorsTotal = formatted.reduce(
-      (sum, r) => sum + r.frequentadores.length,
-      0
-    );
+    const visitorsTotal = formatted.reduce((sum, r) => sum + r.frequentadores.length, 0);
     setMembersCount(membersTotal);
     setVisitorsCount(visitorsTotal);
   };
@@ -174,9 +235,7 @@ export function Statistics() {
       const groups: Record<string, { members: number; frequentadores: number }> = {};
       reports.forEach((r) => {
         const key = `${r.weekStart.getFullYear()}-${r.weekStart.getMonth() + 1}`;
-        if (!groups[key]) {
-          groups[key] = { members: 0, frequentadores: 0 };
-        }
+        if (!groups[key]) groups[key] = { members: 0, frequentadores: 0 };
         groups[key].members += r.members.length;
         groups[key].frequentadores += r.frequentadores.length;
       });
@@ -210,24 +269,20 @@ export function Statistics() {
     );
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
-    );
-  }
-
   const totalPeople = membersCount + visitorsCount;
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="space-y-8 animate-fade-in relative">
+      {/* Overlay bloqueador */}
+      {loading && <LoadingOverlay />}
+
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <h1 className="text-3xl font-bold text-foreground">Estatísticas</h1>
         <div className="flex flex-col md:flex-row gap-4">
           <Select
             value={filterType}
             onValueChange={(v: 'geral' | 'discipulador' | 'lider') => setFilterType(v)}
+            disabled={loading}
           >
             <SelectTrigger className="w-[180px]">
               <SelectValue />
@@ -240,8 +295,13 @@ export function Statistics() {
               <SelectItem value="lider">Líder</SelectItem>
             </SelectContent>
           </Select>
+
           {filterType === 'discipulador' && (
-            <Select value={selectedDiscipulador} onValueChange={setSelectedDiscipulador}>
+            <Select
+              value={selectedDiscipulador}
+              onValueChange={setSelectedDiscipulador}
+              disabled={loading}
+            >
               <SelectTrigger className="w-[200px]">
                 <SelectValue placeholder="Selecione" />
               </SelectTrigger>
@@ -254,8 +314,13 @@ export function Statistics() {
               </SelectContent>
             </Select>
           )}
+
           {filterType === 'lider' && (
-            <Select value={selectedLeader} onValueChange={setSelectedLeader}>
+            <Select
+              value={selectedLeader}
+              onValueChange={setSelectedLeader}
+              disabled={loading}
+            >
               <SelectTrigger className="w-[200px]">
                 <SelectValue placeholder="Selecione" />
               </SelectTrigger>
@@ -268,10 +333,8 @@ export function Statistics() {
               </SelectContent>
             </Select>
           )}
-          <Select
-            value={chartMode}
-            onValueChange={(v: 'mensal' | 'semanal') => setChartMode(v)}
-          >
+
+          <Select value={chartMode} onValueChange={(v: 'mensal' | 'semanal') => setChartMode(v)} disabled={loading}>
             <SelectTrigger className="w-[150px]">
               <SelectValue />
             </SelectTrigger>
@@ -296,12 +359,7 @@ export function Statistics() {
               <Tooltip />
               <Legend />
               <Line type="monotone" dataKey="members" name="Membros" stroke="#8884d8" />
-              <Line
-                type="monotone"
-                dataKey="frequentadores"
-                name="Frequentadores"
-                stroke="#82ca9d"
-              />
+              <Line type="monotone" dataKey="frequentadores" name="Frequentadores" stroke="#82ca9d" />
             </LineChart>
           </ResponsiveContainer>
         </CardContent>
@@ -350,4 +408,3 @@ export function Statistics() {
     </div>
   );
 }
-

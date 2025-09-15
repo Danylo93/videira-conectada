@@ -177,3 +177,15 @@ All colors MUST be HSL.
     opacity: 1;
   }
 }
+
+@keyframes spin-slow { to { transform: rotate(360deg); } }
+.animate-spin-slow { animation: spin-slow 3.5s linear infinite; }
+
+/* animations usadas no loader */
+@keyframes loader-bar {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(50%); }
+  100% { transform: translateX(100%); }
+}
+.animate-loader-bar { animation: loader-bar 1.6s infinite; }
+.animate-spin-slow { animation: spin 2.5s linear infinite; }
