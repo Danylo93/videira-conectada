@@ -69,9 +69,9 @@ type Payment = {
 };
 
 const tips = [
-  '“Ensina a criança no caminho…” (Pv 22:6)',
-  '“O obreiro é digno do seu salário.” (Lc 10:7)',
-  '“Fazei tudo com decência e ordem.” (1Co 14:40)',
+  'Acertando a planilha dos cursos como Neemias ajustou os muros…',
+  'Conferindo o dízimo das apostilas e o pãozinho do intervalo…',
+  'Chamando os levitas para tocar enquanto você lança presenças…',
 ];
 
 export default function CourseAdmin() {
@@ -150,11 +150,13 @@ export default function CourseAdmin() {
           .order("registration_date", { ascending: false }),
       ]);
 
-      setSubjects((subs ?? []) as any);
-      setRegistrations((regs ?? []) as any);
+      const subjectRows = (subs as Subject[] | null) ?? [];
+      const registrationRows = (regs as Registration[] | null) ?? [];
+      setSubjects(subjectRows.map((item) => item));
+      setRegistrations(registrationRows.map((item) => item));
 
       // payments de todas regs desse curso
-      const regIds = (regs ?? []).map((r: any) => r.id);
+      const regIds = registrationRows.map((r) => r.id);
       if (regIds.length) {
         const { data: pays } = await supabase
           .from("course_payments")
@@ -345,20 +347,25 @@ export default function CourseAdmin() {
   }
 
   if (loading) {
-    return <FancyLoader message="Preparando Administração de Cursos" tips={tips} />;
+    return (
+      <FancyLoader
+        message="Organizando o QG dos cursos"
+        tips={tips}
+      />
+    );
   }
 
   return (
-    <div className="space-y-8 animate-fade-in">
-      <div className="flex flex-col md:flex-row md:items-end gap-4">
+    <div className="space-y-8 animate-fade-in pb-12">
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div className="flex-1">
-          <h1 className="text-3xl font-bold">Trilho do Vencedor — Administração</h1>
-          <p className="text-muted-foreground">Gerencie matérias, chamadas e pagamentos</p>
+          <h1 className="text-2xl md:text-3xl font-bold">Trilho do Vencedor — Administração</h1>
+          <p className="text-sm md:text-base text-muted-foreground">Gerencie matérias, chamadas e pagamentos</p>
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
           <Select value={courseId} onValueChange={(v) => { setCourseId(v); setSubjectId(""); }}>
-            <SelectTrigger className="w-[260px]">
+            <SelectTrigger className="w-full sm:w-[260px]">
               <SelectValue placeholder="Selecione o curso (CTL ou Maturidade)" />
             </SelectTrigger>
             <SelectContent>
@@ -370,7 +377,7 @@ export default function CourseAdmin() {
 
           {courseId && (
             <Select value={subjectId} onValueChange={setSubjectId}>
-              <SelectTrigger className="w-[260px]">
+              <SelectTrigger className="w-full sm:w-[260px]">
                 <SelectValue placeholder="Matéria" />
               </SelectTrigger>
               <SelectContent>
@@ -395,7 +402,7 @@ export default function CourseAdmin() {
         {/* --- MATÉRIAS --- */}
         <TabsContent value="subjects">
           <Card className="hover:grape-glow transition-smooth">
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <CardTitle className="flex items-center gap-2">
                 <GraduationCap className="w-5 h-5 text-primary" />
                 Matérias do Curso
@@ -405,7 +412,7 @@ export default function CourseAdmin() {
                 <DialogTrigger asChild>
                   <Button disabled={!courseId}><Plus className="w-4 h-4 mr-1" /> Nova Matéria</Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
                   <DialogHeader><DialogTitle>Adicionar Matéria</DialogTitle></DialogHeader>
                   <div className="space-y-3">
                     <div>
@@ -437,24 +444,26 @@ export default function CourseAdmin() {
               ) : subjects.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">Nenhuma matéria cadastrada.</div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Título</TableHead>
-                      <TableHead>Professor</TableHead>
-                      <TableHead>Desde</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {subjects.map((s) => (
-                      <TableRow key={s.id}>
-                        <TableCell>{s.title}</TableCell>
-                        <TableCell>{s.teacher?.name ?? "—"}</TableCell>
-                        <TableCell>{s.created_at ? new Date(s.created_at).toLocaleDateString("pt-BR") : "—"}</TableCell>
+                <div className="overflow-x-auto">
+                  <Table className="min-w-[620px]">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Título</TableHead>
+                        <TableHead>Professor</TableHead>
+                        <TableHead>Desde</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {subjects.map((s) => (
+                        <TableRow key={s.id}>
+                          <TableCell>{s.title}</TableCell>
+                          <TableCell>{s.teacher?.name ?? "—"}</TableCell>
+                          <TableCell>{s.created_at ? new Date(s.created_at).toLocaleDateString("pt-BR") : "—"}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -463,7 +472,7 @@ export default function CourseAdmin() {
         {/* --- CHAMADA --- */}
         <TabsContent value="attendance">
           <Card className="hover:grape-glow transition-smooth">
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <CardTitle className="flex items-center gap-2">
                 <Users className="w-5 h-5 text-primary" /> Chamada
               </CardTitle>
@@ -482,7 +491,7 @@ export default function CourseAdmin() {
                   <DialogTrigger asChild>
                     <Button><Plus className="w-4 h-4 mr-1" /> Nova Aula</Button>
                   </DialogTrigger>
-                  <DialogContent>
+                <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
                     <DialogHeader><DialogTitle>Nova Aula</DialogTitle></DialogHeader>
                     <div className="space-y-3">
                       <Label>Data da Aula</Label>
@@ -500,8 +509,8 @@ export default function CourseAdmin() {
               ) : (
                 <>
                   {/* cabeçalho com todas as datas/aulas */}
-                  <div className="overflow-auto">
-                    <Table>
+                  <div className="overflow-x-auto">
+                    <Table className="min-w-[780px]">
                       <TableHeader>
                         <TableRow>
                           <TableHead>Aluno</TableHead>
@@ -587,53 +596,55 @@ export default function CourseAdmin() {
               ) : registrations.length === 0 ? (
                 <p className="text-muted-foreground">Nenhuma matrícula encontrada neste curso.</p>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Aluno</TableHead>
-                      <TableHead>Último Pagamento</TableHead>
-                      <TableHead>Total Pago</TableHead>
-                      <TableHead className="text-right">Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {registrations.map((r) => {
-                      const myPays = payments.filter((p) => p.registration_id === r.id);
-                      const total = myPays.reduce((s, p) => s + Number(p.amount || 0), 0);
-                      const last = myPays[0]?.paid_on;
-                      return (
-                        <TableRow key={r.id}>
-                          <TableCell className="font-medium">{r.member?.name ?? r.member_id}</TableCell>
-                          <TableCell>{last ? new Date(last).toLocaleDateString("pt-BR") : "—"}</TableCell>
-                          <TableCell>R$ {total.toFixed(2)}</TableCell>
-                          <TableCell className="text-right">
-                            <Dialog open={openNewPayment === r.id} onOpenChange={(o) => setOpenNewPayment(o ? r.id : null)}>
-                              <DialogTrigger asChild>
-                                <Button size="sm" variant="outline"><DollarSign className="w-4 h-4 mr-1" /> Registrar</Button>
-                              </DialogTrigger>
-                              <DialogContent>
-                                <DialogHeader><DialogTitle>Novo Pagamento — {r.member?.name}</DialogTitle></DialogHeader>
-                                <div className="space-y-3">
-                                  <div>
-                                    <Label>Valor (R$)</Label>
-                                    <Input value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} />
+                <div className="overflow-x-auto">
+                  <Table className="min-w-[640px]">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Aluno</TableHead>
+                        <TableHead>Último Pagamento</TableHead>
+                        <TableHead>Total Pago</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {registrations.map((r) => {
+                        const myPays = payments.filter((p) => p.registration_id === r.id);
+                        const total = myPays.reduce((s, p) => s + Number(p.amount || 0), 0);
+                        const last = myPays[0]?.paid_on;
+                        return (
+                          <TableRow key={r.id}>
+                            <TableCell className="font-medium">{r.member?.name ?? r.member_id}</TableCell>
+                            <TableCell>{last ? new Date(last).toLocaleDateString("pt-BR") : "—"}</TableCell>
+                            <TableCell>R$ {total.toFixed(2)}</TableCell>
+                            <TableCell className="text-right">
+                              <Dialog open={openNewPayment === r.id} onOpenChange={(o) => setOpenNewPayment(o ? r.id : null)}>
+                                <DialogTrigger asChild>
+                                  <Button size="sm" variant="outline"><DollarSign className="w-4 h-4 mr-1" /> Registrar</Button>
+                                </DialogTrigger>
+                                <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-md">
+                                  <DialogHeader><DialogTitle>Novo Pagamento — {r.member?.name}</DialogTitle></DialogHeader>
+                                  <div className="space-y-3">
+                                    <div>
+                                      <Label>Valor (R$)</Label>
+                                      <Input value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} />
+                                    </div>
+                                    <div>
+                                      <Label>Data</Label>
+                                      <Input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
+                                    </div>
+                                    <Button className="w-full" onClick={addPayment} disabled={!paymentDate || !Number(paymentAmount)}>
+                                      Salvar Pagamento
+                                    </Button>
                                   </div>
-                                  <div>
-                                    <Label>Data</Label>
-                                    <Input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
-                                  </div>
-                                  <Button className="w-full" onClick={addPayment} disabled={!paymentDate || !Number(paymentAmount)}>
-                                    Salvar Pagamento
-                                  </Button>
-                                </div>
-                              </DialogContent>
-                            </Dialog>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                                </DialogContent>
+                              </Dialog>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>

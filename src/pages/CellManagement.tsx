@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,10 +32,12 @@ import {
   Calendar 
 } from 'lucide-react';
 import { Member } from '@/types/church';
+import FancyLoader from '@/components/FancyLoader';
 
 export function CellManagement() {
   const { user } = useAuth();
   const [members, setMembers] = useState<Member[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newMember, setNewMember] = useState({
     name: '',
@@ -45,15 +47,14 @@ export function CellManagement() {
   });
 
   // Load members on component mount
-  useEffect(() => {
-    if (user && user.role === 'lider') {
-      loadMembers();
+  const loadMembers = useCallback(async () => {
+    if (!user) {
+      setLoading(false);
+      return;
     }
-  }, [user]);
 
-  const loadMembers = async () => {
-    if (!user) return;
-    
+    setLoading(true);
+
     const { data, error } = await supabase
       .from('members')
       .select('*')
@@ -63,6 +64,7 @@ export function CellManagement() {
 
     if (error) {
       console.error('Error loading members:', error);
+      setLoading(false);
       return;
     }
 
@@ -79,13 +81,35 @@ export function CellManagement() {
     }));
 
     setMembers(formattedMembers);
-  };
+    setLoading(false);
+  }, [user]);
+
+  useEffect(() => {
+    if (user && user.role === 'lider') {
+      void loadMembers();
+    } else {
+      setLoading(false);
+    }
+  }, [user, loadMembers]);
 
   if (!user || user.role !== 'lider') {
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground">Acesso restrito para líderes de célula.</p>
       </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <FancyLoader
+        message="Cuidando da sua vinha com carinho"
+        tips={[
+          'Chamando os discípulos para a roda de oração…',
+          'Conferindo cada ovelha pelo nome como o Bom Pastor…',
+          'Preparando pãozinho e suco de uva para a célula…',
+        ]}
+      />
     );
   }
 
@@ -132,14 +156,14 @@ export function CellManagement() {
   const totalVisitors = members.filter(m => m.type === 'frequentador').length;
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="space-y-8 animate-fade-in pb-12">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Minha Célula</h1>
-          <p className="text-muted-foreground">{user.celula}</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground">Minha Célula</h1>
+          <p className="text-sm md:text-base text-muted-foreground">{user.celula}</p>
         </div>
-        
+
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
             <Button className="gradient-primary">
@@ -147,7 +171,7 @@ export function CellManagement() {
               Adicionar Pessoa
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Adicionar Nova Pessoa</DialogTitle>
             </DialogHeader>
@@ -201,7 +225,7 @@ export function CellManagement() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         <Card className="hover:grape-glow transition-smooth">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total de Membros</CardTitle>
@@ -241,16 +265,16 @@ export function CellManagement() {
             Lista de Pessoas
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <Table>
+        <CardContent className="overflow-x-auto">
+          <Table className="min-w-[720px]">
             <TableHeader>
               <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Contato</TableHead>
-                <TableHead>Data de Entrada</TableHead>
-                <TableHead>Última Presença</TableHead>
-                <TableHead>Ações</TableHead>
+                <TableHead className="min-w-[160px]">Nome</TableHead>
+                <TableHead className="min-w-[120px]">Tipo</TableHead>
+                <TableHead className="min-w-[160px]">Contato</TableHead>
+                <TableHead className="min-w-[150px]">Data de Entrada</TableHead>
+                <TableHead className="min-w-[150px]">Última Presença</TableHead>
+                <TableHead className="min-w-[110px]">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -293,7 +317,7 @@ export function CellManagement() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <Button size="sm" variant="outline">
                         <Edit className="w-3 h-3" />
                       </Button>

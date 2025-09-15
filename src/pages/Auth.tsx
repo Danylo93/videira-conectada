@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import type { AuthTransition } from '@/types/auth';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,12 +12,44 @@ import { Grape, Loader2 } from 'lucide-react';
 import { useDelayedLoading } from '@/hooks/useDelayedLoading';
 import FancyLoader from '@/components/FancyLoader';
 
+type AuthLoaderCopy = {
+  message: string;
+  tips: string[];
+};
+
+const AUTH_LOADER_COPY: Record<AuthTransition, AuthLoaderCopy> = {
+  initial: {
+    message: 'Aquecendo o coração da Videira',
+    tips: [
+      'Conferindo se o seu login está no rol dos santos digitais…',
+      'Chamando Gabriel pra guardar a senha…',
+      'Espremendo uvas fresquinhas pra sessão começar!',
+    ],
+  },
+  login: {
+    message: 'Conferindo os pergaminhos do seu acesso',
+    tips: [
+      'Girando as chaves de Pedro pra abrir a porta certa…',
+      'Procurando o selo real com o seu nome carimbado…',
+      'Mandando um aleluia pro servidor antes de liberar a entrada…',
+    ],
+  },
+  logout: {
+    message: 'Recolhendo as cadeiras da célula com carinho',
+    tips: [
+      'Guardando o cajado do líder até a próxima batalha…',
+      'Encerrando o culto digital com bênção apostólica…',
+      'Lustrando o cálice pra quando você voltar sedento…',
+    ],
+  },
+};
+
 export function Auth() {
   const [isLoading, setIsLoading] = useState(false);
   const [bootReady, setBootReady] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { login } = useAuth();
+  const { login, authTransition } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -46,7 +79,8 @@ export function Auth() {
   };
 
   if (showLoader) {
-    return <FancyLoader tip="Sincronizando com o servidor…" />;
+    const loader = AUTH_LOADER_COPY[authTransition] ?? AUTH_LOADER_COPY.initial;
+    return <FancyLoader message={loader.message} tips={loader.tips} />;
   }
 
   return (

@@ -1,19 +1,17 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User as SupabaseUser, Session } from '@supabase/supabase-js';
+import { Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-import { User, AuthState } from '@/types/auth';
+import { User, AuthState, AuthTransition } from '@/types/auth';
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authTransition, setAuthTransition] = useState<AuthTransition>('initial');
 
   useEffect(() => {
     const handleSession = async (currentSession: Session | null) => {
-      setSession(currentSession);
-
       if (currentSession?.user) {
         const { data: profile } = await supabase
           .from('profiles')
@@ -40,6 +38,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       setLoading(false);
+
+      setAuthTransition(prev => {
+        if (currentSession?.user) {
+          return prev === 'login' ? 'initial' : prev;
+        }
+        return prev === 'logout' ? 'logout' : 'initial';
+      });
     };
 
     // Set up auth state listener
@@ -58,25 +63,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string) => {
+    setAuthTransition('login');
     setLoading(true);
-    
-    const { data, error } = await supabase.auth.signInWithPassword({
+
+    const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
     if (error) {
       setLoading(false);
+      setAuthTransition('initial');
       throw new Error(error.message);
     }
-    
-    setLoading(false);
     // The onAuthStateChange callback will handle setting the user
   };
 
   const logout = async () => {
+    setAuthTransition('logout');
+    setLoading(true);
+
     const { error } = await supabase.auth.signOut();
     if (error) {
+      setLoading(false);
+      setAuthTransition('initial');
       throw new Error(error.message);
     }
     // The onAuthStateChange callback will handle clearing the user
@@ -88,6 +98,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     login,
     logout,
     loading,
+    authTransition,
   };
 
   return (

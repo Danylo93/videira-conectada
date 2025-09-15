@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { supabaseAdmin } from '@/integrations/supabase/admin';
@@ -11,11 +11,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Users, Plus, Phone, Mail } from 'lucide-react';
 import { Leader } from '@/types/church';
+import FancyLoader from '@/components/FancyLoader';
 
 export function LeaderManagement() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [leaders, setLeaders] = useState<Leader[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newLeader, setNewLeader] = useState({
     name: '',
@@ -24,14 +26,13 @@ export function LeaderManagement() {
     password: '',
   });
 
-  useEffect(() => {
-    if (user && user.role === 'discipulador') {
-      loadLeaders();
+  const loadLeaders = useCallback(async () => {
+    if (!user) {
+      setLoading(false);
+      return;
     }
-  }, [user]);
 
-  const loadLeaders = async () => {
-    if (!user) return;
+    setLoading(true);
     const { data, error } = await supabase
       .from('profiles')
       .select('id, name, email, phone, created_at, pastor_uuid')
@@ -41,6 +42,7 @@ export function LeaderManagement() {
 
     if (error) {
       console.error('Error loading leaders:', error);
+      setLoading(false);
       return;
     }
 
@@ -54,13 +56,35 @@ export function LeaderManagement() {
       createdAt: new Date(l.created_at),
     }));
     setLeaders(formatted);
-  };
+    setLoading(false);
+  }, [user]);
+
+  useEffect(() => {
+    if (user && user.role === 'discipulador') {
+      void loadLeaders();
+    } else {
+      setLoading(false);
+    }
+  }, [user, loadLeaders]);
 
   if (!user || user.role !== 'discipulador') {
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground">Acesso restrito para discipuladores.</p>
       </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <FancyLoader
+        message="Organizando os valentes da sua rede"
+        tips={[
+          'Contando líderes como Josué conferindo o exército…',
+          'Acendendo tochas pra iluminar os novos cadastros…',
+          'Preparando pão quentinho pra reunião de liderança…',
+        ]}
+      />
     );
   }
 
@@ -151,9 +175,9 @@ export function LeaderManagement() {
   };
 
   return (
-    <div className="space-y-8 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-foreground">Líderes</h1>
+    <div className="space-y-8 animate-fade-in pb-12">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-2xl md:text-3xl font-bold text-foreground">Líderes</h1>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
             <Button className="gradient-primary">
@@ -161,7 +185,7 @@ export function LeaderManagement() {
               Novo Líder
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Adicionar Líder</DialogTitle>
             </DialogHeader>
@@ -197,13 +221,13 @@ export function LeaderManagement() {
             Lista de Líderes
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <Table>
+        <CardContent className="overflow-x-auto">
+          <Table className="min-w-[640px]">
             <TableHeader>
               <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Telefone</TableHead>
+                <TableHead className="min-w-[200px]">Nome</TableHead>
+                <TableHead className="min-w-[220px]">Email</TableHead>
+                <TableHead className="min-w-[160px]">Telefone</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
