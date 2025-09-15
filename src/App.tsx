@@ -24,8 +24,69 @@ import { Auth } from "./pages/Auth";
 // CURSOS
 import Courses from "./pages/cursos/Courses";          // <-- roteador (Pastor/Discipulador/Líder)
 import CourseAdmin from "./pages/cursos/CourseAdmin";  // <-- admin do Pastor (rota separada /admin-cursos)
+import type { AuthTransition } from "@/types/auth";
+import { ReactNode, useEffect, useState } from "react";
 
 const queryClient = new QueryClient();
+
+type LoaderCopy = {
+  message: string;
+  tips: string[];
+};
+
+const PROTECTED_LOADER_COPY: Record<AuthTransition, LoaderCopy> = {
+  initial: {
+    message: "Colhendo os frutos do seu painel",
+    tips: [
+      "Azeitando as engrenagens do templo digital…",
+      "Conferindo se o maná dos relatórios já caiu…",
+      "Separando pão e peixe pra alimentar os gráficos…",
+    ],
+  },
+  login: {
+    message: "Estendendo o tapete de púrpura pra sua chegada",
+    tips: [
+      "Afinando as trombetas de Jericó pro seu login triunfal…",
+      "Sacudindo o pó das sandálias apostólicas pra você entrar com estilo…",
+      "Misturando maná fresquinho com café santo pros indicadores despertarem…",
+    ],
+  },
+  logout: {
+    message: "Abençoando sua saída com paz e muita uva",
+    tips: [
+      "Guardando as tábuas do dashboard no Santo dos Santos digital…",
+      "Mandando os levitas apagarem as lamparinas com carinho…",
+      "Separando um cacho especial pra sua volta triunfal…",
+    ],
+  },
+};
+
+const PUBLIC_LOADER_COPY: Record<AuthTransition, LoaderCopy> = {
+  initial: {
+    message: "Abrindo os portões da Videira",
+    tips: [
+      "Conferindo seu nome no Livro da Vida digital…",
+      "Polindo o cálice da sessão 🙌",
+      "Chamando os levitas da autenticação…",
+    ],
+  },
+  login: {
+    message: "Abrindo os portões da Videira",
+    tips: [
+      "Conferindo seu nome no Livro da Vida digital…",
+      "Polindo o cálice da sessão 🙌",
+      "Chamando os levitas da autenticação…",
+    ],
+  },
+  logout: {
+    message: "Fechando o portão com abraço apostólico",
+    tips: [
+      "Enviando os querubins do suporte pra te escoltar com shalom…",
+      "Recolhendo os pães da proposição pra próxima reunião…",
+      "Desejando viagem em paz e preparando a senha celestial pra volta…",
+    ],
+  },
+};
 
 function ReportsRouter() {
   const { user } = useAuth();
@@ -33,43 +94,33 @@ function ReportsRouter() {
   return user.role === "lider" ? <CellReports /> : <NetworkReports />;
 }
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, loading } = useAuth();
+function ProtectedRoute({ children }: { children: ReactNode }) {
+  const { isAuthenticated, loading, authTransition } = useAuth();
+  const [loaderCopy, setLoaderCopy] = useState<LoaderCopy>(PROTECTED_LOADER_COPY.initial);
+
+  useEffect(() => {
+    if (loading) {
+      setLoaderCopy(PROTECTED_LOADER_COPY[authTransition] ?? PROTECTED_LOADER_COPY.initial);
+    }
+  }, [authTransition, loading]);
+    
+    const showLoader = useDelayedLoading(!loading, 2600);
+    if (showLoader) {
 
   // mostra o loader até a auth terminar + garante um tempo mínimo pra animação
-  const showLoader = useDelayedLoading(!loading, 2600);
-  if (showLoader) {
-    return (
-      <FancyLoader
-        message="Colhendo os frutos do seu painel"
-        tips={[
-          "Azeitando as engrenagens do templo digital…",
-          "Conferindo se o maná dos relatórios já caiu…",
-          "Separando pão e peixe pra alimentar os gráficos…",
-        ]}
-      />
-    );
-  }
-
+  return <FancyLoader message={loaderCopy.message} tips={loaderCopy.tips} />;
+    }
   return isAuthenticated ? <>{children}</> : <Navigate to="/auth" replace />;
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading,authTransition } = useAuth();
 
   // mesmo esquema aqui pra deixar a transição suave
   const showLoader = useDelayedLoading(!loading, 1200);
   if (showLoader) {
-    return (
-      <FancyLoader
-        message="Abrindo os portões da Videira"
-        tips={[
-          "Conferindo seu nome no Livro da Vida digital…",
-          "Polindo o cálice da sessão 🙌",
-          "Chamando os levitas da autenticação…",
-        ]}
-      />
-    );
+    const loader = PUBLIC_LOADER_COPY[authTransition] ?? PUBLIC_LOADER_COPY.initial;
+    return <FancyLoader message={loader.message} tips={loader.tips} />;
   }
 
   return isAuthenticated ? <Navigate to="/" replace /> : <>{children}</>;
