@@ -178,13 +178,22 @@ export function CellReports() {
         "0"
       )}`;
       if (!acc[key]) {
-        acc[key] = { monthKey: key, members: 0, frequentadores: 0, weeks: 0 };
+        acc[key] = {
+          monthKey: key,
+          members: 0,
+          frequentadores: 0,
+          weeks: 0,
+        };
       }
       acc[key].members += r.members.length;
       acc[key].frequentadores += r.frequentadores.length;
       acc[key].weeks += 1;
       return acc;
-    }, {} as Record<string, { monthKey: string; members: number; frequentadores: number; weeks: number }>);
+    },
+    {} as Record<
+      string,
+      { monthKey: string; members: number; frequentadores: number; weeks: number }
+    >);
 
     return Object.values(map)
       .sort(
@@ -197,8 +206,8 @@ export function CellReports() {
           month: "short",
           year: "numeric",
         }),
-        members: m.members, // ou média: Math.round(m.members / m.weeks)
-        frequentadores: m.frequentadores, // ou média: Math.round(m.frequentadores / m.weeks)
+        members: Math.round(m.members / m.weeks),
+        frequentadores: Math.round(m.frequentadores / m.weeks),
       }));
   }, [reports]);
 
@@ -216,15 +225,30 @@ export function CellReports() {
     return `${fmtPtWeekPart(start)} - ${fmtPtWeekPart(end)}`;
   };
 
-  // dados semanais (um ponto por relatório)
+  // dados semanais (média por semana)
   const weeklyChartData = useMemo(() => {
-    return reports
-      .slice()
-      .sort((a, b) => a.weekStart.getTime() - b.weekStart.getTime())
-      .map((r) => ({
-        weekLabel: weekLabel(r.weekStart),
-        members: r.members.length,
-        frequentadores: r.frequentadores.length,
+    const map = reports.reduce((acc, r) => {
+      const key = r.weekStart.toISOString().split("T")[0];
+      if (!acc[key]) {
+        acc[key] = {
+          start: r.weekStart,
+          members: 0,
+          frequentadores: 0,
+          count: 0,
+        };
+      }
+      acc[key].members += r.members.length;
+      acc[key].frequentadores += r.frequentadores.length;
+      acc[key].count += 1;
+      return acc;
+    }, {} as Record<string, { start: Date; members: number; frequentadores: number; count: number }>);
+
+    return Object.values(map)
+      .sort((a, b) => a.start.getTime() - b.start.getTime())
+      .map((w) => ({
+        weekLabel: weekLabel(w.start),
+        members: Math.round(w.members / w.count),
+        frequentadores: Math.round(w.frequentadores / w.count),
       }));
   }, [reports]);
 
