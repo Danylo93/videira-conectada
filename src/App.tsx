@@ -1,10 +1,12 @@
 // src/App.tsx
+import { type ReactNode, useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import type { AuthTransition } from "@/types/auth";
 
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Dashboard } from "@/pages/Dashboard";
@@ -98,6 +100,7 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
   const { isAuthenticated, loading, authTransition } = useAuth();
   const [loaderCopy, setLoaderCopy] = useState<LoaderCopy>(PROTECTED_LOADER_COPY.initial);
 
+
   useEffect(() => {
     if (loading) {
       setLoaderCopy(PROTECTED_LOADER_COPY[authTransition] ?? PROTECTED_LOADER_COPY.initial);
@@ -107,14 +110,18 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
     const showLoader = useDelayedLoading(!loading, 2600);
     if (showLoader) {
 
+
   // mostra o loader até a auth terminar + garante um tempo mínimo pra animação
   return <FancyLoader message={loaderCopy.message} tips={loaderCopy.tips} />;
     }
   return isAuthenticated ? <>{children}</> : <Navigate to="/auth" replace />;
 }
 
+
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading,authTransition } = useAuth();
+
+
 
   // mesmo esquema aqui pra deixar a transição suave
   const showLoader = useDelayedLoading(!loading, 1200);
