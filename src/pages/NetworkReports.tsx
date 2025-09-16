@@ -7,16 +7,52 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import {
+  ResponsiveContainer,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+  LineChart,
+  Line,
+  LabelList,
+} from 'recharts';
 import { FileText, Calendar, CheckCircle2, XCircle, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Leader, Discipulador, CellReport as CellReportType } from '@/types/church';
 import { useToast } from '@/hooks/use-toast';
 import FancyLoader from '@/components/FancyLoader';
 
+/* ===================== helpers ===================== */
+
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mql = window.matchMedia('(max-width: 640px)');
+    const onChange = (e: MediaQueryListEvent | MediaQueryList) =>
+      setIsMobile('matches' in e ? e.matches : (e as MediaQueryList).matches);
+    onChange(mql);
+    mql.addEventListener('change', onChange as any);
+    return () => mql.removeEventListener('change', onChange as any);
+  }, []);
+  return isMobile;
+}
+
+type ChartPoint = {
+  name: string;
+  membersCount: number;
+  frequentadoresCount: number;
+  totalCount: number;
+};
+
+/* ===================== componente ===================== */
+
 export function NetworkReports() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
+
   const [leaders, setLeaders] = useState<Leader[]>([]);
   const [selectedLeader, setSelectedLeader] = useState('');
   const [reports, setReports] = useState<CellReportType[]>([]);
@@ -27,24 +63,20 @@ export function NetworkReports() {
   const [chartMode, setChartMode] = useState<'mensal' | 'semanal'>('mensal');
   const [loading, setLoading] = useState(true);
 
+  /* ========== carregamento base ========== */
+
   const loadReportsForLeaders = useCallback(
-    async (
-      leaderIds: string[],
-      setter: React.Dispatch<React.SetStateAction<CellReportType[]>>
-    ) => {
+    async (leaderIds: string[], setter: React.Dispatch<React.SetStateAction<CellReportType[]>>) => {
       if (leaderIds.length === 0) {
         setter([]);
         return;
       }
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('cell_reports')
         .select('*')
         .in('lider_id', leaderIds)
         .order('week_start', { ascending: true });
-      if (error) {
-        console.error('Error loading network reports:', error);
-        return;
-      }
+
       const formatted: CellReportType[] = (data || []).map((r) => ({
         id: r.id,
         liderId: r.lider_id,
@@ -72,21 +104,18 @@ export function NetworkReports() {
         status: r.status as 'draft' | 'submitted' | 'approved' | 'needs_correction',
       }));
       setter(formatted);
-    }, []);
+    },
+    []
+  );
 
   const loadDiscipuladores = useCallback(async () => {
     if (!user) return;
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('profiles')
       .select('id, name, email, phone, created_at')
       .eq('pastor_uuid', user.id)
       .eq('role', 'discipulador')
       .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Error loading discipuladores:', error);
-      return;
-    }
 
     const formatted: Discipulador[] = (data || []).map((d) => ({
       id: d.id,
@@ -101,20 +130,12 @@ export function NetworkReports() {
 
   const loadLeaders = useCallback(async () => {
     if (!user) return;
-    let query = supabase
-      .from('profiles')
-      .select('id, name, email, discipulador_uuid')
-      .eq('role', 'lider');
-
-    if (user.role === 'discipulador') {
-      query = query.eq('discipulador_uuid', user.id);
-    } else if (user.role === 'pastor') {
-      query = query.eq('pastor_uuid', user.id);
-    }
+    let query = supabase.from('profiles').select('id, name, email, discipulador_uuid').eq('role', 'lider');
+    if (user.role === 'discipulador') query = query.eq('discipulador_uuid', user.id);
+    else if (user.role === 'pastor') query = query.eq('pastor_uuid', user.id);
 
     const { data, error } = await query.order('name');
     if (error) {
-      console.error('Error loading leaders:', error);
       setLoading(false);
       return;
     }
@@ -128,6 +149,7 @@ export function NetworkReports() {
       createdAt: new Date(),
     }));
     setLeaders(formatted);
+
     await loadReportsForLeaders(
       formatted.map((l) => l.id),
       user.role === 'pastor' ? setChurchReports : setNetworkReports
@@ -137,9 +159,7 @@ export function NetworkReports() {
 
   useEffect(() => {
     if (user && (user.role === 'discipulador' || user.role === 'pastor')) {
-      if (user.role === 'pastor') {
-        void loadDiscipuladores();
-      }
+      if (user.role === 'pastor') void loadDiscipuladores();
       void loadLeaders();
     } else {
       setLoading(false);
@@ -147,15 +167,12 @@ export function NetworkReports() {
   }, [user, loadDiscipuladores, loadLeaders]);
 
   const loadReports = useCallback(async () => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('cell_reports')
       .select('*')
       .eq('lider_id', selectedLeader)
       .order('week_start', { ascending: true });
-    if (error) {
-      console.error('Error loading reports:', error);
-      return;
-    }
+
     const formatted: CellReportType[] = (data || []).map((r) => ({
       id: r.id,
       liderId: r.lider_id,
@@ -186,183 +203,124 @@ export function NetworkReports() {
   }, [selectedLeader]);
 
   useEffect(() => {
-    if (selectedLeader) {
-      void loadReports();
-    }
+    if (selectedLeader) void loadReports();
   }, [selectedLeader, loadReports]);
 
   useEffect(() => {
     if (user?.role === 'pastor' && selectedDiscipulador) {
-      const leaderIds = leaders
-        .filter((l) => l.discipuladorId === selectedDiscipulador)
-        .map((l) => l.id);
+      const leaderIds = leaders.filter((l) => l.discipuladorId === selectedDiscipulador).map((l) => l.id);
       void loadReportsForLeaders(leaderIds, setNetworkReports);
     }
   }, [selectedDiscipulador, leaders, user, loadReportsForLeaders]);
 
-  const chartData = useMemo(() => {
-    if (chartMode === 'mensal') {
-      const groups: Record<string, { members: number; frequentadores: number; count: number }> = {};
-      reports.forEach((r) => {
-        const key = `${r.weekStart.getFullYear()}-${String(r.weekStart.getMonth() + 1).padStart(2, '0')}`;
-        if (!groups[key]) {
-          groups[key] = { members: 0, frequentadores: 0, count: 0 };
-        }
-        groups[key].members += r.members.length;
-        groups[key].frequentadores += r.frequentadores.length;
-        groups[key].count += 1;
-      });
-      return Object.entries(groups)
-        .sort((a, b) => new Date(`${a[0]}-01`).getTime() - new Date(`${b[0]}-01`).getTime())
-        .map(([key, value]) => {
-          const [year, month] = key.split('-');
+  /* ========== datasets (apenas QUANTIDADE) ========== */
+
+  // líder: semanal = 1 ponto por relatório; mensal = média semanal do mês
+  const makeLeaderChart = useCallback(
+    (items: CellReportType[]): ChartPoint[] => {
+      if (items.length === 0) return [];
+
+      if (chartMode === 'mensal') {
+        const groups: Record<string, { weeks: number; mSum: number; fSum: number }> = {};
+        items.forEach((r) => {
+          const key = `${r.weekStart.getFullYear()}-${String(r.weekStart.getMonth() + 1).padStart(2, '0')}`;
+          if (!groups[key]) groups[key] = { weeks: 0, mSum: 0, fSum: 0 };
+          groups[key].weeks += 1;
+          groups[key].mSum += r.members.length;
+          groups[key].fSum += r.frequentadores.length;
+        });
+
+        return Object.entries(groups)
+          .sort((a, b) => new Date(`${a[0]}-01`).getTime() - new Date(`${b[0]}-01`).getTime())
+          .map(([key, v]) => {
+            const [year, month] = key.split('-');
+            const mAvg = Math.round(v.mSum / v.weeks);
+            const fAvg = Math.round(v.fSum / v.weeks);
+            return {
+              name: `${month}/${year}`,
+              membersCount: mAvg,
+              frequentadoresCount: fAvg,
+              totalCount: mAvg + fAvg,
+            };
+          });
+      }
+
+      // semanal
+      return items
+        .map((r) => {
+          const m = r.members.length;
+          const f = r.frequentadores.length;
           return {
-            name: `${month}/${year}`,
-            members: Math.round(value.members / value.count),
-            frequentadores: Math.round(value.frequentadores / value.count),
+            name: r.weekStart.toLocaleDateString('pt-BR'),
+            membersCount: m,
+            frequentadoresCount: f,
+            totalCount: m + f,
+          };
+        })
+        .sort((a, b) => {
+          const [da, ma, ya] = a.name.split('/').map(Number);
+          const [db, mb, yb] = b.name.split('/').map(Number);
+          return new Date(ya, ma - 1, da).getTime() - new Date(yb, mb - 1, db).getTime();
+        });
+    },
+    [chartMode]
+  );
+
+  // rede/igreja: agregação por período com média das quantidades
+  const makeAggChart = useCallback(
+    (items: CellReportType[]): ChartPoint[] => {
+      if (chartMode === 'mensal') {
+        const groups: Record<string, { m: number; f: number; c: number }> = {};
+        items.forEach((r) => {
+          const key = `${r.weekStart.getFullYear()}-${String(r.weekStart.getMonth() + 1).padStart(2, '0')}`;
+          if (!groups[key]) groups[key] = { m: 0, f: 0, c: 0 };
+          groups[key].m += r.members.length;
+          groups[key].f += r.frequentadores.length;
+          groups[key].c += 1;
+        });
+        return Object.entries(groups)
+          .sort((a, b) => new Date(`${a[0]}-01`).getTime() - new Date(`${b[0]}-01`).getTime())
+          .map(([key, v]) => {
+            const [year, month] = key.split('-');
+            const m = Math.round(v.m / v.c);
+            const f = Math.round(v.f / v.c);
+            return {
+              name: `${month}/${year}`,
+              membersCount: m,
+              frequentadoresCount: f,
+              totalCount: m + f,
+            };
+          });
+      }
+      const byWeek: Record<string, { start: Date; m: number; f: number; c: number }> = {};
+      items.forEach((r) => {
+        const k = r.weekStart.toISOString().split('T')[0];
+        if (!byWeek[k]) byWeek[k] = { start: r.weekStart, m: 0, f: 0, c: 0 };
+        byWeek[k].m += r.members.length;
+        byWeek[k].f += r.frequentadores.length;
+        byWeek[k].c += 1;
+      });
+      return Object.values(byWeek)
+        .sort((a, b) => a.start.getTime() - b.start.getTime())
+        .map((w) => {
+          const m = Math.round(w.m / w.c);
+          const f = Math.round(w.f / w.c);
+          return {
+            name: w.start.toLocaleDateString('pt-BR'),
+            membersCount: m,
+            frequentadoresCount: f,
+            totalCount: m + f,
           };
         });
-    }
+    },
+    [chartMode]
+  );
 
-    const weeklyGroups: Record<string, { start: Date; members: number; frequentadores: number; count: number }> = {};
-    reports.forEach((r) => {
-      const key = r.weekStart.toISOString().split('T')[0];
-      if (!weeklyGroups[key]) {
-        weeklyGroups[key] = { start: r.weekStart, members: 0, frequentadores: 0, count: 0 };
-      }
-      weeklyGroups[key].members += r.members.length;
-      weeklyGroups[key].frequentadores += r.frequentadores.length;
-      weeklyGroups[key].count += 1;
-    });
+  const chartDataLeader = useMemo(() => makeLeaderChart(reports), [reports, makeLeaderChart]);
+  const networkChartData = useMemo(() => makeAggChart(networkReports), [networkReports, makeAggChart]);
+  const churchChartData = useMemo(() => makeAggChart(churchReports), [churchReports, makeAggChart]);
 
-    return Object.values(weeklyGroups)
-      .sort((a, b) => a.start.getTime() - b.start.getTime())
-      .map((w) => ({
-        name: w.start.toLocaleDateString('pt-BR'),
-        members: Math.round(w.members / w.count),
-        frequentadores: Math.round(w.frequentadores / w.count),
-      }));
-  }, [reports, chartMode]);
-
-  const networkChartData = useMemo(() => {
-    if (chartMode === 'mensal') {
-      const groups: Record<string, Record<string, { members: number; frequentadores: number; count: number }>> = {};
-      networkReports.forEach((r) => {
-        const monthKey = `${r.weekStart.getFullYear()}-${String(r.weekStart.getMonth() + 1).padStart(2, '0')}`;
-        if (!groups[monthKey]) {
-          groups[monthKey] = {};
-        }
-        if (!groups[monthKey][r.liderId]) {
-          groups[monthKey][r.liderId] = { members: 0, frequentadores: 0, count: 0 };
-        }
-        groups[monthKey][r.liderId].members += r.members.length;
-        groups[monthKey][r.liderId].frequentadores += r.frequentadores.length;
-        groups[monthKey][r.liderId].count += 1;
-      });
-      return Object.entries(groups)
-        .sort((a, b) => new Date(`${a[0]}-01`).getTime() - new Date(`${b[0]}-01`).getTime())
-        .map(([key, leadersData]) => {
-          const [year, month] = key.split('-');
-          let members = 0;
-          let frequentadores = 0;
-          Object.values(leadersData).forEach((l) => {
-            members += Math.round(l.members / l.count);
-            frequentadores += Math.round(l.frequentadores / l.count);
-          });
-          return { name: `${month}/${year}`, members, frequentadores };
-        });
-    }
-
-    const weeklyGroups: Record<string, Record<string, { start: Date; members: number; frequentadores: number; count: number }>> = {};
-    networkReports.forEach((r) => {
-      const weekKey = r.weekStart.toISOString().split('T')[0];
-      if (!weeklyGroups[weekKey]) {
-        weeklyGroups[weekKey] = {};
-      }
-      if (!weeklyGroups[weekKey][r.liderId]) {
-        weeklyGroups[weekKey][r.liderId] = { start: r.weekStart, members: 0, frequentadores: 0, count: 0 };
-      }
-      weeklyGroups[weekKey][r.liderId].members += r.members.length;
-      weeklyGroups[weekKey][r.liderId].frequentadores += r.frequentadores.length;
-      weeklyGroups[weekKey][r.liderId].count += 1;
-    });
-
-    return Object.entries(weeklyGroups)
-      .sort((a, b) => a[1][Object.keys(a[1])[0]].start.getTime() - b[1][Object.keys(b[1])[0]].start.getTime())
-      .map(([key, leadersData]) => {
-        let members = 0;
-        let frequentadores = 0;
-        Object.values(leadersData).forEach((l) => {
-          members += Math.round(l.members / l.count);
-          frequentadores += Math.round(l.frequentadores / l.count);
-        });
-        return {
-          name: new Date(key).toLocaleDateString('pt-BR'),
-          members,
-          frequentadores,
-        };
-      });
-  }, [networkReports, chartMode]);
-
-  const churchChartData = useMemo(() => {
-    if (chartMode === 'mensal') {
-      const groups: Record<string, Record<string, { members: number; frequentadores: number; count: number }>> = {};
-      churchReports.forEach((r) => {
-        const monthKey = `${r.weekStart.getFullYear()}-${String(r.weekStart.getMonth() + 1).padStart(2, '0')}`;
-        if (!groups[monthKey]) {
-          groups[monthKey] = {};
-        }
-        if (!groups[monthKey][r.liderId]) {
-          groups[monthKey][r.liderId] = { members: 0, frequentadores: 0, count: 0 };
-        }
-        groups[monthKey][r.liderId].members += r.members.length;
-        groups[monthKey][r.liderId].frequentadores += r.frequentadores.length;
-        groups[monthKey][r.liderId].count += 1;
-      });
-      return Object.entries(groups)
-        .sort((a, b) => new Date(`${a[0]}-01`).getTime() - new Date(`${b[0]}-01`).getTime())
-        .map(([key, leadersData]) => {
-          const [year, month] = key.split('-');
-          let members = 0;
-          let frequentadores = 0;
-          Object.values(leadersData).forEach((l) => {
-            members += Math.round(l.members / l.count);
-            frequentadores += Math.round(l.frequentadores / l.count);
-          });
-          return { name: `${month}/${year}`, members, frequentadores };
-        });
-    }
-
-    const weeklyGroups: Record<string, Record<string, { start: Date; members: number; frequentadores: number; count: number }>> = {};
-    churchReports.forEach((r) => {
-      const weekKey = r.weekStart.toISOString().split('T')[0];
-      if (!weeklyGroups[weekKey]) {
-        weeklyGroups[weekKey] = {};
-      }
-      if (!weeklyGroups[weekKey][r.liderId]) {
-        weeklyGroups[weekKey][r.liderId] = { start: r.weekStart, members: 0, frequentadores: 0, count: 0 };
-      }
-      weeklyGroups[weekKey][r.liderId].members += r.members.length;
-      weeklyGroups[weekKey][r.liderId].frequentadores += r.frequentadores.length;
-      weeklyGroups[weekKey][r.liderId].count += 1;
-    });
-
-    return Object.entries(weeklyGroups)
-      .sort((a, b) => a[1][Object.keys(a[1])[0]].start.getTime() - b[1][Object.keys(b[1])[0]].start.getTime())
-      .map(([key, leadersData]) => {
-        let members = 0;
-        let frequentadores = 0;
-        Object.values(leadersData).forEach((l) => {
-          members += Math.round(l.members / l.count);
-          frequentadores += Math.round(l.frequentadores / l.count);
-        });
-        return {
-          name: new Date(key).toLocaleDateString('pt-BR'),
-          members,
-          frequentadores,
-        };
-      });
-  }, [churchReports, chartMode]);
+  /* ========== exportações ========== */
 
   const handleExportChurch = () => {
     const data = churchReports.map((r) => ({
@@ -394,53 +352,37 @@ export function NetworkReports() {
     XLSX.writeFile(wb, 'relatorios-rede.xlsx');
   };
 
+  /* ========== ações rápidas ========== */
+
   const handleApprove = async (id: string) => {
-    const { error } = await supabase
-      .from('cell_reports')
-      .update({ status: 'approved' })
-      .eq('id', id);
+    const { error } = await supabase.from('cell_reports').update({ status: 'approved' }).eq('id', id);
     if (error) {
-      toast({
-        title: 'Erro',
-        description: 'Não foi possível aprovar o relatório.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Erro', description: 'Não foi possível aprovar o relatório.', variant: 'destructive' });
       return;
     }
-    setReports((prev) => prev.map((r) => (r.id === id ? { ...r, status: 'approved' } : r)));
-    setNetworkReports((prev) => prev.map((r) => (r.id === id ? { ...r, status: 'approved' } : r)));
-    setChurchReports((prev) => prev.map((r) => (r.id === id ? { ...r, status: 'approved' } : r)));
+    setReports((p) => p.map((r) => (r.id === id ? { ...r, status: 'approved' } : r)));
+    setNetworkReports((p) => p.map((r) => (r.id === id ? { ...r, status: 'approved' } : r)));
+    setChurchReports((p) => p.map((r) => (r.id === id ? { ...r, status: 'approved' } : r)));
     toast({ title: 'Relatório aprovado!' });
   };
 
   const handleRequestCorrection = async (report: CellReportType) => {
-    const { error } = await supabase
-      .from('cell_reports')
-      .update({ status: 'needs_correction' })
-      .eq('id', report.id);
+    const { error } = await supabase.from('cell_reports').update({ status: 'needs_correction' }).eq('id', report.id);
     if (error) {
-      toast({
-        title: 'Erro',
-        description: 'Não foi possível enviar para correção.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Erro', description: 'Não foi possível enviar para correção.', variant: 'destructive' });
       return;
     }
-    setReports((prev) =>
-      prev.map((r) => (r.id === report.id ? { ...r, status: 'needs_correction' } : r))
-    );
-    setNetworkReports((prev) =>
-      prev.map((r) => (r.id === report.id ? { ...r, status: 'needs_correction' } : r))
-    );
-    setChurchReports((prev) =>
-      prev.map((r) => (r.id === report.id ? { ...r, status: 'needs_correction' } : r))
-    );
+    setReports((p) => p.map((r) => (r.id === report.id ? { ...r, status: 'needs_correction' } : r)));
+    setNetworkReports((p) => p.map((r) => (r.id === report.id ? { ...r, status: 'needs_correction' } : r)));
+    setChurchReports((p) => p.map((r) => (r.id === report.id ? { ...r, status: 'needs_correction' } : r)));
     await supabase.from('notifications').insert({
       user_id: report.liderId,
       message: `Seu relatório da semana ${report.weekStart.toLocaleDateString('pt-BR')} precisa de correção.`,
     });
     toast({ title: 'Correção solicitada!' });
   };
+
+  /* ========== guards/loading ========== */
 
   if (!user || !['discipulador', 'pastor'].includes(user.role)) {
     return (
@@ -462,55 +404,84 @@ export function NetworkReports() {
       />
     );
   }
+
+  /* ===================== UI ===================== */
+
+  const ChartShell = ({ data }: { data: ChartPoint[] }) => (
+    <div className="h-[220px] sm:h-[300px] md:h-[340px]">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="name" />
+          <YAxis allowDecimals={false} />
+          <Tooltip
+            formatter={(value: any, name: any) => {
+              const map: Record<string, string> = {
+                membersCount: 'Membros (qtde)',
+                frequentadoresCount: 'Frequentadores (qtde)',
+                totalCount: 'Total (qtde)',
+              };
+              return [value, map[name] || name];
+            }}
+          />
+          <Legend />
+
+          <Line
+            type="monotone"
+            dataKey="membersCount"
+            name="Membros (qtde)"
+            stroke="#7c3aed"
+            dot={!isMobile}
+          >
+            {!isMobile && <LabelList dataKey="membersCount" position="top" />}
+          </Line>
+
+          <Line
+            type="monotone"
+            dataKey="frequentadoresCount"
+            name="Frequentadores (qtde)"
+            stroke="#16a34a"
+            dot={!isMobile}
+          >
+            {!isMobile && <LabelList dataKey="frequentadoresCount" position="top" />}
+          </Line>
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+
+  /* -------------------------- PASTOR -------------------------- */
   if (user.role === 'pastor') {
     return (
-      <Tabs defaultValue="church" className="space-y-8 animate-fade-in">
-        <TabsList>
+      <Tabs defaultValue="church" className="space-y-6 sm:space-y-8 animate-fade-in">
+        <TabsList className="sticky top-0 z-10 mx-auto w-full sm:w-auto overflow-auto rounded-xl">
           <TabsTrigger value="church">Igreja</TabsTrigger>
           <TabsTrigger value="networks">Redes</TabsTrigger>
         </TabsList>
 
         <TabsContent value="church">
-          <div className="space-y-8">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <h1 className="text-2xl md:text-3xl font-bold text-foreground">Relatório da Igreja</h1>
-              <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
+          <div className="space-y-6 sm:space-y-8">
+            <div className="flex flex-col gap-3 sm:gap-4 md:flex-row md:items-center md:justify-between">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">Relatório da Igreja</h1>
+              <div className="flex -mx-1 overflow-x-auto sm:overflow-visible px-1 gap-2 sm:gap-3">
                 <Select value={chartMode} onValueChange={(v) => setChartMode(v as 'mensal' | 'semanal')}>
-                  <SelectTrigger className="w-full sm:w-[200px]">
-                    <SelectValue />
+                  <SelectTrigger className="w-[140px] sm:w-[200px]">
+                    <SelectValue placeholder="Período" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="mensal">Mensal</SelectItem>
                     <SelectItem value="semanal">Semanal</SelectItem>
                   </SelectContent>
                 </Select>
-                <Button
-                  size="sm"
-                  className="flex items-center justify-center gap-1 sm:w-auto"
-                  onClick={handleExportChurch}
-                >
+                <Button size="sm" className="shrink-0" onClick={handleExportChurch}>
                   <Download className="w-4 h-4" /> Excel
                 </Button>
               </div>
             </div>
 
             <Card className="hover:grape-glow transition-smooth">
-              <CardHeader>
-                <CardTitle>Resumo</CardTitle>
-              </CardHeader>
-              <CardContent className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={churchChartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Line type="monotone" dataKey="members" name="Membros" stroke="#8884d8" />
-                    <Line type="monotone" dataKey="frequentadores" name="Frequentadores" stroke="#82ca9d" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </CardContent>
+              <CardHeader><CardTitle>Resumo (Quantidade)</CardTitle></CardHeader>
+              <CardContent><ChartShell data={churchChartData} /></CardContent>
             </Card>
 
             <Card>
@@ -548,13 +519,7 @@ export function NetworkReports() {
                           <TableCell>{r.weekStart.toLocaleDateString('pt-BR')}</TableCell>
                           <TableCell>
                             <Badge variant={r.status === 'approved' ? 'default' : r.status === 'needs_correction' ? 'destructive' : 'secondary'}>
-                              {r.status === 'submitted'
-                                ? 'Enviado'
-                                : r.status === 'approved'
-                                ? 'Aprovado'
-                                : r.status === 'needs_correction'
-                                ? 'Correção'
-                                : 'Rascunho'}
+                              {r.status === 'submitted' ? 'Enviado' : r.status === 'approved' ? 'Aprovado' : r.status === 'needs_correction' ? 'Correção' : 'Rascunho'}
                             </Badge>
                           </TableCell>
                           <TableCell>{r.phase}</TableCell>
@@ -577,19 +542,10 @@ export function NetworkReports() {
                           <TableCell className="text-right">
                             {r.status === 'submitted' && (
                               <div className="flex flex-col items-end gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
-                                <Button
-                                  size="sm"
-                                  className="inline-flex items-center gap-1"
-                                  onClick={() => handleApprove(r.id)}
-                                >
+                                <Button size="sm" className="inline-flex items-center gap-1" onClick={() => handleApprove(r.id)}>
                                   <CheckCircle2 className="w-4 h-4" /> Aprovar
                                 </Button>
-                                <Button
-                                  size="sm"
-                                  variant="secondary"
-                                  className="inline-flex items-center gap-1"
-                                  onClick={() => handleRequestCorrection(r)}
-                                >
+                                <Button size="sm" variant="secondary" className="inline-flex items-center gap-1" onClick={() => handleRequestCorrection(r)}>
                                   <XCircle className="w-4 h-4" /> Correção
                                 </Button>
                               </div>
@@ -606,13 +562,13 @@ export function NetworkReports() {
         </TabsContent>
 
         <TabsContent value="networks">
-          <div className="space-y-8">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <h1 className="text-2xl md:text-3xl font-bold text-foreground">Relatórios das Redes</h1>
-              <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
+          <div className="space-y-6 sm:space-y-8">
+            <div className="flex flex-col gap-3 sm:gap-4 md:flex-row md:items-center md:justify-between">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">Relatórios das Redes</h1>
+              <div className="flex -mx-1 overflow-x-auto sm:overflow-visible px-1 gap-2 sm:gap-3">
                 <Select value={selectedDiscipulador} onValueChange={setSelectedDiscipulador}>
-                  <SelectTrigger className="w-full sm:w-[220px]">
-                    <SelectValue placeholder="Selecione um discipulador" />
+                  <SelectTrigger className="w-[180px] sm:w-[220px]">
+                    <SelectValue placeholder="Discipulador" />
                   </SelectTrigger>
                   <SelectContent>
                     {discipuladores.map((d) => (
@@ -623,8 +579,8 @@ export function NetworkReports() {
                   </SelectContent>
                 </Select>
                 <Select value={chartMode} onValueChange={(v) => setChartMode(v as 'mensal' | 'semanal')}>
-                  <SelectTrigger className="w-full sm:w-[180px]">
-                    <SelectValue />
+                  <SelectTrigger className="w-[140px] sm:w-[180px]">
+                    <SelectValue placeholder="Período" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="mensal">Mensal</SelectItem>
@@ -632,11 +588,7 @@ export function NetworkReports() {
                   </SelectContent>
                 </Select>
                 {selectedDiscipulador && (
-                  <Button
-                    size="sm"
-                    className="flex items-center justify-center gap-1 sm:w-auto"
-                    onClick={handleExportNetwork}
-                  >
+                  <Button size="sm" className="shrink-0" onClick={handleExportNetwork}>
                     <Download className="w-4 h-4" /> Excel
                   </Button>
                 )}
@@ -644,116 +596,10 @@ export function NetworkReports() {
             </div>
 
             {selectedDiscipulador && (
-              <>
-                <Card className="hover:grape-glow transition-smooth">
-                  <CardHeader>
-                    <CardTitle>Resumo</CardTitle>
-                  </CardHeader>
-                  <CardContent className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={networkChartData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis />
-                        <Tooltip />
-                        <Legend />
-                        <Line type="monotone" dataKey="members" name="Membros" stroke="#8884d8" />
-                        <Line type="monotone" dataKey="frequentadores" name="Frequentadores" stroke="#82ca9d" />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <FileText className="w-5 h-5 text-primary" />
-                      Relatórios
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="overflow-x-auto">
-                    {networkReports.length === 0 ? (
-                      <div className="text-center py-8">
-                        <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                        <p className="text-muted-foreground">Nenhum relatório encontrado.</p>
-                      </div>
-                    ) : (
-                      <Table className="min-w-[880px]">
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="min-w-[200px]">Líder</TableHead>
-                            <TableHead className="min-w-[130px]">Semana</TableHead>
-                            <TableHead className="min-w-[120px]">Status</TableHead>
-                            <TableHead className="min-w-[130px]">Fase</TableHead>
-                            <TableHead className="min-w-[200px]">Data de Multiplicação</TableHead>
-                            <TableHead className="min-w-[180px]">Data de Envio</TableHead>
-                            <TableHead className="min-w-[220px] text-right">Ações</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {networkReports.map((r) => (
-                            <TableRow key={r.id}>
-                              <TableCell className="font-medium">
-                                {leaders.find((l) => l.id === r.liderId)?.name || r.liderId}
-                              </TableCell>
-                              <TableCell>{r.weekStart.toLocaleDateString('pt-BR')}</TableCell>
-                              <TableCell>
-                                <Badge variant={r.status === 'approved' ? 'default' : r.status === 'needs_correction' ? 'destructive' : 'secondary'}>
-                                  {r.status === 'submitted'
-                                    ? 'Enviado'
-                                    : r.status === 'approved'
-                                    ? 'Aprovado'
-                                    : r.status === 'needs_correction'
-                                    ? 'Correção'
-                                    : 'Rascunho'}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>{r.phase}</TableCell>
-                              <TableCell>
-                                {r.multiplicationDate ? (
-                                  <div className="flex items-center gap-1 text-sm">
-                                    <Calendar className="w-3 h-3" />
-                                    {r.multiplicationDate.toLocaleDateString('pt-BR')}
-                                  </div>
-                                ) : (
-                                  <span className="text-muted-foreground">-</span>
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex items-center gap-1 text-sm">
-                                  <Calendar className="w-3 h-3" />
-                                  {r.submittedAt.toLocaleDateString('pt-BR')}
-                                </div>
-                              </TableCell>
-                            <TableCell className="text-right">
-                              {r.status === 'submitted' && (
-                                <div className="flex flex-col items-end gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
-                                  <Button
-                                    size="sm"
-                                    className="inline-flex items-center gap-1"
-                                    onClick={() => handleApprove(r.id)}
-                                  >
-                                    <CheckCircle2 className="w-4 h-4" /> Aprovar
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="secondary"
-                                    className="inline-flex items-center gap-1"
-                                    onClick={() => handleRequestCorrection(r)}
-                                  >
-                                    <XCircle className="w-4 h-4" /> Correção
-                                  </Button>
-                                </div>
-                              )}
-                            </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    )}
-                  </CardContent>
-                </Card>
-              </>
+              <Card className="hover:grape-glow transition-smooth">
+                <CardHeader><CardTitle>Resumo (Quantidade)</CardTitle></CardHeader>
+                <CardContent><ChartShell data={networkChartData} /></CardContent>
+              </Card>
             )}
           </div>
         </TabsContent>
@@ -761,20 +607,22 @@ export function NetworkReports() {
     );
   }
 
+  /* -------------------------- DISCIPULADOR -------------------------- */
+
   return (
-    <Tabs defaultValue="leader" className="space-y-8 animate-fade-in">
-      <TabsList>
+    <Tabs defaultValue="leader" className="space-y-6 sm:space-y-8 animate-fade-in">
+      <TabsList className="sticky top-0 z-10 mx-auto w-full sm:w-auto overflow-auto rounded-xl">
         <TabsTrigger value="leader">Por Líder</TabsTrigger>
         <TabsTrigger value="network">Rede</TabsTrigger>
       </TabsList>
 
       <TabsContent value="leader">
-        <div className="space-y-8">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <h1 className="text-2xl md:text-3xl font-bold text-foreground">Relatórios dos Líderes</h1>
-            <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
+        <div className="space-y-6 sm:space-y-8">
+          <div className="flex flex-col gap-3 sm:gap-4 md:flex-row md:items-center md:justify-between">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">Relatórios dos Líderes</h1>
+            <div className="flex -mx-1 overflow-x-auto sm:overflow-visible px-1 gap-2 sm:gap-3">
               <Select value={selectedLeader} onValueChange={setSelectedLeader}>
-                <SelectTrigger className="w-full sm:w-[220px]">
+                <SelectTrigger className="w-[180px] sm:w-[220px]">
                   <SelectValue placeholder="Selecione um líder" />
                 </SelectTrigger>
                 <SelectContent>
@@ -786,8 +634,8 @@ export function NetworkReports() {
                 </SelectContent>
               </Select>
               <Select value={chartMode} onValueChange={(v) => setChartMode(v as 'mensal' | 'semanal')}>
-                <SelectTrigger className="w-full sm:w-[180px]">
-                  <SelectValue />
+                <SelectTrigger className="w-[140px] sm:w-[180px]">
+                  <SelectValue placeholder="Período" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="mensal">Mensal</SelectItem>
@@ -800,27 +648,8 @@ export function NetworkReports() {
           {selectedLeader && (
             <>
               <Card className="hover:grape-glow transition-smooth">
-                <CardHeader>
-                  <CardTitle>Resumo</CardTitle>
-                </CardHeader>
-                <CardContent className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis />
-                      <Tooltip />
-                      <Legend />
-                      <Line type="monotone" dataKey="members" name="Membros" stroke="#8884d8" />
-                      <Line
-                        type="monotone"
-                        dataKey="frequentadores"
-                        name="Frequentadores"
-                        stroke="#82ca9d"
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </CardContent>
+                <CardHeader><CardTitle>Resumo (Quantidade)</CardTitle></CardHeader>
+                <CardContent><ChartShell data={chartDataLeader} /></CardContent>
               </Card>
 
               <Card>
@@ -851,18 +680,10 @@ export function NetworkReports() {
                       <TableBody>
                         {reports.map((r) => (
                           <TableRow key={r.id}>
-                            <TableCell className="font-medium">
-                              {r.weekStart.toLocaleDateString('pt-BR')}
-                            </TableCell>
+                            <TableCell className="font-medium">{r.weekStart.toLocaleDateString('pt-BR')}</TableCell>
                             <TableCell>
                               <Badge variant={r.status === 'approved' ? 'default' : r.status === 'needs_correction' ? 'destructive' : 'secondary'}>
-                                {r.status === 'submitted'
-                                  ? 'Enviado'
-                                  : r.status === 'approved'
-                                  ? 'Aprovado'
-                                  : r.status === 'needs_correction'
-                                  ? 'Correção'
-                                  : 'Rascunho'}
+                                {r.status === 'submitted' ? 'Enviado' : r.status === 'approved' ? 'Aprovado' : r.status === 'needs_correction' ? 'Correção' : 'Rascunho'}
                               </Badge>
                             </TableCell>
                             <TableCell>{r.phase}</TableCell>
@@ -885,19 +706,10 @@ export function NetworkReports() {
                             <TableCell className="text-right">
                               {r.status === 'submitted' && (
                                 <div className="flex flex-col items-end gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
-                                  <Button
-                                    size="sm"
-                                    className="inline-flex items-center gap-1"
-                                    onClick={() => handleApprove(r.id)}
-                                  >
+                                  <Button size="sm" className="inline-flex items-center gap-1" onClick={() => handleApprove(r.id)}>
                                     <CheckCircle2 className="w-4 h-4" /> Aprovar
                                   </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="secondary"
-                                    className="inline-flex items-center gap-1"
-                                    onClick={() => handleRequestCorrection(r)}
-                                  >
+                                  <Button size="sm" variant="secondary" className="inline-flex items-center gap-1" onClick={() => handleRequestCorrection(r)}>
                                     <XCircle className="w-4 h-4" /> Correção
                                   </Button>
                                 </div>
@@ -916,45 +728,29 @@ export function NetworkReports() {
       </TabsContent>
 
       <TabsContent value="network">
-        <div className="space-y-8">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <h1 className="text-3xl font-bold text-foreground">Relatório da Rede</h1>
-            <div className="flex gap-4">
+        <div className="space-y-6 sm:space-y-8">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 sm:gap-4">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">Relatório da Rede</h1>
+            <div className="flex -mx-1 overflow-x-auto sm:overflow-visible px-1 gap-2 sm:gap-3">
               <Select value={chartMode} onValueChange={(v) => setChartMode(v as 'mensal' | 'semanal')}>
-                <SelectTrigger className="w-[150px]">
-                  <SelectValue />
+                <SelectTrigger className="w-[140px] sm:w-[180px]">
+                  <SelectValue placeholder="Período" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="mensal">Mensal</SelectItem>
                   <SelectItem value="semanal">Semanal</SelectItem>
                 </SelectContent>
               </Select>
-              <Button size="sm" className="flex items-center gap-1" onClick={handleExportNetwork}>
+              <Button size="sm" className="shrink-0" onClick={handleExportNetwork}>
                 <Download className="w-4 h-4" /> Excel
               </Button>
             </div>
           </div>
 
           <Card className="hover:grape-glow transition-smooth">
-            <CardHeader>
-              <CardTitle>Resumo</CardTitle>
-            </CardHeader>
-            <CardContent className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={networkChartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="members" name="Membros" stroke="#8884d8" />
-                  <Line type="monotone" dataKey="frequentadores" name="Frequentadores" stroke="#82ca9d" />
-                </LineChart>
-              </ResponsiveContainer>
-            </CardContent>
+            <CardHeader><CardTitle>Resumo (Quantidade)</CardTitle></CardHeader>
+            <CardContent><ChartShell data={networkChartData} /></CardContent>
           </Card>
-
-          {/* 🔕 Removido: Card com a tabela de Relatórios na visão "Rede" */}
         </div>
       </TabsContent>
     </Tabs>

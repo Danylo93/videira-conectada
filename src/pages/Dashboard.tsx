@@ -315,7 +315,7 @@ export function Dashboard() {
           </>
         ) : (
           <KpiCard
-            title={isLeader ? "Membros da Célula" : isDiscipulador ? "Líderes da Rede" : "Total de Líderes"}
+            title={isLeader ? "Quantidade de pessoas da Célula" : isDiscipulador ? "Líderes da Rede" : "Total de Líderes"}
             value={isLeader ? membersCount : leadersCount}
             icon={Users}
             subtitle={
