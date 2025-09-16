@@ -27,8 +27,7 @@ import { Auth } from "./pages/Auth";
 // CURSOS
 import Courses from "./pages/cursos/Courses";          // <-- roteador (Pastor/Discipulador/Líder)
 import CourseAdmin from "./pages/cursos/CourseAdmin";  // <-- admin do Pastor (rota separada /admin-cursos)
-import type { AuthTransition } from "@/types/auth";
-import { ReactNode, useEffect, useState } from "react";
+
 
 const queryClient = new QueryClient();
 
