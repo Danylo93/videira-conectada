@@ -77,6 +77,8 @@ export function CellReports() {
 
   const memberOptions = allMembers.filter((m) => m.type === "member");
   const visitorOptions = allMembers.filter((m) => m.type === "frequentador");
+  const totalMembers = memberOptions.length;
+  const totalVisitors = visitorOptions.length;
 
   // ---- data load -----------------------------------------------------------
   useEffect(() => {
@@ -170,7 +172,7 @@ export function CellReports() {
   };
 
   // ---- DERIVED DATA (hooks SEMPRE antes de qualquer return condicional) ----
-  // agrega por mês (YYYY-MM) somando presenças das semanas do mês
+  // agrega por mês (YYYY-MM) calculando a taxa média de presença no período
   const monthlyChartData = useMemo(() => {
     const map = reports.reduce((acc, r) => {
       const d = r.weekStart;
@@ -181,19 +183,26 @@ export function CellReports() {
       if (!acc[key]) {
         acc[key] = {
           monthKey: key,
-          members: 0,
-          frequentadores: 0,
+          membersPresence: 0,
+          frequentadoresPresence: 0,
           weeks: 0,
         };
       }
-      acc[key].members += r.members.length;
-      acc[key].frequentadores += r.frequentadores.length;
+      acc[key].membersPresence +=
+        totalMembers > 0 ? r.members.length / totalMembers : 0;
+      acc[key].frequentadoresPresence +=
+        totalVisitors > 0 ? r.frequentadores.length / totalVisitors : 0;
       acc[key].weeks += 1;
       return acc;
     },
     {} as Record<
       string,
-      { monthKey: string; members: number; frequentadores: number; weeks: number }
+      {
+        monthKey: string;
+        membersPresence: number;
+        frequentadoresPresence: number;
+        weeks: number;
+      }
     >);
 
     return Object.values(map)
@@ -207,10 +216,16 @@ export function CellReports() {
           month: "short",
           year: "numeric",
         }),
-        members: Math.round(m.members / m.weeks),
-        frequentadores: Math.round(m.frequentadores / m.weeks),
+        members:
+          m.weeks > 0
+            ? Math.round((m.membersPresence / m.weeks) * 100)
+            : 0,
+        frequentadores:
+          m.weeks > 0
+            ? Math.round((m.frequentadoresPresence / m.weeks) * 100)
+            : 0,
       }));
-  }, [reports]);
+  }, [reports, totalMembers, totalVisitors]);
 
   // "10/agosto/25"
   const fmtPtWeekPart = useCallback((d: Date) => {
@@ -229,32 +244,49 @@ export function CellReports() {
     [fmtPtWeekPart],
   );
 
-  // dados semanais (média por semana)
+  // dados semanais (média percentual por semana)
   const weeklyChartData = useMemo(() => {
     const map = reports.reduce((acc, r) => {
       const key = r.weekStart.toISOString().split("T")[0];
       if (!acc[key]) {
         acc[key] = {
           start: r.weekStart,
-          members: 0,
-          frequentadores: 0,
+          membersPresence: 0,
+          frequentadoresPresence: 0,
           count: 0,
         };
       }
-      acc[key].members += r.members.length;
-      acc[key].frequentadores += r.frequentadores.length;
+      acc[key].membersPresence +=
+        totalMembers > 0 ? r.members.length / totalMembers : 0;
+      acc[key].frequentadoresPresence +=
+        totalVisitors > 0 ? r.frequentadores.length / totalVisitors : 0;
       acc[key].count += 1;
       return acc;
-    }, {} as Record<string, { start: Date; members: number; frequentadores: number; count: number }>);
+    },
+    {} as Record<
+      string,
+      {
+        start: Date;
+        membersPresence: number;
+        frequentadoresPresence: number;
+        count: number;
+      }
+    >);
 
     return Object.values(map)
       .sort((a, b) => a.start.getTime() - b.start.getTime())
       .map((w) => ({
         weekLabel: weekLabel(w.start),
-        members: Math.round(w.members / w.count),
-        frequentadores: Math.round(w.frequentadores / w.count),
+        members:
+          w.count > 0
+            ? Math.round((w.membersPresence / w.count) * 100)
+            : 0,
+        frequentadores:
+          w.count > 0
+            ? Math.round((w.frequentadoresPresence / w.count) * 100)
+            : 0,
       }));
-  }, [reports, weekLabel]);
+  }, [reports, weekLabel, totalMembers, totalVisitors]);
 
   const chartData = chartMode === "mensal" ? monthlyChartData : weeklyChartData;
   const xKey = chartMode === "mensal" ? "monthLabel" : "weekLabel";
@@ -675,7 +707,7 @@ Observações: ${report.observations || ""}`;
       <Card>
         <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <CardTitle className="text-xl">
-            Presença {chartMode === "mensal" ? "Mensal" : "Semanal"}
+            Presença {chartMode === "mensal" ? "Mensal" : "Semanal"} (%)
           </CardTitle>
 
           <Select value={chartMode} onValueChange={(v) => setChartMode(v as 'mensal' | 'semanal')}>
@@ -705,8 +737,13 @@ Observações: ${report.observations || ""}`;
                   angle={-15}
                   tick={{ fontSize: 12 }}
                 />
-                <YAxis />
-                <Tooltip />
+                <YAxis domain={[0, 100]} tickFormatter={(value) => `${value}%`} />
+                <Tooltip
+                  formatter={(value: number | string, name: string) => [
+                    `${typeof value === "number" ? value : Number(value)}%`,
+                    name,
+                  ]}
+                />
                 <Legend />
                 <Line
                   type="monotone"
