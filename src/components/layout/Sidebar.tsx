@@ -9,6 +9,8 @@ import {
   BarChart3,
   Church,
   Grape,
+  Settings,
+  UserCircle2,
   LucideIcon
 } from 'lucide-react';
 import {
@@ -88,6 +90,21 @@ const navigationItems: NavigationItem[] = [
   },
 ];
 
+const accountItems: NavigationItem[] = [
+  {
+    title: 'Perfil',
+    url: '/perfil',
+    icon: UserCircle2,
+    roles: ['pastor', 'obreiro', 'discipulador', 'lider'],
+  },
+  {
+    title: 'Configurações',
+    url: '/configuracoes',
+    icon: Settings,
+    roles: ['pastor', 'obreiro', 'discipulador', 'lider'],
+  },
+];
+
 export function Sidebar() {
   const { user } = useAuth();
   const { state } = useSidebar();
@@ -97,7 +114,11 @@ export function Sidebar() {
 
   const collapsed = state === "collapsed";
 
-  const filteredItems = navigationItems.filter(item => 
+  const filteredItems = navigationItems.filter(item =>
+    item.roles.includes(user.role)
+  );
+
+  const filteredAccountItems = accountItems.filter(item =>
     item.roles.includes(user.role)
   );
 
@@ -124,10 +145,37 @@ export function Sidebar() {
         </div>
 
         <SidebarGroup>
-            <SidebarGroupLabel>Navegação</SidebarGroupLabel>
+          <SidebarGroupLabel>Navegação</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {filteredItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isActive(item.url)}
+                    className={cn(
+                      'flex items-center gap-3 px-3 py-2 rounded-lg transition-smooth',
+                      isActive(item.url)
+                        ? 'bg-primary text-primary-foreground grape-glow'
+                        : 'text-sidebar-foreground hover:bg-muted'
+                    )}
+                  >
+                    <NavLink to={item.url}>
+                      <item.icon className="w-5 h-5 flex-shrink-0" />
+                      {!collapsed && <span>{item.title}</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Conta</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {filteredAccountItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
