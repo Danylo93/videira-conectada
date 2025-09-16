@@ -28,7 +28,6 @@ import { Auth } from "./pages/Auth";
 import Courses from "./pages/cursos/Courses";          // <-- roteador (Pastor/Discipulador/Líder)
 import CourseAdmin from "./pages/cursos/CourseAdmin";  // <-- admin do Pastor (rota separada /admin-cursos)
 
-
 const queryClient = new QueryClient();
 
 type LoaderCopy = {
