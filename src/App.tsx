@@ -17,6 +17,8 @@ import { CellReports } from "@/pages/CellReports";
 import { NetworkReports } from "@/pages/NetworkReports";
 import { Statistics } from "@/pages/Statistics";
 import { ChurchManagement } from "@/pages/ChurchManagement";
+import { Profile } from "@/pages/Profile";
+import { Settings } from "@/pages/Settings";
 import NotFound from "./pages/NotFound";
 
 import FancyLoader from "./components/FancyLoader";
@@ -163,6 +165,8 @@ function AppContent() {
         <Route path="/eventos" element={<div>Eventos (Em breve)</div>} />
         <Route path="/estatisticas" element={<Statistics />} />
         <Route path="/gerenciar" element={<ChurchManagement />} />
+        <Route path="/perfil" element={<Profile />} />
+        <Route path="/configuracoes" element={<Settings />} />
       </Route>
 
       {/* 404 */}

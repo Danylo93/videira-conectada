@@ -1,12 +1,13 @@
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuSeparator, 
-  DropdownMenuTrigger 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { LogOut, User, Settings } from 'lucide-react';
@@ -20,6 +21,7 @@ const roleNames = {
 
 export function Header() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
 
   if (!user) return null;
 
@@ -64,11 +66,21 @@ export function Header() {
               </div>
             </div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={(event) => {
+                event.preventDefault();
+                navigate('/perfil');
+              }}
+            >
               <User className="mr-2 h-4 w-4" />
               Perfil
             </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={(event) => {
+                event.preventDefault();
+                navigate('/configuracoes');
+              }}
+            >
               <Settings className="mr-2 h-4 w-4" />
               Configurações
             </DropdownMenuItem>

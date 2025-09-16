@@ -60,7 +60,7 @@ export function NetworkReports() {
   const [discipuladores, setDiscipuladores] = useState<Discipulador[]>([]);
   const [selectedDiscipulador, setSelectedDiscipulador] = useState('');
   const [churchReports, setChurchReports] = useState<CellReportType[]>([]);
-  const [chartMode, setChartMode] = useState<'mensal' | 'semanal'>('mensal');
+  const [chartMode, setChartMode] = useState<'mensal' | 'semanal'>('semanal');
   const [loading, setLoading] = useState(true);
 
   /* ========== carregamento base ========== */
@@ -266,59 +266,102 @@ export function NetworkReports() {
     [chartMode]
   );
 
-  // rede/igreja: agregação por período com média das quantidades
-  const makeAggChart = useCallback(
+  // *** REDE: SOMA das quantidades de todos os líderes do discipulador ***
+  const makeNetworkSumChart = useCallback(
     (items: CellReportType[]): ChartPoint[] => {
       if (chartMode === 'mensal') {
-        const groups: Record<string, { m: number; f: number; c: number }> = {};
+        const groups: Record<string, { m: number; f: number }> = {};
         items.forEach((r) => {
           const key = `${r.weekStart.getFullYear()}-${String(r.weekStart.getMonth() + 1).padStart(2, '0')}`;
-          if (!groups[key]) groups[key] = { m: 0, f: 0, c: 0 };
+          if (!groups[key]) groups[key] = { m: 0, f: 0 };
           groups[key].m += r.members.length;
           groups[key].f += r.frequentadores.length;
-          groups[key].c += 1;
         });
+
         return Object.entries(groups)
           .sort((a, b) => new Date(`${a[0]}-01`).getTime() - new Date(`${b[0]}-01`).getTime())
           .map(([key, v]) => {
             const [year, month] = key.split('-');
-            const m = Math.round(v.m / v.c);
-            const f = Math.round(v.f / v.c);
             return {
               name: `${month}/${year}`,
-              membersCount: m,
-              frequentadoresCount: f,
-              totalCount: m + f,
+              membersCount: v.m,
+              frequentadoresCount: v.f,
+              totalCount: v.m + v.f,
             };
           });
       }
-      const byWeek: Record<string, { start: Date; m: number; f: number; c: number }> = {};
+
+      // semanal: soma de todos os líderes por semana
+      const byWeek: Record<string, { start: Date; m: number; f: number }> = {};
       items.forEach((r) => {
         const k = r.weekStart.toISOString().split('T')[0];
-        if (!byWeek[k]) byWeek[k] = { start: r.weekStart, m: 0, f: 0, c: 0 };
+        if (!byWeek[k]) byWeek[k] = { start: r.weekStart, m: 0, f: 0 };
         byWeek[k].m += r.members.length;
         byWeek[k].f += r.frequentadores.length;
-        byWeek[k].c += 1;
       });
+
       return Object.values(byWeek)
         .sort((a, b) => a.start.getTime() - b.start.getTime())
-        .map((w) => {
-          const m = Math.round(w.m / w.c);
-          const f = Math.round(w.f / w.c);
-          return {
-            name: w.start.toLocaleDateString('pt-BR'),
-            membersCount: m,
-            frequentadoresCount: f,
-            totalCount: m + f,
-          };
+        .map((w) => ({
+          name: w.start.toLocaleDateString('pt-BR'),
+          membersCount: w.m,
+          frequentadoresCount: w.f,
+          totalCount: w.m + w.f,
+        }));
+    },
+    [chartMode]
+  );
+
+  // *** IGREJA: SOMA das quantidades de TODAS as células (todas as redes/discipuladores) ***
+  const makeChurchSumChart = useCallback(
+    (items: CellReportType[]): ChartPoint[] => {
+      if (chartMode === 'mensal') {
+        const groups: Record<string, { m: number; f: number }> = {};
+        items.forEach((r) => {
+          const key = `${r.weekStart.getFullYear()}-${String(r.weekStart.getMonth() + 1).padStart(2, '0')}`;
+          if (!groups[key]) groups[key] = { m: 0, f: 0 };
+          groups[key].m += r.members.length;
+          groups[key].f += r.frequentadores.length;
         });
+
+        return Object.entries(groups)
+          .sort((a, b) => new Date(`${a[0]}-01`).getTime() - new Date(`${b[0]}-01`).getTime())
+          .map(([key, v]) => {
+            const [year, month] = key.split('-');
+            return {
+              name: `${month}/${year}`,
+              membersCount: v.m,
+              frequentadoresCount: v.f,
+              totalCount: v.m + v.f,
+            };
+          });
+      }
+
+      // semanal: soma total por semana (todas as células)
+      const byWeek: Record<string, { start: Date; m: number; f: number }> = {};
+      items.forEach((r) => {
+        const k = r.weekStart.toISOString().split('T')[0];
+        if (!byWeek[k]) byWeek[k] = { start: r.weekStart, m: 0, f: 0 };
+        byWeek[k].m += r.members.length;
+        byWeek[k].f += r.frequentadores.length;
+      });
+
+      return Object.values(byWeek)
+        .sort((a, b) => a.start.getTime() - b.start.getTime())
+        .map((w) => ({
+          name: w.start.toLocaleDateString('pt-BR'),
+          membersCount: w.m,
+          frequentadoresCount: w.f,
+          totalCount: w.m + w.f,
+        }));
     },
     [chartMode]
   );
 
   const chartDataLeader = useMemo(() => makeLeaderChart(reports), [reports, makeLeaderChart]);
-  const networkChartData = useMemo(() => makeAggChart(networkReports), [networkReports, makeAggChart]);
-  const churchChartData = useMemo(() => makeAggChart(churchReports), [churchReports, makeAggChart]);
+  const networkChartData = useMemo(() => makeNetworkSumChart(networkReports), [networkReports, makeNetworkSumChart]);
+  // ⬇️ Igreja agora usa *soma*:
+  const churchChartData = useMemo(() => makeChurchSumChart(churchReports), [churchReports, makeChurchSumChart]);
 
   /* ========== exportações ========== */
 
@@ -405,16 +448,27 @@ export function NetworkReports() {
     );
   }
 
-  /* ===================== UI ===================== */
+  /* ===================== UI (responsivo) ===================== */
 
   const ChartShell = ({ data }: { data: ChartPoint[] }) => (
-    <div className="h-[220px] sm:h-[300px] md:h-[340px]">
+    <div className="h-[220px] xs:h-[260px] sm:h-[300px] md:h-[340px] lg:h-[380px]">
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data}>
+        <LineChart
+          data={data}
+          margin={{ left: 8, right: 8, top: isMobile ? 8 : 16, bottom: isMobile ? 8 : 24 }}
+        >
           <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="name" />
+          <XAxis
+            dataKey="name"
+            interval={isMobile ? 'preserveStartEnd' : 0}
+            angle={isMobile ? 0 : -12}
+            tickMargin={8}
+            height={isMobile ? 36 : 54}
+            minTickGap={10}
+          />
           <YAxis allowDecimals={false} />
           <Tooltip
+            wrapperStyle={{ zIndex: 30 }}
             formatter={(value: any, name: any) => {
               const map: Record<string, string> = {
                 membersCount: 'Membros (qtde)',
@@ -424,26 +478,26 @@ export function NetworkReports() {
               return [value, map[name] || name];
             }}
           />
-          <Legend />
-
+          <Legend wrapperStyle={{ paddingTop: isMobile ? 4 : 8 }} />
           <Line
             type="monotone"
             dataKey="membersCount"
             name="Membros (qtde)"
             stroke="#7c3aed"
             dot={!isMobile}
+            strokeWidth={isMobile ? 2 : 3}
           >
-            {!isMobile && <LabelList dataKey="membersCount" position="top" />}
+            {!isMobile && <LabelList dataKey="membersCount" position="top" offset={6} />}
           </Line>
-
           <Line
             type="monotone"
             dataKey="frequentadoresCount"
             name="Frequentadores (qtde)"
             stroke="#16a34a"
             dot={!isMobile}
+            strokeWidth={isMobile ? 2 : 3}
           >
-            {!isMobile && <LabelList dataKey="frequentadoresCount" position="top" />}
+            {!isMobile && <LabelList dataKey="frequentadoresCount" position="top" offset={6} />}
           </Line>
         </LineChart>
       </ResponsiveContainer>
@@ -459,20 +513,21 @@ export function NetworkReports() {
           <TabsTrigger value="networks">Redes</TabsTrigger>
         </TabsList>
 
+        {/* ===== IGREJA (responsivo + soma) ===== */}
         <TabsContent value="church">
           <div className="space-y-6 sm:space-y-8">
             <div className="flex flex-col gap-3 sm:gap-4 md:flex-row md:items-center md:justify-between">
               <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">Relatório da Igreja</h1>
-              <div className="flex -mx-1 overflow-x-auto sm:overflow-visible px-1 gap-2 sm:gap-3">
-                <Select value={chartMode} onValueChange={(v) => setChartMode(v as 'mensal' | 'semanal')}>
-                  <SelectTrigger className="w-[140px] sm:w-[200px]">
+              <div className="flex flex-wrap items-center gap-2">
+                {/* <Select value={chartMode} onValueChange={(v) => setChartMode(v as 'mensal' | 'semanal')}>
+                  <SelectTrigger className="w-full sm:w-[160px] md:w-[200px]">
                     <SelectValue placeholder="Período" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="mensal">Mensal</SelectItem>
                     <SelectItem value="semanal">Semanal</SelectItem>
                   </SelectContent>
-                </Select>
+                </Select> */}
                 <Button size="sm" className="shrink-0" onClick={handleExportChurch}>
                   <Download className="w-4 h-4" /> Excel
                 </Button>
@@ -480,8 +535,12 @@ export function NetworkReports() {
             </div>
 
             <Card className="hover:grape-glow transition-smooth">
-              <CardHeader><CardTitle>Resumo (Quantidade)</CardTitle></CardHeader>
-              <CardContent><ChartShell data={churchChartData} /></CardContent>
+              <CardHeader>
+                <CardTitle className="text-base sm:text-lg">Resumo (Soma • Quantidade)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ChartShell data={churchChartData} />
+              </CardContent>
             </Card>
 
             <Card>
@@ -498,7 +557,7 @@ export function NetworkReports() {
                     <p className="text-muted-foreground">Nenhum relatório encontrado.</p>
                   </div>
                 ) : (
-                  <Table className="min-w-[880px]">
+                  <Table className="min-w-[880px] sm:min-w-full">
                     <TableHeader>
                       <TableRow>
                         <TableHead className="min-w-[200px]">Líder</TableHead>
@@ -561,13 +620,14 @@ export function NetworkReports() {
           </div>
         </TabsContent>
 
+        {/* ===== REDES ===== */}
         <TabsContent value="networks">
           <div className="space-y-6 sm:space-y-8">
             <div className="flex flex-col gap-3 sm:gap-4 md:flex-row md:items-center md:justify-between">
               <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">Relatórios das Redes</h1>
-              <div className="flex -mx-1 overflow-x-auto sm:overflow-visible px-1 gap-2 sm:gap-3">
+              <div className="flex flex-wrap gap-2">
                 <Select value={selectedDiscipulador} onValueChange={setSelectedDiscipulador}>
-                  <SelectTrigger className="w-[180px] sm:w-[220px]">
+                  <SelectTrigger className="w-full sm:w-[180px] md:w-[220px]">
                     <SelectValue placeholder="Discipulador" />
                   </SelectTrigger>
                   <SelectContent>
@@ -579,13 +639,13 @@ export function NetworkReports() {
                   </SelectContent>
                 </Select>
                 <Select value={chartMode} onValueChange={(v) => setChartMode(v as 'mensal' | 'semanal')}>
-                  <SelectTrigger className="w-[140px] sm:w-[180px]">
+                  {/* <SelectTrigger className="w-full sm:w-[140px] md:w-[180px]">
                     <SelectValue placeholder="Período" />
-                  </SelectTrigger>
-                  <SelectContent>
+                  </SelectTrigger> */}
+                  {/* <SelectContent>
                     <SelectItem value="mensal">Mensal</SelectItem>
                     <SelectItem value="semanal">Semanal</SelectItem>
-                  </SelectContent>
+                  </SelectContent> */}
                 </Select>
                 {selectedDiscipulador && (
                   <Button size="sm" className="shrink-0" onClick={handleExportNetwork}>
@@ -597,7 +657,7 @@ export function NetworkReports() {
 
             {selectedDiscipulador && (
               <Card className="hover:grape-glow transition-smooth">
-                <CardHeader><CardTitle>Resumo (Quantidade)</CardTitle></CardHeader>
+                <CardHeader><CardTitle>Resumo (Soma • Quantidade)</CardTitle></CardHeader>
                 <CardContent><ChartShell data={networkChartData} /></CardContent>
               </Card>
             )}
@@ -732,7 +792,7 @@ export function NetworkReports() {
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 sm:gap-4">
             <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">Relatório da Rede</h1>
             <div className="flex -mx-1 overflow-x-auto sm:overflow-visible px-1 gap-2 sm:gap-3">
-              <Select value={chartMode} onValueChange={(v) => setChartMode(v as 'mensal' | 'semanal')}>
+              <Select value={chartMode} onValueChange={(v) => setChartMode(v as 'semanal' | 'mensal')}>
                 <SelectTrigger className="w-[140px] sm:w-[180px]">
                   <SelectValue placeholder="Período" />
                 </SelectTrigger>
@@ -748,7 +808,7 @@ export function NetworkReports() {
           </div>
 
           <Card className="hover:grape-glow transition-smooth">
-            <CardHeader><CardTitle>Resumo (Quantidade)</CardTitle></CardHeader>
+            <CardHeader><CardTitle>Resumo (Soma • Quantidade)</CardTitle></CardHeader>
             <CardContent><ChartShell data={networkChartData} /></CardContent>
           </Card>
         </div>
