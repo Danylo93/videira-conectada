@@ -1,7 +1,8 @@
+import { BaseEntity } from './common';
+
 export type UserRole = 'pastor' | 'obreiro' | 'discipulador' | 'lider';
 
-export interface User {
-  id: string;
+export interface User extends BaseEntity {
   name: string;
   email: string;
   role: UserRole;
@@ -21,4 +22,14 @@ export interface AuthState {
   logout: () => Promise<void>;
   loading: boolean;
   authTransition: AuthTransition;
+}
+
+export interface LoginCredentials {
+  email: string;
+  password: string;
+}
+
+export interface AuthError {
+  message: string;
+  code?: string;
 }

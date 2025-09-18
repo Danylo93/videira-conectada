@@ -3,12 +3,16 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 
-// https://vitejs.dev/config/
+// Configuração específica para Docker
 export default defineConfig(({ mode }) => ({
   server: {
-    host: "::",
-    port: 8080,
-    open: true,
+    host: "0.0.0.0", // Permite acesso externo no Docker
+    port: 3000,
+    open: false, // Não abre browser automaticamente no Docker
+    watch: {
+      usePolling: true, // Necessário para hot reload no Docker
+      interval: 1000,
+    },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {

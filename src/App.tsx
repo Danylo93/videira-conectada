@@ -3,6 +3,8 @@ import { type ReactNode, useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { SkipLink } from "@/components/ui/skip-link";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
@@ -30,7 +32,19 @@ import { Auth } from "./pages/Auth";
 import Courses from "./pages/cursos/Courses";          // <-- roteador (Pastor/Discipulador/Líder)
 import CourseAdmin from "./pages/cursos/CourseAdmin";  // <-- admin do Pastor (rota separada /admin-cursos)
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 3,
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      refetchOnWindowFocus: false,
+    },
+    mutations: {
+      retry: 1,
+    },
+  },
+});
 
 type LoaderCopy = {
   message: string;
@@ -136,57 +150,62 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 
 function AppContent() {
   return (
-    <Routes>
-      {/* público */}
-      <Route
-        path="/auth"
-        element={
-          <PublicRoute>
-            <Auth />
-          </PublicRoute>
-        }
-      />
+    <>
+      <SkipLink href="#main-content">Pular para o conteúdo principal</SkipLink>
+      <Routes>
+        {/* público */}
+        <Route
+          path="/auth"
+          element={
+            <PublicRoute>
+              <Auth />
+            </PublicRoute>
+          }
+        />
 
-      {/* privado */}
-      <Route
-        element={
-          <ProtectedRoute>
-            <DashboardLayout />
-          </ProtectedRoute>
-        }
-      >
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/celula" element={<CellManagement />} />
-        <Route path="/lideres" element={<LeaderManagement />} />
-        <Route path="/discipuladores" element={<DiscipuladorManagement />} />
-        <Route path="/relatorios" element={<ReportsRouter />} />
-        <Route path="/cursos" element={<Courses />} />            {/* <- agora aponta pro roteador por papel */}
-        <Route path="/admin-cursos" element={<CourseAdmin />} />  {/* <- admin do Pastor direto */}
-        <Route path="/eventos" element={<div>Eventos (Em breve)</div>} />
-        <Route path="/estatisticas" element={<Statistics />} />
-        <Route path="/gerenciar" element={<ChurchManagement />} />
-        <Route path="/perfil" element={<Profile />} />
-        <Route path="/configuracoes" element={<Settings />} />
-      </Route>
+        {/* privado */}
+        <Route
+          element={
+            <ProtectedRoute>
+              <DashboardLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/celula" element={<CellManagement />} />
+          <Route path="/lideres" element={<LeaderManagement />} />
+          <Route path="/discipuladores" element={<DiscipuladorManagement />} />
+          <Route path="/relatorios" element={<ReportsRouter />} />
+          <Route path="/cursos" element={<Courses />} />            {/* <- agora aponta pro roteador por papel */}
+          <Route path="/admin-cursos" element={<CourseAdmin />} />  {/* <- admin do Pastor direto */}
+          <Route path="/eventos" element={<div>Eventos (Em breve)</div>} />
+          <Route path="/estatisticas" element={<Statistics />} />
+          <Route path="/gerenciar" element={<ChurchManagement />} />
+          <Route path="/perfil" element={<Profile />} />
+          <Route path="/configuracoes" element={<Settings />} />
+        </Route>
 
-      {/* 404 */}
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+        {/* 404 */}
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </>
   );
 }
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <AppContent />
-        </BrowserRouter>
-      </TooltipProvider>
-    </AuthProvider>
-  </QueryClientProvider>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <AppContent />
+          </BrowserRouter>
+        </TooltipProvider>
+      </AuthProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;

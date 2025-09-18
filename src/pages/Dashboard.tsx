@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { useErrorHandler } from "@/hooks/useErrorHandler";
+import { useLoadingState } from "@/hooks/useLoadingState";
 import FancyLoader from "@/components/FancyLoader";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -61,8 +63,8 @@ type EventItem = { id: string; title: string; date: string };
 export function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
-
-  const [loading, setLoading] = useState(true);
+  const { handleError } = useErrorHandler();
+  const { loading, withLoading } = useLoadingState(true);
 
   // pastor
   const [leadersCount, setLeadersCount] = useState(0);
@@ -91,153 +93,162 @@ export function Dashboard() {
   const isDiscipulador = user?.role === "discipulador";
   const isPastor = user?.role === "pastor";
 
-  useEffect(() => {
+  const loadDashboardData = useCallback(async () => {
     if (!user) return;
-    (async () => {
-      setLoading(true);
 
-      /* ---- CARDS ---- */
-      if (isLeader) {
-        const { count: totalMembers } = await supabase
-          .from("members")
-          .select("id", { count: "exact", head: true })
-          .eq("lider_id", user.id)
-          .eq("active", true);
-        const { count: totalVisitors } = await supabase
-          .from("members")
-          .select("id", { count: "exact", head: true })
-          .eq("lider_id", user.id)
-          .eq("active", true)
-          .eq("type", "frequentador");
-        setMembersCount(totalMembers ?? 0);
-        setVisitorsCount(totalVisitors ?? 0);
-      } else if (isDiscipulador) {
-        const { count: leaders } = await supabase
-          .from("profiles")
-          .select("id", { count: "exact", head: true })
-          .eq("role", "lider")
-          .eq("discipulador_uuid", user.id);
-        setLeadersCount(leaders ?? 0);
-      } else if (isPastor) {
-        const [{ count: discipuladores }, { count: leaders }, { count: members }] =
-          await Promise.all([
-            supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "discipulador"),
-            supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "lider"),
-            supabase.from("members").select("id", { count: "exact", head: true }).eq("active", true),
-          ]);
-        setDiscipuladoresCount(discipuladores ?? 0);
-        setLeadersCount(leaders ?? 0);
-        setMembersTotalCount(members ?? 0);
-      } else {
-        const { count } = await supabase
-          .from("profiles")
-          .select("id", { count: "exact", head: true })
-          .eq("role", "lider");
-        setLeadersCount(count ?? 0);
-      }
-
-      /* ---- PENDÊNCIAS ---- (não para pastor) */
-      if (!isPastor) {
+    await withLoading(async () => {
+      try {
+        /* ---- CARDS ---- */
         if (isLeader) {
-          const { count } = await supabase
-            .from("cell_reports")
+          const [{ count: totalMembers }, { count: totalVisitors }] = await Promise.all([
+            supabase
+              .from("members")
+              .select("id", { count: "exact", head: true })
+              .eq("lider_id", user.id)
+              .eq("active", true),
+            supabase
+              .from("members")
+              .select("id", { count: "exact", head: true })
+              .eq("lider_id", user.id)
+              .eq("active", true)
+              .eq("type", "frequentador")
+          ]);
+          setMembersCount(totalMembers ?? 0);
+          setVisitorsCount(totalVisitors ?? 0);
+        } else if (isDiscipulador) {
+          const { count: leaders } = await supabase
+            .from("profiles")
             .select("id", { count: "exact", head: true })
-            .eq("lider_id", user.id)
-            .eq("status", "needs_correction");
-          setPendingReports(count ?? 0);
+            .eq("role", "lider")
+            .eq("discipulador_uuid", user.id);
+          setLeadersCount(leaders ?? 0);
+        } else if (isPastor) {
+          const [{ count: discipuladores }, { count: leaders }, { count: members }] =
+            await Promise.all([
+              supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "discipulador"),
+              supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "lider"),
+              supabase.from("members").select("id", { count: "exact", head: true }).eq("active", true),
+            ]);
+          setDiscipuladoresCount(discipuladores ?? 0);
+          setLeadersCount(leaders ?? 0);
+          setMembersTotalCount(members ?? 0);
         } else {
-          let query = supabase
-            .from("cell_reports")
+          const { count } = await supabase
+            .from("profiles")
             .select("id", { count: "exact", head: true })
-            .eq("status", "submitted");
-          if (isDiscipulador) {
-            const { data: leaderIds } = await supabase
-              .from("profiles")
-              .select("id")
-              .eq("role", "lider")
-              .eq("discipulador_uuid", user.id);
-            const ids = (leaderIds ?? []).map((l: { id: string }) => l.id);
-            query = ids.length ? query.in("lider_id", ids) : query.eq("lider_id", "");
-          }
-          const { count } = await query;
-          setPendingReports(count ?? 0);
+            .eq("role", "lider");
+          setLeadersCount(count ?? 0);
         }
-      }
 
-      /* ---- EVENTOS ---- */
-      const { data: ev } = await supabase
-        .from("events")
-        .select("id,title,date")
-        .gte("date", new Date().toISOString())
-        .order("date", { ascending: true })
-        .limit(2);
-      type EventRow = { id: string | number; title?: string | null; date: string };
-      setEvents(
-        ((ev as EventRow[] | null) ?? []).map((e) => ({ id: String(e.id), title: e.title ?? "Evento", date: e.date }))
-      );
+        /* ---- PENDÊNCIAS ---- (não para pastor) */
+        if (!isPastor) {
+          if (isLeader) {
+            const { count } = await supabase
+              .from("cell_reports")
+              .select("id", { count: "exact", head: true })
+              .eq("lider_id", user.id)
+              .eq("status", "needs_correction");
+            setPendingReports(count ?? 0);
+          } else {
+            let query = supabase
+              .from("cell_reports")
+              .select("id", { count: "exact", head: true })
+              .eq("status", "submitted");
+            if (isDiscipulador) {
+              const { data: leaderIds } = await supabase
+                .from("profiles")
+                .select("id")
+                .eq("role", "lider")
+                .eq("discipulador_uuid", user.id);
+              const ids = (leaderIds ?? []).map((l: { id: string }) => l.id);
+              query = ids.length ? query.in("lider_id", ids) : query.eq("lider_id", "");
+            }
+            const { count } = await query;
+            setPendingReports(count ?? 0);
+          }
+        }
 
-      /* ---- CRESCIMENTO + MENSAL ---- */
-      const now = new Date();
-      const yearStart = new Date(now.getFullYear(), 0, 1);
-      const yearEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
+        /* ---- EVENTOS ---- */
+        const { data: ev } = await supabase
+          .from("events")
+          .select("id,title,date")
+          .gte("date", new Date().toISOString())
+          .order("date", { ascending: true })
+          .limit(2);
+        type EventRow = { id: string | number; title?: string | null; date: string };
+        setEvents(
+          ((ev as EventRow[] | null) ?? []).map((e) => ({ id: String(e.id), title: e.title ?? "Evento", date: e.date }))
+        );
 
-      let reportsQuery = supabase
-        .from("cell_reports")
-        .select("members_present,visitors_present,week_start,lider_id")
-        .gte("week_start", yearStart.toISOString())
-        .lte("week_start", yearEnd.toISOString());
+        /* ---- CRESCIMENTO + MENSAL ---- */
+        const now = new Date();
+        const yearStart = new Date(now.getFullYear(), 0, 1);
+        const yearEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
 
-      if (isLeader) {
-        reportsQuery = reportsQuery.eq("lider_id", user.id);
-      } else if (isDiscipulador) {
-        const { data: leaderIds } = await supabase
-          .from("profiles")
-          .select("id")
-          .eq("role", "lider")
-          .eq("discipulador_uuid", user.id);
-        const ids = (leaderIds ?? []).map((l: { id: string }) => l.id);
-        reportsQuery = ids.length ? reportsQuery.in("lider_id", ids) : reportsQuery.eq("lider_id", "");
-      }
+        let reportsQuery = supabase
+          .from("cell_reports")
+          .select("members_present,visitors_present,week_start,lider_id")
+          .gte("week_start", yearStart.toISOString())
+          .lte("week_start", yearEnd.toISOString());
 
-      const { data: yearReports } = await reportsQuery;
+        if (isLeader) {
+          reportsQuery = reportsQuery.eq("lider_id", user.id);
+        } else if (isDiscipulador) {
+          const { data: leaderIds } = await supabase
+            .from("profiles")
+            .select("id")
+            .eq("role", "lider")
+            .eq("discipulador_uuid", user.id);
+          const ids = (leaderIds ?? []).map((l: { id: string }) => l.id);
+          reportsQuery = ids.length ? reportsQuery.in("lider_id", ids) : reportsQuery.eq("lider_id", "");
+        }
 
-      const monthly = new Map<string, { members: number; visitors: number; total: number }>();
-      type ReportRow = {
-        week_start: string;
-        members_present: string[] | null;
-        visitors_present: string[] | null;
-      };
+        const { data: yearReports } = await reportsQuery;
 
-      ((yearReports as ReportRow[] | null) ?? []).forEach((r) => {
-        const d = new Date(r.week_start);
-        const key = monthKeyOf(d);
-        const m = Array.isArray(r.members_present) ? r.members_present.length : 0;
-        const v = Array.isArray(r.visitors_present) ? r.visitors_present.length : 0;
-        const sum = m + v;
-        monthly.set(key, {
-          members: (monthly.get(key)?.members ?? 0) + m,
-          visitors: (monthly.get(key)?.visitors ?? 0) + v,
-          total: (monthly.get(key)?.total ?? 0) + sum,
+        const monthly = new Map<string, { members: number; visitors: number; total: number }>();
+        type ReportRow = {
+          week_start: string;
+          members_present: string[] | null;
+          visitors_present: string[] | null;
+        };
+
+        ((yearReports as ReportRow[] | null) ?? []).forEach((r) => {
+          const d = new Date(r.week_start);
+          const key = monthKeyOf(d);
+          const m = Array.isArray(r.members_present) ? r.members_present.length : 0;
+          const v = Array.isArray(r.visitors_present) ? r.visitors_present.length : 0;
+          const sum = m + v;
+          monthly.set(key, {
+            members: (monthly.get(key)?.members ?? 0) + m,
+            visitors: (monthly.get(key)?.visitors ?? 0) + v,
+            total: (monthly.get(key)?.total ?? 0) + sum,
+          });
         });
-      });
 
-      const curKey = monthKeyOf(now);
-      const prevKey = monthKeyOf(new Date(now.getFullYear(), now.getMonth() - 1, 1));
-      const curTotal = monthly.get(curKey)?.total ?? 0;
-      const prevTotal = monthly.get(prevKey)?.total ?? 0;
+        const curKey = monthKeyOf(now);
+        const prevKey = monthKeyOf(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+        const curTotal = monthly.get(curKey)?.total ?? 0;
+        const prevTotal = monthly.get(prevKey)?.total ?? 0;
 
-      setCurrentMonthTotal(curTotal);
-      setPrevMonthTotal(prevTotal);
-      setGrowthPct(prevTotal > 0 ? ((curTotal - prevTotal) / prevTotal) * 100 : null);
+        setCurrentMonthTotal(curTotal);
+        setPrevMonthTotal(prevTotal);
+        setGrowthPct(prevTotal > 0 ? ((curTotal - prevTotal) / prevTotal) * 100 : null);
 
-      const rows = Array.from(monthly.entries())
-        .sort(([a], [b]) => (a < b ? -1 : 1))
-        .map(([key, v]) => ({ name: labelMonth(key), ...v }));
-      setMonthlyRows(rows);
+        const rows = Array.from(monthly.entries())
+          .sort(([a], [b]) => (a < b ? -1 : 1))
+          .map(([key, v]) => ({ name: labelMonth(key), ...v }));
+        setMonthlyRows(rows);
+      } catch (error) {
+        handleError(error, {
+          fallbackMessage: 'Erro ao carregar dados do dashboard',
+        });
+      }
+    });
+  }, [user, isLeader, isDiscipulador, isPastor, withLoading, handleError]);
 
-      setLoading(false);
-    })();
-  }, [user, isLeader, isDiscipulador, isPastor]);
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]);
 
   const greeting = roleGreetings[user?.role as keyof typeof roleGreetings] ?? "Usuário";
 

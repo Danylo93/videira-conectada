@@ -1,5 +1,6 @@
-export interface Leader {
-  id: string;
+import { BaseEntity } from './common';
+
+export interface Leader extends BaseEntity {
   name: string;
   email: string;
   phone?: string;
@@ -8,8 +9,7 @@ export interface Leader {
   createdAt: Date;
 }
 
-export interface Discipulador {
-  id: string;
+export interface Discipulador extends BaseEntity {
   name: string;
   email: string;
   phone?: string;
@@ -17,8 +17,7 @@ export interface Discipulador {
   createdAt: Date;
 }
 
-export interface Member {
-  id: string;
+export interface Member extends BaseEntity {
   name: string;
   phone?: string;
   email?: string;
@@ -29,8 +28,7 @@ export interface Member {
   active: boolean;
 }
 
-export interface CellReport {
-  id: string;
+export interface CellReport extends BaseEntity {
   liderId: string;
   weekStart: Date;
   members: Member[];

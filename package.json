@@ -1,14 +1,24 @@
 {
-  "name": "vite_react_shadcn_ts",
+  "name": "videira-conectada",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "lint:fix": "eslint . --fix",
+    "preview": "vite preview",
+    "type-check": "tsc --noEmit",
+    "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
+    "docker:dev": "docker-compose -f docker-compose.dev.yml up --build",
+    "docker:prod": "docker-compose -f docker-compose.prod.yml up --build -d",
+    "docker:stop": "docker-compose -f docker-compose.dev.yml down && docker-compose -f docker-compose.prod.yml down",
+    "docker:clean": "docker-compose -f docker-compose.dev.yml down -v && docker-compose -f docker-compose.prod.yml down -v && docker system prune -f",
+    "docker:logs": "docker-compose -f docker-compose.dev.yml logs -f",
+    "docker:status": "docker-compose -f docker-compose.dev.yml ps"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -78,6 +88,7 @@
     "globals": "^15.15.0",
     "lovable-tagger": "^1.1.9",
     "postcss": "^8.5.6",
+    "prettier": "^3.4.2",
     "supabase": "^2.40.7",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3",

@@ -6,9 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Grape, Loader2 } from 'lucide-react';
+import { Grape, Loader2, Eye, EyeOff } from 'lucide-react';
 
 import { useDelayedLoading } from '@/hooks/useDelayedLoading';
+import { useErrorHandler } from '@/hooks/useErrorHandler';
+import { useLoadingState } from '@/hooks/useLoadingState';
 import FancyLoader from '@/components/FancyLoader';
 import { AuthTransition } from '@/types/auth';
 
@@ -45,13 +47,15 @@ const AUTH_LOADER_COPY: Record<AuthTransition, AuthLoaderCopy> = {
 };
 
 export function Auth() {
-  const [isLoading, setIsLoading] = useState(false);
   const [bootReady, setBootReady] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { login, authTransition} = useAuth();
+  const [showPassword, setShowPassword] = useState(false);
+  const { login, authTransition } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { handleError } = useErrorHandler();
+  const { loading: isLoading, withLoading } = useLoadingState();
 
   useEffect(() => {
     const t = setTimeout(() => setBootReady(true), 200);
@@ -62,20 +66,25 @@ export function Auth() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) return;
-    setIsLoading(true);
-    try {
-      await login(email, password);
-      navigate('/');
-    } catch (error) {
+    if (!email || !password) {
       toast({
-        title: 'Erro no login',
-        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        title: 'Campos obrigatórios',
+        description: 'Por favor, preencha todos os campos',
         variant: 'destructive',
       });
-    } finally {
-      setIsLoading(false);
+      return;
     }
+
+    await withLoading(async () => {
+      try {
+        await login(email, password);
+        navigate('/');
+      } catch (error) {
+        handleError(error, {
+          fallbackMessage: 'Erro ao fazer login. Verifique suas credenciais.',
+        });
+      }
+    });
   };
 
   if (showLoader) {
@@ -135,16 +144,33 @@ export function Auth() {
 
                 <div className="space-y-2">
                   <Label htmlFor="password">Senha</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    autoComplete="current-password"
-                    disabled={isLoading}
-                    required
-                  />
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      autoComplete="current-password"
+                      disabled={isLoading}
+                      required
+                      className="pr-10"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                      onClick={() => setShowPassword(!showPassword)}
+                      disabled={isLoading}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
                 </div>
 
                 <Button type="submit" className="w-full gradient-primary" disabled={isLoading}>

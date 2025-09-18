@@ -1,10 +1,7 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { User, AuthState, AuthTransition } from '@/types/auth';
-
-import { useDelayedLoading } from '@/hooks/useDelayedLoading';
-import FancyLoader from '@/components/FancyLoader';
 
 type AuthLoaderCopy = {
   message: string;
@@ -46,18 +43,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [authTransition, setAuthTransition] = useState<AuthTransition>('initial');
 
-  useEffect(() => {
-    const handleSession = async (currentSession: Session | null) => {
-     
-
+  const handleSession = useCallback(async (currentSession: Session | null) => {
+    try {
       if (currentSession?.user) {
-        const { data: profile } = await supabase
+        const { data: profile, error } = await supabase
           .from('profiles')
           .select('*')
           .eq('user_id', currentSession.user.id)
           .single();
 
-        if (profile) {
+        if (error) {
+          console.error('Error fetching profile:', error);
+          setUser(null);
+        } else if (profile) {
           const userData: User = {
             id: profile.id,
             name: profile.name,
@@ -74,7 +72,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         setUser(null);
       }
-
+    } catch (error) {
+      console.error('Error in handleSession:', error);
+      setUser(null);
+    } finally {
       setLoading(false);
       setAuthTransition(prev => {
         if (currentSession?.user) {
@@ -82,8 +83,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         return prev === 'logout' ? 'logout' : 'initial';
       });
-    };
+    }
+  }, []);
 
+  useEffect(() => {
     // Set up auth state listener
     const {
       data: { subscription },
@@ -97,37 +100,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => subscription.unsubscribe();
+  }, [handleSession]);
+
+  const login = useCallback(async (email: string, password: string) => {
+    setLoading(true);
+    setAuthTransition('login');
+    
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        setLoading(false);
+        setAuthTransition('initial');
+        throw new Error(error.message);
+      }
+      
+      // The onAuthStateChange callback will handle setting the user
+    } catch (error) {
+      setLoading(false);
+      setAuthTransition('initial');
+      throw error;
+    }
   }, []);
 
-  const login = async (email: string, password: string) => {
-    setLoading(true);
-    
-   const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) {
-      setLoading(false);
-      setAuthTransition('initial');
-      throw new Error(error.message);
-    }
-    
-    setLoading(false);
-    // The onAuthStateChange callback will handle setting the user
-  };
-
-  const logout = async () => {
+  const logout = useCallback(async () => {
     setAuthTransition('logout');
     setLoading(true);
-    const { error } = await supabase.auth.signOut();
-    if (error) {
+    
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        setLoading(false);
+        setAuthTransition('initial');
+        throw new Error(error.message);
+      }
+      // The onAuthStateChange callback will handle clearing the user
+    } catch (error) {
       setLoading(false);
       setAuthTransition('initial');
-      throw new Error(error.message);
+      throw error;
     }
-    // The onAuthStateChange callback will handle clearing the user
-  };
+  }, []);
 
   const value: AuthState = {
     user,

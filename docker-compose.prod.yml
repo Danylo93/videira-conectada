@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  # Frontend - React App (Produção)
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    ports:
+      - "80:80"
+    environment:
+      - NODE_ENV=production
+    networks:
+      - videira-network
+    restart: unless-stopped
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: videira_conectada
+      POSTGRES_USER: videira_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-videira_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - videira-network
+    restart: unless-stopped
+
+  # Redis para cache
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    networks:
+      - videira-network
+    restart: unless-stopped
+
+  # Nginx para proxy reverso
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/nginx/ssl
+    depends_on:
+      - frontend
+    networks:
+      - videira-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  videira-network:
+    driver: bridge
