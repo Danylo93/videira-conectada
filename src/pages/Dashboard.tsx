@@ -115,13 +115,14 @@ export function Dashboard() {
       /* ---- EVENTOS ---- */
       const { data: ev } = await supabase
         .from("events")
-        .select("id,title,date")
-        .gte("date", new Date().toISOString())
-        .order("date", { ascending: true })
+        .select("id,name,event_date")
+        .gte("event_date", new Date().toISOString())
+        .eq("active", true)
+        .order("event_date", { ascending: true })
         .limit(2);
-      type EventRow = { id: string | number; title?: string | null; date: string };
+      type EventRow = { id: string | number; name?: string | null; event_date: string };
       setEvents(
-        ((ev as EventRow[] | null) ?? []).map((e) => ({ id: String(e.id), title: e.title ?? "Evento", date: e.date }))
+        ((ev as EventRow[] | null) ?? []).map((e) => ({ id: String(e.id), title: e.name ?? "Evento", date: e.event_date }))
       );
 
       /* ---- CRESCIMENTO + MENSAL ---- */
@@ -169,14 +170,8 @@ export function Dashboard() {
         });
       });
 
-      const curKey = monthKeyOf(now);
-      const prevKey = monthKeyOf(new Date(now.getFullYear(), now.getMonth() - 1, 1));
-      const curTotal = monthly.get(curKey)?.total ?? 0;
-      const prevTotal = monthly.get(prevKey)?.total ?? 0;
-
-      setCurrentMonthTotal(curTotal);
-      setPrevMonthTotal(prevTotal);
-      setGrowthPct(prevTotal > 0 ? ((curTotal - prevTotal) / prevTotal) * 100 : null);
+      // Dados mensais para o gráfico (usando dados das estatísticas)
+      // As variáveis de crescimento agora vêm do hook useStatistics
 
       const rows = Array.from(monthly.entries())
         .sort(([a], [b]) => (a < b ? -1 : 1))
