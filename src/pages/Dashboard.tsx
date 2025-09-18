@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import FancyLoader from "@/components/FancyLoader";
+import { useStatistics } from "@/hooks/useStatistics";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -61,26 +62,13 @@ type EventItem = { id: string; title: string; date: string };
 export function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { data: statistics, loading: statsLoading } = useStatistics();
 
   const [loading, setLoading] = useState(true);
-
-  // pastor
-  const [leadersCount, setLeadersCount] = useState(0);
-  const [discipuladoresCount, setDiscipuladoresCount] = useState(0);
-  const [membersTotalCount, setMembersTotalCount] = useState(0);
-
-  // líder
-  const [membersCount, setMembersCount] = useState(0);
-  const [visitorsCount, setVisitorsCount] = useState(0);
 
   // pendências / eventos
   const [pendingReports, setPendingReports] = useState(0);
   const [events, setEvents] = useState<EventItem[]>([]);
-
-  // crescimento
-  const [growthPct, setGrowthPct] = useState<number | null>(null);
-  const [currentMonthTotal, setCurrentMonthTotal] = useState(0);
-  const [prevMonthTotal, setPrevMonthTotal] = useState(0);
 
   // gráfico (apenas mensal)
   const [monthlyRows, setMonthlyRows] = useState<
@@ -95,46 +83,6 @@ export function Dashboard() {
     if (!user) return;
     (async () => {
       setLoading(true);
-
-      /* ---- CARDS ---- */
-      if (isLeader) {
-        const { count: totalMembers } = await supabase
-          .from("members")
-          .select("id", { count: "exact", head: true })
-          .eq("lider_id", user.id)
-          .eq("active", true);
-        const { count: totalVisitors } = await supabase
-          .from("members")
-          .select("id", { count: "exact", head: true })
-          .eq("lider_id", user.id)
-          .eq("active", true)
-          .eq("type", "frequentador");
-        setMembersCount(totalMembers ?? 0);
-        setVisitorsCount(totalVisitors ?? 0);
-      } else if (isDiscipulador) {
-        const { count: leaders } = await supabase
-          .from("profiles")
-          .select("id", { count: "exact", head: true })
-          .eq("role", "lider")
-          .eq("discipulador_uuid", user.id);
-        setLeadersCount(leaders ?? 0);
-      } else if (isPastor) {
-        const [{ count: discipuladores }, { count: leaders }, { count: members }] =
-          await Promise.all([
-            supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "discipulador"),
-            supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "lider"),
-            supabase.from("members").select("id", { count: "exact", head: true }).eq("active", true),
-          ]);
-        setDiscipuladoresCount(discipuladores ?? 0);
-        setLeadersCount(leaders ?? 0);
-        setMembersTotalCount(members ?? 0);
-      } else {
-        const { count } = await supabase
-          .from("profiles")
-          .select("id", { count: "exact", head: true })
-          .eq("role", "lider");
-        setLeadersCount(count ?? 0);
-      }
 
       /* ---- PENDÊNCIAS ---- (não para pastor) */
       if (!isPastor) {
@@ -309,17 +257,17 @@ export function Dashboard() {
       <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 ${gridColsDesktop} gap-4`}>
         {isPastor ? (
           <>
-            <KpiCard title="Discipuladores" value={discipuladoresCount} icon={Users} subtitle="Total na igreja" />
-            <KpiCard title="Líderes" value={leadersCount} icon={Users} subtitle="Total na igreja" />
-            <KpiCard title="Membros" value={membersTotalCount} icon={Users} subtitle="Ativos cadastrados" />
+            <KpiCard title="Discipuladores" value={statistics?.totalDiscipuladores || 0} icon={Users} subtitle="Total na igreja" />
+            <KpiCard title="Líderes" value={statistics?.totalLeaders || 0} icon={Users} subtitle="Total na igreja" />
+            <KpiCard title="Membros" value={statistics?.totalMembers || 0} icon={Users} subtitle="Ativos cadastrados" />
           </>
         ) : (
           <KpiCard
             title={isLeader ? "Quantidade de pessoas da Célula" : isDiscipulador ? "Líderes da Rede" : "Total de Líderes"}
-            value={isLeader ? membersCount : leadersCount}
+            value={isLeader ? (statistics?.totalMembers || 0) : (statistics?.totalLeaders || 0)}
             icon={Users}
             subtitle={
-              isLeader ? `Membros: ${membersCount} · Frequentadores: ${visitorsCount}` :
+              isLeader ? `Membros: ${statistics?.totalMembers || 0} · Frequentadores: ${statistics?.totalFrequentadores || 0}` :
               isDiscipulador ? "Na sua rede" : "Na igreja"
             }
           />
@@ -344,17 +292,17 @@ export function Dashboard() {
           <CardContent className="pt-0">
             <div
               className={`text-xl font-semibold ${
-                growthPct === null
+                statistics?.growthRate === null || statistics?.growthRate === undefined
                   ? "text-muted-foreground"
-                  : growthPct >= 0
+                  : statistics.growthRate >= 0
                   ? "text-success"
                   : "text-destructive"
               }`}
             >
-              {loading ? "…" : growthPct === null ? "—" : `${growthPct >= 0 ? "+" : ""}${Math.round(growthPct)}%`}
+              {loading || statsLoading ? "…" : statistics?.growthRate === null || statistics?.growthRate === undefined ? "—" : `${statistics.growthRate >= 0 ? "+" : ""}${Math.round(statistics.growthRate)}%`}
             </div>
             <p className="text-[11px] text-muted-foreground mt-0.5">
-              {growthPct === null ? "Sem dados do mês anterior" : `Mês: ${currentMonthTotal} · Ant.: ${prevMonthTotal}`}
+              {statistics?.growthRate === null || statistics?.growthRate === undefined ? "Sem dados do período anterior" : `Presença média: ${statistics?.averagePresence || 0} pessoas`}
             </p>
           </CardContent>
         </Card>
@@ -366,11 +314,16 @@ export function Dashboard() {
           <CardTitle>Resumo Mensal de Presenças</CardTitle>
         </CardHeader>
         <CardContent className="h-[280px] md:h-[320px]">
-          {monthlyRows.length === 0 ? (
+          {!statistics?.monthlyData || statistics.monthlyData.length === 0 ? (
             <p className="text-center text-muted-foreground">Sem dados para exibir.</p>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={monthlyRows}>
+              <ComposedChart data={statistics.monthlyData.map(month => ({
+                name: `${month.month} ${month.year}`,
+                members: month.averageMembers,
+                frequentadores: month.averageFrequentadores,
+                total: month.averageTotal,
+              }))}>
                 <defs>
                   <linearGradient id="gradTotal" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.4} />
@@ -385,7 +338,7 @@ export function Dashboard() {
                 <Area
                   type="monotone"
                   dataKey="total"
-                  name="Total"
+                  name="Total (média)"
                   fill="url(#gradTotal)"
                   stroke="var(--primary)"
                   strokeWidth={2}
@@ -394,8 +347,17 @@ export function Dashboard() {
                 <Line
                   type="monotone"
                   dataKey="members"
-                  name="Membros"
+                  name="Membros (média)"
                   stroke="#7c3aed"
+                  strokeWidth={2}
+                  dot
+                  isAnimationActive
+                />
+                <Line
+                  type="monotone"
+                  dataKey="frequentadores"
+                  name="Frequentadores (média)"
+                  stroke="#f59e0b"
                   strokeWidth={2}
                   dot
                   isAnimationActive

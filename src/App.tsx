@@ -15,7 +15,7 @@ import { LeaderManagement } from "@/pages/LeaderManagement";
 import { DiscipuladorManagement } from "@/pages/DiscipuladorManagement";
 import { CellReports } from "@/pages/CellReports";
 import { NetworkReports } from "@/pages/NetworkReports";
-import { Statistics } from "@/pages/Statistics";
+import { StatisticsNew as Statistics } from "@/pages/StatisticsNew";
 import { ChurchManagement } from "@/pages/ChurchManagement";
 import { Profile } from "@/pages/Profile";
 import { Settings } from "@/pages/Settings";
