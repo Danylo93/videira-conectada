@@ -30,6 +30,9 @@ import { Auth } from "./pages/Auth";
 import Courses from "./pages/cursos/Courses";          // <-- roteador (Pastor/Discipulador/Líder)
 import CourseAdmin from "./pages/cursos/CourseAdmin";  // <-- admin do Pastor (rota separada /admin-cursos)
 
+// EVENTOS
+import Events from "./pages/eventos/Events";           // <-- roteador (Pastor/Discipulador/Líder)
+
 const queryClient = new QueryClient();
 
 type LoaderCopy = {
@@ -162,7 +165,7 @@ function AppContent() {
         <Route path="/relatorios" element={<ReportsRouter />} />
         <Route path="/cursos" element={<Courses />} />            {/* <- agora aponta pro roteador por papel */}
         <Route path="/admin-cursos" element={<CourseAdmin />} />  {/* <- admin do Pastor direto */}
-        <Route path="/eventos" element={<div>Eventos (Em breve)</div>} />
+        <Route path="/eventos" element={<Events />} />            {/* <- agora aponta pro roteador por papel */}
         <Route path="/estatisticas" element={<Statistics />} />
         <Route path="/gerenciar" element={<ChurchManagement />} />
         <Route path="/perfil" element={<Profile />} />
