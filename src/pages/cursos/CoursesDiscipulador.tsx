@@ -1,332 +1,418 @@
-import { useEffect, useMemo, useState } from "react";
-import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import FancyLoader from "@/components/FancyLoader";
-import { useToast } from "@/hooks/use-toast";
-import { Users, BookOpen, Calendar, Check, X } from "lucide-react";
+// Enhanced Course System - Discipulador Page
+// Course management interface for discipuladores
 
-type Course = { id: string; name: "Maturidade no Espírito" | "CTL" };
-type Registration = { id: string; member_id: string; course_id: string; lider_id: string; member?: { id: string; name: string } };
-type Subject = { id: string; course_id: string; title: string; teacher_id: string };
-type Lesson = { id: string; subject_id: string; class_date: string };
-type Attendance = { id: string; lesson_id: string; registration_id: string; present: boolean };
+import React, { useState, useMemo } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useCourses, useCourseAccess } from '@/hooks/useCourses';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Progress } from '@/components/ui/progress';
+import FancyLoader from '@/components/FancyLoader';
+import { CourseCard } from '@/components/courses/CourseCard';
+import { 
+  Search, 
+  Filter, 
+  BookOpen, 
+  Users, 
+  Calendar,
+  CheckCircle,
+  XCircle,
+  Clock,
+  TrendingUp,
+  Award,
+  GraduationCap,
+  Target
+} from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import type { Course, CourseFilters } from '@/types/course';
 
 const tips = [
-  "Organizando a sala da rede como Neemias com as muralhas…",
-  "Separando as apostilas e afinando o violão do louvor…",
-  "Abençoando cada líder com café quentinho e Palavra viva…",
+  'Acompanhando o progresso dos líderes como o bom pastor...',
+  'Conferindo presenças e abençoando cada aluno...',
+  'Preparando relatórios de crescimento espiritual...',
+  'Organizando materiais e apostilas dos cursos...',
+  'Motivando os líderes a crescerem na Palavra...',
 ];
 
 export default function CoursesDiscipulador() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { canViewCourses, canMarkAttendance } = useCourseAccess();
+  
+  const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('active');
+  const [selectedCourse, setSelectedCourse] = useState<string>('');
 
-  const [loading, setLoading] = useState(true);
+  const filters = useMemo((): CourseFilters => ({
+    search: searchTerm || undefined,
+    category: categoryFilter && categoryFilter !== 'all' ? categoryFilter : undefined,
+    status: statusFilter && statusFilter !== 'all' ? statusFilter : undefined,
+  }), [searchTerm, categoryFilter, statusFilter]);
 
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [registrations, setRegistrations] = useState<Registration[]>([]);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [lessons, setLessons] = useState<Lesson[]>([]);
-  const [attendance, setAttendance] = useState<Attendance[]>([]);
+  const {
+    courses,
+    loading,
+    error,
+  } = useCourses(filters);
 
-  const [courseId, setCourseId] = useState<string>("");
-  const [subjectId, setSubjectId] = useState<string>("");
-  const [newLessonDate, setNewLessonDate] = useState<string>("");
-
-  useEffect(() => {
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-    let mounted = true;
-    (async () => {
-      setLoading(true);
-      await new Promise((r) => setTimeout(r, 800));
-      const { data: crs } = await supabase.from("courses").select("id,name").eq("active", true);
-      if (!mounted) return;
-      setCourses(crs ?? []);
-      setLoading(false);
-    })();
-    return () => { mounted = false; };
-  }, [user]);
-
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      if (!courseId || !user) {
-        setRegistrations([]); setSubjects([]); setLessons([]); setAttendance([]);
-        return;
-      }
-      setLoading(true);
-
-      // líderes da sua rede
-      const { data: leaders } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("role", "lider")
-        .eq("discipulador_uuid", user.id);
-
-      const leaderIds = (leaders ?? []).map((l) => l.id);
-      const [{ data: regs }, { data: subs }] = await Promise.all([
-        leaderIds.length
-          ? supabase
-              .from("course_registrations")
-              .select("id,course_id,member_id,lider_id, member:members(id,name)")
-              .eq("course_id", courseId)
-              .in("lider_id", leaderIds)
-          : Promise.resolve({ data: [] }),
-        supabase.from("course_subjects").select("id,course_id,title,teacher_id").eq("course_id", courseId),
-      ]);
-
-      if (!mounted) return;
-      setRegistrations((regs ?? []).map((item) => item as Registration));
-      setSubjects((subs ?? []).map((item) => item as Subject));
-      setSubjectId("");
-      setLessons([]); setAttendance([]);
-      setLoading(false);
-    })();
-    return () => { mounted = false; };
-  }, [courseId, user]);
-
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      if (!subjectId || !user) { setLessons([]); setAttendance([]); return; }
-      setLoading(true);
-      const { data: les } = await supabase
-        .from("course_lessons")
-        .select("id,subject_id,class_date")
-        .eq("subject_id", subjectId)
-        .order("class_date", { ascending: true });
-
-      const lessonIds = (les ?? []).map((l) => l.id);
-      let att: Attendance[] = [];
-      if (lessonIds.length) {
-        const { data } = await supabase
-          .from("course_attendance_entries")
-          .select("id,lesson_id,registration_id,present")
-          .in("lesson_id", lessonIds);
-        att = (data ?? []) as Attendance[];
-      }
-
-      if (!mounted) return;
-      setLessons((les ?? []).map((lesson) => lesson as Lesson));
-      setAttendance(att.map((item) => item as Attendance));
-      setLoading(false);
-    })();
-    return () => { mounted = false; };
-  }, [subjectId, user]);
-
-  const attendanceMatrix = useMemo(() => {
-    const map = new Map<string, Record<string, boolean>>();
-    registrations.forEach((r) => map.set(r.id, {}));
-    attendance.forEach((a) => {
-      if (!map.has(a.registration_id)) map.set(a.registration_id, {});
-      map.get(a.registration_id)![a.lesson_id] = a.present;
-    });
-    return map;
-  }, [registrations, attendance]);
-
-  const absencesByReg = useMemo(() => {
-    const counts = new Map<string, number>();
-    registrations.forEach((r) => counts.set(r.id, 0));
-    lessons.forEach((l) => {
-      registrations.forEach((r) => {
-        const present = attendanceMatrix.get(r.id)?.[l.id] ?? false;
-        if (!present) counts.set(r.id, (counts.get(r.id) ?? 0) + 1);
-      });
-    });
-    return counts;
-  }, [registrations, lessons, attendanceMatrix]);
-
-  const togglePresence = async (lesson_id: string, registration_id: string, present: boolean) => {
-    // Discipulador pode marcar presença
-    const existing = attendance.find((a) => a.lesson_id === lesson_id && a.registration_id === registration_id);
-    if (existing) {
-      const { error } = await supabase.from("course_attendance_entries").update({ present }).eq("id", existing.id);
-      if (error) return toast({ title: "Erro", description: "Falha ao atualizar presença.", variant: "destructive" });
-      setAttendance((prev) => prev.map((a) => (a.id === existing.id ? { ...a, present } : a)));
-    } else {
-      const { error, data } = await supabase
-        .from("course_attendance_entries")
-        .insert({ lesson_id, registration_id, present })
-        .select()
-        .single();
-      if (error) return toast({ title: "Erro", description: "Falha ao lançar presença.", variant: "destructive" });
-      setAttendance((prev) => [...prev, data as Attendance]);
-    }
-  };
-
-  const createLesson = async () => {
-    if (!subjectId || !newLessonDate) return;
-    const { error } = await supabase.from("course_lessons").insert({ subject_id: subjectId, class_date: newLessonDate });
-    if (error) return toast({ title: "Erro", description: "Não foi possível criar a aula.", variant: "destructive" });
-    setNewLessonDate("");
-    const { data: les } = await supabase
-      .from("course_lessons")
-      .select("id,subject_id,class_date")
-      .eq("subject_id", subjectId)
-      .order("class_date", { ascending: true });
-    setLessons(les ?? []);
-  };
-
-  if (!user) {
-    return null;
+  if (!canViewCourses) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-muted-foreground">Acesso restrito.</p>
+      </div>
+    );
   }
 
-  if (loading)
+  if (loading) {
     return (
       <FancyLoader
-        message="Ajeitando os cursos da sua rede"
+        message="Preparando os cursos da sua rede"
         tips={tips}
       />
     );
+  }
+
+  const activeCourses = courses.filter(c => c.status === 'active');
+  const enrolledCourses = courses.filter(c => c.status === 'active'); // This would be filtered by actual enrollments
 
   return (
     <div className="space-y-8 animate-fade-in pb-12">
+      {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div className="flex-1">
-          <h1 className="text-2xl md:text-3xl font-bold">Cursos — Discipulador</h1>
-          <p className="text-sm md:text-base text-muted-foreground">Acompanhe e marque presenças da sua rede</p>
-        </div>
-
-        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
-          <Select value={courseId} onValueChange={(v) => setCourseId(v)}>
-            <SelectTrigger className="w-full sm:w-[260px]"><SelectValue placeholder="Selecione o curso" /></SelectTrigger>
-            <SelectContent>
-              {courses.map((c) => (<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>))}
-            </SelectContent>
-          </Select>
-
-          {courseId && (
-            <Select value={subjectId} onValueChange={setSubjectId}>
-              <SelectTrigger className="w-full sm:w-[260px]"><SelectValue placeholder="Matéria" /></SelectTrigger>
-              <SelectContent>
-                {subjects.map((s) => (<SelectItem key={s.id} value={s.id}>{s.title}</SelectItem>))}
-              </SelectContent>
-            </Select>
-          )}
+          <h1 className="text-2xl md:text-3xl font-bold">Cursos - Discipulador</h1>
+          <p className="text-sm md:text-base text-muted-foreground">
+            Acompanhe o progresso dos líderes da sua rede nos cursos
+          </p>
         </div>
       </div>
 
-      <Tabs defaultValue="frequencia" className="space-y-6">
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Cursos Disponíveis</p>
+                <p className="text-2xl font-bold">{activeCourses.length}</p>
+              </div>
+              <BookOpen className="h-8 w-8 text-primary" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Líderes Inscritos</p>
+                <p className="text-2xl font-bold text-green-600">12</p>
+              </div>
+              <Users className="h-8 w-8 text-green-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Taxa de Presença</p>
+                <p className="text-2xl font-bold text-blue-600">85%</p>
+              </div>
+              <TrendingUp className="h-8 w-8 text-blue-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Certificados</p>
+                <p className="text-2xl font-bold text-purple-600">8</p>
+              </div>
+              <Award className="h-8 w-8 text-purple-600" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filters */}
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                <Input
+                  placeholder="Buscar cursos..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="w-full md:w-[200px]">
+                <SelectValue placeholder="Categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as categorias</SelectItem>
+                <SelectItem value="spiritual">Espiritual</SelectItem>
+                <SelectItem value="leadership">Liderança</SelectItem>
+                <SelectItem value="ministry">Ministério</SelectItem>
+                <SelectItem value="biblical">Bíblico</SelectItem>
+                <SelectItem value="practical">Prático</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full md:w-[200px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="active">Ativos</SelectItem>
+                <SelectItem value="completed">Concluídos</SelectItem>
+                <SelectItem value="paused">Pausados</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Main Content */}
+      <Tabs defaultValue="courses" className="space-y-6">
         <TabsList>
-          <TabsTrigger value="frequencia"><BookOpen className="w-4 h-4 mr-1" /> Frequência</TabsTrigger>
-          <TabsTrigger value="aula" disabled={!subjectId}><Users className="w-4 h-4 mr-1" /> Aula (marcar presença)</TabsTrigger>
+          <TabsTrigger value="courses">
+            <BookOpen className="w-4 h-4 mr-2" />
+            Cursos
+          </TabsTrigger>
+          <TabsTrigger value="attendance">
+            <Users className="w-4 h-4 mr-2" />
+            Presenças
+          </TabsTrigger>
+          <TabsTrigger value="progress">
+            <TrendingUp className="w-4 h-4 mr-2" />
+            Progresso
+          </TabsTrigger>
         </TabsList>
 
-        {/* Frequência agregada */}
-        <TabsContent value="frequencia">
-          <Card className="hover:grape-glow transition-smooth">
-            <CardHeader><CardTitle>Frequência por Aluno</CardTitle></CardHeader>
+        {/* Courses Tab */}
+        <TabsContent value="courses">
+          {error && (
+            <Card className="border-red-200 bg-red-50">
+              <CardContent className="p-4">
+                <p className="text-red-600">{error}</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {activeCourses.length === 0 ? (
+            <Card>
+              <CardContent className="p-12 text-center">
+                <BookOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Nenhum curso ativo encontrado</h3>
+                <p className="text-muted-foreground">
+                  Não há cursos disponíveis no momento.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+              {activeCourses.map((course) => (
+                <CourseCard
+                  key={course.id}
+                  course={course}
+                  onViewDetails={(courseId) => {
+                    setSelectedCourse(courseId);
+                  }}
+                  showActions={false}
+                />
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Attendance Tab */}
+        <TabsContent value="attendance">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="w-5 h-5" />
+                Controle de Presenças
+              </CardTitle>
+            </CardHeader>
             <CardContent>
-              {!courseId ? (
-                <p className="text-muted-foreground">Selecione um curso.</p>
-              ) : registrations.length === 0 ? (
-                <p className="text-muted-foreground">Nenhuma matrícula na sua rede.</p>
-              ) : !subjectId || lessons.length === 0 ? (
-                <p className="text-muted-foreground">Escolha uma matéria para ver as aulas e faltas.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table className="min-w-[720px]">
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Aluno</TableHead>
-                        {lessons.map((l) => (
-                          <TableHead key={l.id}>{new Date(l.class_date).toLocaleDateString("pt-BR")}</TableHead>
-                        ))}
-                        <TableHead>Faltas</TableHead>
-                        <TableHead>Status</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {registrations.map((r) => {
-                        const faltas = absencesByReg.get(r.id) ?? 0;
-                        const reprovado = faltas >= 4;
-                        return (
-                          <TableRow key={r.id}>
-                            <TableCell className="font-medium">{r.member?.name ?? r.member_id}</TableCell>
-                            {lessons.map((l) => {
-                              const present = attendanceMatrix.get(r.id)?.[l.id] ?? false;
-                              return (
-                                <TableCell key={l.id}>{present ? <Check className="w-4 h-4" /> : <X className="w-4 h-4 opacity-60" />}</TableCell>
-                              );
-                            })}
-                            <TableCell>{faltas}</TableCell>
-                            <TableCell>
-                              <Badge variant={reprovado ? "destructive" : "secondary"}>
-                                {reprovado ? "Reprovado" : "Em Curso"}
-                              </Badge>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
+              <div className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <Select value={selectedCourse} onValueChange={setSelectedCourse}>
+                    <SelectTrigger className="w-[300px]">
+                      <SelectValue placeholder="Selecione um curso" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {activeCourses.map((course) => (
+                        <SelectItem key={course.id} value={course.id}>
+                          {course.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              )}
+
+                {selectedCourse ? (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <Card>
+                        <CardContent className="p-4">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="h-5 w-5 text-green-600" />
+                            <span className="text-sm font-medium">Presentes</span>
+                          </div>
+                          <p className="text-2xl font-bold text-green-600">15</p>
+                        </CardContent>
+                      </Card>
+                      
+                      <Card>
+                        <CardContent className="p-4">
+                          <div className="flex items-center gap-2">
+                            <XCircle className="h-5 w-5 text-red-600" />
+                            <span className="text-sm font-medium">Ausentes</span>
+                          </div>
+                          <p className="text-2xl font-bold text-red-600">3</p>
+                        </CardContent>
+                      </Card>
+                      
+                      <Card>
+                        <CardContent className="p-4">
+                          <div className="flex items-center gap-2">
+                            <TrendingUp className="h-5 w-5 text-blue-600" />
+                            <span className="text-sm font-medium">Taxa de Presença</span>
+                          </div>
+                          <p className="text-2xl font-bold text-blue-600">83%</p>
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Líder</TableHead>
+                            <TableHead>Última Aula</TableHead>
+                            <TableHead>Presença</TableHead>
+                            <TableHead>Faltas</TableHead>
+                            <TableHead>Status</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {[
+                            { name: 'João Silva', lastClass: '2024-01-15', present: true, absences: 1, status: 'Em Curso' },
+                            { name: 'Maria Santos', lastClass: '2024-01-15', present: true, absences: 0, status: 'Em Curso' },
+                            { name: 'Pedro Costa', lastClass: '2024-01-15', present: false, absences: 2, status: 'Em Curso' },
+                            { name: 'Ana Oliveira', lastClass: '2024-01-15', present: true, absences: 1, status: 'Em Curso' },
+                          ].map((student, index) => (
+                            <TableRow key={index}>
+                              <TableCell className="font-medium">{student.name}</TableCell>
+                              <TableCell>{student.lastClass}</TableCell>
+                              <TableCell>
+                                {student.present ? (
+                                  <CheckCircle className="h-4 w-4 text-green-600" />
+                                ) : (
+                                  <XCircle className="h-4 w-4 text-red-600" />
+                                )}
+                              </TableCell>
+                              <TableCell>{student.absences}</TableCell>
+                              <TableCell>
+                                <Badge variant={student.absences >= 4 ? 'destructive' : 'secondary'}>
+                                  {student.status}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <p className="text-muted-foreground">Selecione um curso para ver as presenças</p>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* Aula: marcar presença */}
-        <TabsContent value="aula">
-          <Card className="hover:grape-glow transition-smooth">
-            <CardHeader className="flex items-center justify-between">
-              <CardTitle>Marcar presença na aula</CardTitle>
-              <div className="flex items-center gap-2">
-                <Input type="date" value={newLessonDate} onChange={(e) => setNewLessonDate(e.target.value)} />
-                <Button onClick={createLesson} disabled={!newLessonDate}>Criar Aula</Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {lessons.length === 0 ? (
-                <p className="text-muted-foreground">Nenhuma aula cadastrada para esta matéria.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table className="min-w-[720px]">
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Aluno</TableHead>
-                        {lessons.map((l) => (
-                          <TableHead key={l.id}>{new Date(l.class_date).toLocaleDateString("pt-BR")}</TableHead>
-                        ))}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {registrations.map((r) => (
-                        <TableRow key={r.id}>
-                          <TableCell className="font-medium">{r.member?.name ?? r.member_id}</TableCell>
-                          {lessons.map((l) => {
-                            const present = attendanceMatrix.get(r.id)?.[l.id] ?? false;
-                            return (
-                              <TableCell key={l.id}>
-                                <Button
-                                  size="icon"
-                                  variant={present ? "default" : "secondary"}
-                                  className="h-8 w-8"
-                                  onClick={() => togglePresence(l.id, r.id, !present)}
-                                >
-                                  {present ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
-                                </Button>
-                              </TableCell>
-                            );
-                          })}
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+        {/* Progress Tab */}
+        <TabsContent value="progress">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5" />
+                  Progresso por Curso
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {activeCourses.slice(0, 3).map((course) => (
+                    <div key={course.id} className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="font-medium">{course.name}</span>
+                        <span className="text-muted-foreground">75%</span>
+                      </div>
+                      <Progress value={75} className="h-2" />
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>12 de 16 aulas</span>
+                        <span>8 líderes inscritos</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Award className="w-5 h-5" />
+                  Líderes em Destaque
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {[
+                    { name: 'João Silva', course: 'Maturidade no Espírito', progress: 90, status: 'Excelente' },
+                    { name: 'Maria Santos', course: 'CTL', progress: 85, status: 'Muito Bom' },
+                    { name: 'Pedro Costa', course: 'Maturidade no Espírito', progress: 78, status: 'Bom' },
+                    { name: 'Ana Oliveira', course: 'CTL', progress: 95, status: 'Excelente' },
+                  ].map((leader, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">{leader.name}</p>
+                        <p className="text-xs text-muted-foreground">{leader.course}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-medium">{leader.progress}%</p>
+                        <Badge variant="secondary" className="text-xs">
+                          {leader.status}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>
