@@ -22,13 +22,24 @@ docker-compose -f docker-compose.dev.yml up --build
 # Frontend: http://localhost:3000
 ```
 
-### 🖥️ **Opção 2: Sem Docker (Local)**
+### 🖥️ **Opção 2: Sem Docker (Local) - RECOMENDADO**
 
 Se você tiver problemas com Docker, use o setup local:
 
 ```bash
 # Execute o setup local
-./scripts/local-setup.sh
+./scripts/start-dev.sh
+```
+
+**Ou manualmente:**
+```bash
+# 1. Instalar dependências
+npm install
+
+# 2. Iniciar servidor
+npm run dev
+
+# 3. Acesse: http://localhost:8080
 ```
 
 ### 🔧 **Opção 3: Corrigir Docker**

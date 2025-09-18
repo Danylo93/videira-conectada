@@ -9,10 +9,9 @@ WORKDIR /app
 
 # Copiar arquivos de dependências
 COPY package*.json ./
-COPY yarn.lock* ./
 
 # Instalar dependências
-RUN if [ -f yarn.lock ]; then yarn install --frozen-lockfile; else npm ci; fi
+RUN npm ci
 
 # Copiar código fonte
 COPY . .
