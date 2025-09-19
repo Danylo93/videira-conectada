@@ -44,83 +44,31 @@ export async function createCourse(data: CreateCourseData): Promise<Course> {
 
 export async function getCourses(filters?: CourseFilters): Promise<Course[]> {
   try {
-    // Return mock data for now to prevent infinite loops
-    const mockCourses: Course[] = [
-      {
-        id: '1',
-        name: 'Maturidade no Espírito',
-        description: 'Curso completo de desenvolvimento espiritual e crescimento cristão',
-        short_description: 'Desenvolvimento espiritual e crescimento cristão',
-        duration_weeks: 8,
-        price: 50.00,
-        max_students: 30,
-        min_students: 5,
-        difficulty_level: 'beginner',
-        category: 'spiritual',
-        status: 'active',
-        start_date: '2024-02-01',
-        end_date: '2024-03-31',
-        registration_deadline: '2024-01-25',
-        requirements: ['Ser membro ativo da igreja', 'Ter pelo menos 6 meses de conversão'],
-        learning_objectives: ['Conhecer os fundamentos da fé cristã', 'Desenvolver relacionamento íntimo com Deus'],
-        materials_included: ['Apostila completa', 'Bíblia de estudo', 'Caderno de anotações'],
-        certification_required: true,
-        certification_name: 'Certificado de Maturidade Espiritual',
-        created_by: 'mock-user-id',
-        active: true,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z'
-      },
-      {
-        id: '2',
-        name: 'CTL - Curso de Treinamento de Liderança',
-        description: 'Programa intensivo de formação de líderes, preparando discípulos para assumirem posições de liderança',
-        short_description: 'Formação de líderes cristãos',
-        duration_weeks: 12,
-        price: 80.00,
-        max_students: 20,
-        min_students: 3,
-        difficulty_level: 'intermediate',
-        category: 'leadership',
-        status: 'active',
-        start_date: '2024-02-15',
-        end_date: '2024-05-15',
-        registration_deadline: '2024-02-01',
-        requirements: ['Ter completado Maturidade no Espírito', 'Ser indicado por um líder'],
-        learning_objectives: ['Desenvolver habilidades de liderança', 'Aprender princípios de discipulado'],
-        materials_included: ['Manual do líder', 'Livros de referência', 'Material de apoio'],
-        certification_required: true,
-        certification_name: 'Certificado de Liderança Cristã',
-        created_by: 'mock-user-id',
-        active: true,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z'
-      }
-    ];
+    let query = supabase
+      .from('courses')
+      .select('*')
+      .eq('active', true)
+      .order('created_at', { ascending: false });
 
-    // Apply filters to mock data
-    let filteredCourses = mockCourses;
-    
     if (filters) {
-      if (filters.category) {
-        filteredCourses = filteredCourses.filter(course => course.category === filters.category);
-      }
-      if (filters.status) {
-        filteredCourses = filteredCourses.filter(course => course.status === filters.status);
-      }
-      if (filters.difficulty_level) {
-        filteredCourses = filteredCourses.filter(course => course.difficulty_level === filters.difficulty_level);
-      }
+      if (filters.category) query = query.eq('category', filters.category);
+      if (filters.difficulty_level) query = query.eq('difficulty_level', filters.difficulty_level);
+      if (filters.status) query = query.eq('status', filters.status);
+      if (filters.price_min) query = query.gte('price', filters.price_min);
+      if (filters.price_max) query = query.lte('price', filters.price_max);
       if (filters.search) {
-        const searchLower = filters.search.toLowerCase();
-        filteredCourses = filteredCourses.filter(course => 
-          course.name.toLowerCase().includes(searchLower) ||
-          course.description?.toLowerCase().includes(searchLower)
-        );
+        query = query.or(`name.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
       }
     }
 
-    return filteredCourses;
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error fetching courses:', error);
+      throw new Error('Erro ao carregar cursos');
+    }
+
+    return data || [];
   } catch (error) {
     console.error('Error in getCourses:', error);
     return [];
@@ -815,3 +763,4 @@ async function getFinancialSummary() {
     monthly_revenue: monthlyRevenue,
   };
 }
+

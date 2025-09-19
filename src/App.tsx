@@ -33,6 +33,9 @@ import CourseAdmin from "./pages/cursos/CourseAdmin";  // <-- admin do Pastor (r
 // EVENTOS
 import Events from "./pages/eventos/Events";           // <-- roteador (Pastor/Discipulador/Líder)
 
+// RELATÓRIOS
+import Reports from "./pages/relatorios/Reports";      // <-- roteador (Pastor/Discipulador/Líder)
+
 const queryClient = new QueryClient();
 
 type LoaderCopy = {
@@ -94,11 +97,6 @@ const PUBLIC_LOADER_COPY: Record<AuthTransition, LoaderCopy> = {
   },
 };
 
-function ReportsRouter() {
-  const { user } = useAuth();
-  if (!user) return null;
-  return user.role === "lider" ? <CellReports /> : <NetworkReports />;
-}
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { isAuthenticated, loading, authTransition } = useAuth();
@@ -162,7 +160,7 @@ function AppContent() {
         <Route path="/celula" element={<CellManagement />} />
         <Route path="/lideres" element={<LeaderManagement />} />
         <Route path="/discipuladores" element={<DiscipuladorManagement />} />
-        <Route path="/relatorios" element={<ReportsRouter />} />
+        <Route path="/relatorios" element={<Reports />} />
         <Route path="/cursos" element={<Courses />} />            {/* <- agora aponta pro roteador por papel */}
         <Route path="/admin-cursos" element={<CourseAdmin />} />  {/* <- admin do Pastor direto */}
         <Route path="/eventos" element={<Events />} />            {/* <- agora aponta pro roteador por papel */}
