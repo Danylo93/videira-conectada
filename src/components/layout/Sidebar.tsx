@@ -8,12 +8,12 @@ import {
   Calendar,
   BarChart3,
   Church,
-  Grape,
   Settings,
   UserCircle2,
   Heart,
   LucideIcon
 } from 'lucide-react';
+import logoVideira from '@/assets/logo-videira.png';
 import {
   Sidebar as SidebarComponent,
   SidebarContent,
@@ -143,8 +143,8 @@ export function Sidebar() {
         {/* Logo Section */}
         <div className="p-4 border-b">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-              <Grape className="w-5 h-5 text-primary-foreground" />
+            <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-md">
+              <img src={logoVideira} alt="Videira Logo" className="w-9 h-9" />
             </div>
             {!collapsed && (
               <div>

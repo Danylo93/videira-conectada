@@ -78,3 +78,4 @@ Para ativar a funcionalidade, execute a migração:
 4. Teste as inscrições
 5. Verifique as estatísticas
 
+

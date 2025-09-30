@@ -1,4 +1,4 @@
-import { Grape } from "lucide-react";
+import logoVideira from "@/assets/logo-videira.png";
 
 type Props = {
   message?: string;
@@ -21,8 +21,8 @@ export default function FancyLoader({
             <div className="absolute inset-0 animate-spin-slow rounded-full border-2 border-primary/30 border-t-transparent" />
             <div className="absolute inset-2 animate-spin rounded-full border-2 border-primary/40 border-b-transparent" />
             <div className="absolute inset-4 animate-bounce">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-primary/70 grid place-items-center shadow-md">
-                <Grape className="w-6 h-6 text-white" />
+              <div className="w-16 h-16 rounded-2xl bg-white grid place-items-center shadow-lg">
+                <img src={logoVideira} alt="Videira Logo" className="w-12 h-12" />
               </div>
             </div>
           </div>

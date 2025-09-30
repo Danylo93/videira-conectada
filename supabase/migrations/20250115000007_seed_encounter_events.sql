@@ -49,3 +49,4 @@ INSERT INTO encounter_events (
   (SELECT id FROM profiles WHERE role = 'pastor' LIMIT 1)
 );
 
+

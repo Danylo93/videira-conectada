@@ -16,7 +16,6 @@ import {
   TrendingUp,
   GraduationCap,
   Church,
-  Grape,
   Plus,
   AlertTriangle,
   Target,
@@ -26,7 +25,9 @@ import {
   CheckCircle,
   XCircle,
   type LucideIcon,
+  Grape,
 } from "lucide-react";
+import logoVideira from "@/assets/logo-videira.png";
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -427,8 +428,8 @@ export function Dashboard() {
       <div className="gradient-primary rounded-xl p-6 md:p-8 text-white relative overflow-hidden">
         <div className="relative z-10">
           <div className="flex items-center gap-3 md:gap-4 mb-2 md:mb-4">
-            <div className="w-10 h-10 md:w-12 md:h-12 bg-white/20 rounded-full flex items-center justify-center grape-bounce">
-              <Grape className="w-5 h-5 md:w-6 md:h-6" />
+            <div className="w-14 h-14 md:w-16 md:h-16 bg-white rounded-full flex items-center justify-center shadow-lg">
+              <img src={logoVideira} alt="Videira Logo" className="w-10 h-10 md:w-12 md:h-12" />
             </div>
             <div>
               <h1 className="text-2xl md:text-3xl font-bold">
