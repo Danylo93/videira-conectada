@@ -47,6 +47,10 @@ export const encountersService = {
       query = query.or(`name.ilike.%${filters.search}%,phone.ilike.%${filters.search}%,email.ilike.%${filters.search}%`);
     }
 
+    if (filters?.eventId) {
+      query = query.eq('event_id', filters.eventId);
+    }
+
     const { data, error } = await query;
 
     if (error) throw error;
@@ -172,10 +176,10 @@ export const encountersService = {
     if (error) throw error;
   },
 
-  async getEncounterStats(startDate?: Date, endDate?: Date): Promise<EncounterStats> {
+  async getEncounterStats(startDate?: Date, endDate?: Date, eventId?: string): Promise<EncounterStats> {
     let query = supabase
       .from('encounter_with_god')
-      .select('encounter_type, attended, amount_paid, encounter_date');
+      .select('encounter_type, attended, amount_paid, encounter_date, event_id');
 
     if (startDate) {
       query = query.gte('encounter_date', startDate.toISOString().split('T')[0]);
@@ -183,6 +187,10 @@ export const encountersService = {
 
     if (endDate) {
       query = query.lte('encounter_date', endDate.toISOString().split('T')[0]);
+    }
+
+    if (eventId) {
+      query = query.eq('event_id', eventId);
     }
 
     const { data, error } = await query;

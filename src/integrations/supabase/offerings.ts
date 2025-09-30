@@ -26,6 +26,7 @@ export interface UpdateOfferingData {
 
 export const getOfferings = async (encounterEventId?: string) => {
   try {
+    // Verificar se a tabela existe antes de fazer a query
     let query = supabase
       .from('encounter_offerings')
       .select('*')
@@ -37,16 +38,24 @@ export const getOfferings = async (encounterEventId?: string) => {
 
     const { data, error } = await query;
 
-    if (error) throw error;
+    if (error) {
+      // Se a tabela não existe ou há erro de RLS, retornar lista vazia
+      console.warn('Tabela encounter_offerings não disponível:', error.message);
+      return {
+        data: [],
+        error: null,
+      };
+    }
 
     return {
       data: data as EncounterOffering[],
       error: null,
     };
   } catch (error) {
+    console.warn('Erro ao buscar ofertas:', error);
     return {
-      data: null,
-      error: error instanceof Error ? error.message : 'Erro ao buscar ofertas',
+      data: [],
+      error: null, // Retornar lista vazia em vez de erro para evitar loops
     };
   }
 };

@@ -33,11 +33,13 @@ export function useEncounters(filters?: EncounterFilters) {
     } finally {
       setLoading(false);
     }
-  }, [filters, user]);
+  }, [user, filters]); // Adicionar filters como dependência
 
   useEffect(() => {
-    fetchEncounters();
-  }, [fetchEncounters]);
+    if (user) {
+      fetchEncounters();
+    }
+  }, [user, fetchEncounters]);
 
   const createEncounter = async (data: CreateEncounterWithGodData): Promise<EncounterWithGod> => {
     if (!user) throw new Error('Usuário não autenticado');
@@ -115,7 +117,7 @@ export function useEncounters(filters?: EncounterFilters) {
   };
 }
 
-export function useEncounterStats(startDate?: Date, endDate?: Date) {
+export function useEncounterStats(startDate?: Date, endDate?: Date, eventId?: string) {
   const [stats, setStats] = useState<EncounterStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -124,18 +126,26 @@ export function useEncounterStats(startDate?: Date, endDate?: Date) {
     try {
       setLoading(true);
       setError(null);
-      const data = await encountersService.getEncounterStats(startDate, endDate);
+      const data = await encountersService.getEncounterStats(startDate, endDate, eventId);
       
-      // Buscar total de ofertas
-      const { data: totalOfferings, error: offeringsError } = await getTotalOfferings();
-      if (offeringsError) {
-        console.warn('Erro ao buscar ofertas:', offeringsError);
+      // Buscar total de ofertas com tratamento de erro robusto
+      let totalOfferings = 0;
+      try {
+        const { data: offeringsData, error: offeringsError } = await getTotalOfferings(eventId);
+        if (offeringsError) {
+          console.warn('Erro ao buscar ofertas:', offeringsError);
+        } else {
+          totalOfferings = offeringsData || 0;
+        }
+      } catch (error) {
+        console.warn('Erro ao buscar ofertas:', error);
+        totalOfferings = 0;
       }
       
       // Manter ofertas separadas do totalAmount
       const updatedStats = {
         ...data,
-        totalOfferings: totalOfferings || 0,
+        totalOfferings,
       };
       
       setStats(updatedStats);
@@ -150,7 +160,7 @@ export function useEncounterStats(startDate?: Date, endDate?: Date) {
     } finally {
       setLoading(false);
     }
-  }, [startDate, endDate]);
+  }, [startDate, endDate, eventId]);
 
   useEffect(() => {
     fetchStats();

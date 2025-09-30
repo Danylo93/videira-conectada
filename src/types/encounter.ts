@@ -68,6 +68,7 @@ export interface EncounterFilters {
   discipuladorId?: string;
   pastorId?: string;
   search?: string;
+  eventId?: string;
 }
 
 export interface EncounterStats {

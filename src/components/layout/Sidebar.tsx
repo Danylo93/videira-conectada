@@ -77,14 +77,14 @@ const navigationItems: NavigationItem[] = [
     icon: Calendar,
     roles: ['pastor', 'obreiro', 'discipulador', 'lider'],
   },
+  // {
+  //   title: 'Gerenciar Encontro com Deus',
+  //   url: '/encounters',
+  //   icon: Heart,
+  //   roles: ['pastor', 'discipulador'],
+  // },
   {
-    title: 'Gerenciar Encontro com Deus',
-    url: '/encounters',
-    icon: Heart,
-    roles: ['pastor', 'discipulador'],
-  },
-  {
-    title: 'Adicionar Encontro com Deus',
+    title: 'Encontro com Deus',
     url: '/encounters/events',
     icon: Calendar,
     roles: ['pastor', 'discipulador'],

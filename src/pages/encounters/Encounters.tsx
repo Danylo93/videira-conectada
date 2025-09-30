@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEncounters, useEncounterStats } from '@/hooks/useEncounters';
 import { EncounterWithGod, CreateEncounterWithGodData, EncounterType, EncounterRole, EncounterFilters } from '@/types/encounter';
@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import FancyLoader from '@/components/FancyLoader';
+import { useSearchParams } from 'react-router-dom';
 
 import {
   Card,
@@ -68,6 +69,10 @@ interface EncounterEvent {
 export default function Encounters() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
+  
+  // Capturar o ID do evento da URL
+  const eventId = searchParams.get('event');
   
   const [filters, setFilters] = useState<EncounterFilters>({});
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -90,8 +95,107 @@ export default function Encounters() {
   const [offeringsList, setOfferingsList] = useState<any[]>([]);
   const [offeringsLoading, setOfferingsLoading] = useState(false);
 
-  const { encounters, loading, error, createEncounter, updateEncounter, deleteEncounter, refetch } = useEncounters(filters);
-  const { stats, loading: statsLoading, refetch: refetchStats } = useEncounterStats();
+  // Aplicar filtro por evento se especificado na URL
+  const encounterFilters = eventId ? { ...filters, eventId } : filters;
+  
+  const { encounters, loading, error, createEncounter, updateEncounter, deleteEncounter, refetch } = useEncounters(encounterFilters);
+  const { stats, loading: statsLoading, refetch: refetchStats } = useEncounterStats(undefined, undefined, eventId);
+
+  // Timeout para evitar travamentos infinitos
+  const [forceLoad, setForceLoad] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (loading || statsLoading) {
+        console.warn('Carregamento demorado, forçando exibição...');
+        setForceLoad(true);
+      }
+    }, 10000); // 10 segundos
+
+    return () => clearTimeout(timeout);
+  }, [loading, statsLoading]);
+
+  // Marcar como carregado quando os dados estiverem prontos
+  useEffect(() => {
+    if (!loading && !statsLoading && encounters.length >= 0) {
+      setHasLoaded(true);
+    }
+  }, [loading, statsLoading, encounters.length]);
+
+  // Estado para armazenar informações do evento
+  const [eventInfo, setEventInfo] = useState<{ name: string; encounterType: string } | null>(null);
+
+  // Buscar informações do evento
+  useEffect(() => {
+    const fetchEventInfo = async () => {
+      if (!eventId) {
+        setEventInfo(null);
+        return;
+      }
+
+      // Mapear IDs conhecidos para informações do evento
+      const eventMap: Record<string, { name: string; encounterType: string }> = {
+        '550e8400-e29b-41d4-a716-446655440001': {
+          name: 'Encontro com Deus - Jovens Setembro 2025',
+          encounterType: 'jovens'
+        },
+        '550e8400-e29b-41d4-a716-446655440002': {
+          name: 'Encontro com Deus - Adultos e Jovens Outubro 2025',
+          encounterType: 'adultos'
+        }
+      };
+
+      // Verificar se é um ID conhecido
+      if (eventMap[eventId]) {
+        setEventInfo(eventMap[eventId]);
+      } else if (eventId.includes('jovens')) {
+        setEventInfo({ name: 'Encontro com Deus - Jovens', encounterType: 'jovens' });
+      } else if (eventId.includes('adultos')) {
+        setEventInfo({ name: 'Encontro com Deus - Adultos', encounterType: 'adultos' });
+      } else {
+        setEventInfo(null);
+      }
+    };
+
+    fetchEventInfo();
+  }, [eventId]);
+
+  // Determinar o tipo de encontro baseado no eventId
+  const getEncounterType = () => {
+    if (!eventId) return 'Encontro com Deus';
+    
+    if (eventInfo) {
+      return eventInfo.name;
+    }
+    
+    // Fallback para IDs conhecidos
+    if (eventId.includes('jovens') || eventId === '550e8400-e29b-41d4-a716-446655440001') {
+      return 'Encontro com Deus - Jovens';
+    } else if (eventId.includes('adultos') || eventId === '550e8400-e29b-41d4-a716-446655440002') {
+      return 'Encontro com Deus - Adultos';
+    }
+    
+    return 'Encontro com Deus';
+  };
+
+  const getEncounterDescription = () => {
+    if (!eventId) return 'Gerenciamento de encontros para jovens e adultos';
+    
+    if (eventInfo) {
+      const type = eventInfo.encounterType === 'jovens' ? 'jovens' : 'adultos';
+      return `Gerenciamento de encontros para ${type}`;
+    }
+    
+    // Fallback para IDs conhecidos
+    if (eventId.includes('jovens') || eventId === '550e8400-e29b-41d4-a716-446655440001') {
+      return 'Gerenciamento de encontros para jovens';
+    } else if (eventId.includes('adultos') || eventId === '550e8400-e29b-41d4-a716-446655440002') {
+      return 'Gerenciamento de encontros para adultos';
+    }
+    
+    return 'Gerenciamento de encontros para jovens e adultos';
+  };
 
   // Pull to refresh
   const handleRefresh = async () => {
@@ -99,7 +203,8 @@ export default function Encounters() {
       await Promise.all([
         refetch(),
         refetchStats(),
-        loadOfferings()
+        // Só carregar ofertas se não estiver carregando
+        !offeringsLoading ? loadOfferings() : Promise.resolve()
       ]);
       toast({
         title: 'Sucesso',
@@ -206,25 +311,35 @@ export default function Encounters() {
   }, [user]);
 
   // Load offerings
-  const loadOfferings = async () => {
+  const loadOfferings = useCallback(async () => {
+    if (offeringsLoading) return; // Evitar chamadas simultâneas
+    
     try {
       setOfferingsLoading(true);
-      const { data, error } = await getOfferings();
+      // Filtrar ofertas por eventId se especificado
+      const { data, error } = await getOfferings(eventId);
       if (error) {
         console.error('Error loading offerings:', error);
+        // Se houver erro, definir lista vazia para evitar loops
+        setOfferingsList([]);
       } else {
         setOfferingsList(data || []);
       }
     } catch (error) {
       console.error('Error loading offerings:', error);
+      // Se houver erro, definir lista vazia para evitar loops
+      setOfferingsList([]);
     } finally {
       setOfferingsLoading(false);
     }
-  };
+  }, [eventId]); // Adicionar eventId como dependência
 
   useEffect(() => {
-    loadOfferings();
-  }, []);
+    // Só carregar ofertas se o usuário estiver autenticado e não estiver carregando
+    if (user && !offeringsLoading) {
+      loadOfferings();
+    }
+  }, [user, eventId, loadOfferings]); // Adicionar eventId e loadOfferings como dependências
 
   // Apply search filter
   useEffect(() => {
@@ -233,17 +348,21 @@ export default function Encounters() {
         ...prev,
         search: searchTerm || undefined,
       }));
-    }, 300);
+    }, 500); // Aumentar debounce para 500ms
 
     return () => clearTimeout(timeoutId);
   }, [searchTerm]);
 
   // Apply date filter
   useEffect(() => {
-    setFilters(prev => ({
-      ...prev,
-      encounterDate: selectedDate,
-    }));
+    const timeoutId = setTimeout(() => {
+      setFilters(prev => ({
+        ...prev,
+        encounterDate: selectedDate,
+      }));
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
   }, [selectedDate]);
 
   if (!user || !['pastor', 'discipulador'].includes(user.role)) {
@@ -254,16 +373,115 @@ export default function Encounters() {
     );
   }
 
-  if (loading) {
+  if ((loading || statsLoading) && !forceLoad && !hasLoaded) {
     return (
-      <FancyLoader
-        message="Preparando o encontro com Deus"
-        tips={[
-          'Organizando os registros dos encontros...',
-          'Separando jovens e adultos...',
-          'Calculando as ofertas recebidas...',
-        ]}
-      />
+      <div className="space-y-6">
+        {/* Header Skeleton */}
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <div className="h-8 w-64 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse"></div>
+            <div className="h-4 w-96 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse"></div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="h-10 w-32 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse"></div>
+            <div className="h-10 w-24 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse"></div>
+            <div className="h-10 w-32 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse"></div>
+          </div>
+        </div>
+
+        {/* Stats Cards Skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="bg-white p-6 rounded-lg border shadow-sm">
+              <div className="space-y-3">
+                <div className="h-4 w-24 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse"></div>
+                <div className="h-8 w-16 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse"></div>
+                <div className="h-3 w-20 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse"></div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Financial Summary Skeleton */}
+        <div className="bg-white p-6 rounded-lg border shadow-sm">
+          <div className="space-y-4">
+            <div className="h-6 w-48 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse"></div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="space-y-2">
+                  <div className="h-4 w-32 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse"></div>
+                  <div className="h-6 w-24 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse"></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Filters Skeleton */}
+        <div className="bg-white p-6 rounded-lg border shadow-sm">
+          <div className="space-y-4">
+            <div className="h-6 w-24 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse"></div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-10 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse"></div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Cards por Função Skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div key={i} className="bg-white p-6 rounded-lg border shadow-sm">
+              <div className="space-y-4">
+                <div className="h-6 w-32 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse"></div>
+                <div className="grid grid-cols-2 gap-4">
+                  {Array.from({ length: 4 }).map((_, j) => (
+                    <div key={j} className="space-y-2">
+                      <div className="h-4 w-20 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse"></div>
+                      <div className="h-6 w-16 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse"></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Ofertas Skeleton */}
+        <div className="bg-white p-6 rounded-lg border shadow-sm">
+          <div className="space-y-4">
+            <div className="h-6 w-48 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse"></div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="space-y-2">
+                  <div className="h-4 w-24 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse"></div>
+                  <div className="h-8 w-20 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse"></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Table Skeleton */}
+        <div className="bg-white rounded-lg border shadow-sm">
+          <div className="p-6">
+            <div className="h-6 w-32 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse mb-4"></div>
+            <div className="space-y-3">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex items-center space-x-4">
+                  <div className="h-4 w-4 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse"></div>
+                  <div className="h-4 w-32 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse"></div>
+                  <div className="h-4 w-24 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse"></div>
+                  <div className="h-4 w-20 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse"></div>
+                  <div className="h-4 w-16 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse"></div>
+                  <div className="h-4 w-12 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse"></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -513,9 +731,9 @@ export default function Encounters() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Encontro com Deus</h1>
+          <h1 className="text-3xl font-bold">{getEncounterType()}</h1>
           <p className="text-muted-foreground">
-            Gerenciamento de encontros para jovens e adultos
+            {getEncounterDescription()}
           </p>
         </div>
         <div className="flex items-center gap-2">

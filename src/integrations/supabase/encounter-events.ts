@@ -5,40 +5,12 @@ export const encounterEventsService = {
   // Buscar todos os eventos de encontro
   async getEvents(filters?: EncounterEventFilters): Promise<EncounterEvent[]> {
     try {
-      // Buscar dados reais dos encontros para calcular estatísticas
-      const { data: allEncounters, error: encountersError } = await supabase
-        .from('encounter_with_god')
-        .select('attended, amount_paid, encounter_type, event_id');
-
-      if (encountersError) {
-        console.error('Erro ao buscar encontros:', encountersError);
-      }
-
-      // Calcular estatísticas por tipo de encontro
-      const jovensEncounters = allEncounters?.filter((e: any) => e.encounter_type === 'jovens') || [];
-      const adultosEncounters = allEncounters?.filter((e: any) => e.encounter_type === 'adultos') || [];
-
-      const jovensStats = {
-        total: jovensEncounters.length,
-        attended: jovensEncounters.filter((e: any) => Boolean(e.attended)).length,
-        revenue: jovensEncounters.reduce((sum: number, e: any) => sum + (parseFloat(e.amount_paid) || 0), 0)
-      };
-
-      const adultosStats = {
-        total: 0, // Adultos não devem ter inscrições ainda
-        attended: 0,
-        revenue: 0
-      };
-
-      // Criar eventos com IDs únicos baseados em timestamp
-      const jovensEventId = 'jovens-' + Date.now();
-      const adultosEventId = 'adultos-' + Date.now();
-
+      // Usar dados mockados baseados nos dados reais que vimos no Supabase
       const mockEvents: EncounterEvent[] = [
         {
-          id: jovensEventId,
-          name: 'Encontro com Deus - Jovens',
-          description: 'Um encontro transformador para jovens',
+          id: '550e8400-e29b-41d4-a716-446655440001',
+          name: 'Encontro com Deus - Jovens Setembro 2025',
+          description: 'Encontro para os Radicais Livres.',
           event_dates: ['2025-09-26', '2025-09-27', '2025-09-28'],
           location: 'Sítio Mairiporã',
           encounterType: 'jovens',
@@ -50,15 +22,15 @@ export const encounterEventsService = {
           created_by: 'user-1',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-          registrations_count: jovensStats.total,
-          attended_count: jovensStats.attended,
-          total_revenue: jovensStats.revenue,
+          registrations_count: 0,
+          attended_count: 0,
+          total_revenue: 0,
         },
         {
-          id: adultosEventId,
-          name: 'Encontro com Deus - Adultos',
-          description: 'Um encontro profundo para adultos',
-          event_dates: ['2025-10-30', '2025-10-31', '2025-11-01'],
+          id: '550e8400-e29b-41d4-a716-446655440002',
+          name: 'Encontro com Deus - Adultos e Jovens Outubro 2025',
+          description: 'Encontro para adultos e jovens.',
+          event_dates: ['2025-10-30', '2025-11-01', '2025-11-02'],
           location: 'Sítio Mairiporã',
           encounterType: 'adultos',
           max_capacity: 80,
@@ -69,14 +41,41 @@ export const encounterEventsService = {
           created_by: 'user-1',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-          registrations_count: adultosStats.total,
-          attended_count: adultosStats.attended,
-          total_revenue: adultosStats.revenue,
+          registrations_count: 0,
+          attended_count: 0,
+          total_revenue: 0,
         }
       ];
 
+      // Buscar estatísticas reais dos encontros
+      const { data: allEncounters, error: encountersError } = await supabase
+        .from('encounter_with_god')
+        .select('attended, amount_paid, encounter_type, event_id');
+
+      if (encountersError) {
+        console.error('Erro ao buscar encontros:', encountersError);
+      }
+
+      // Atualizar estatísticas para cada evento
+      const eventsWithStats = mockEvents.map(event => {
+        const eventEncounters = allEncounters?.filter((e: any) => e.event_id === event.id) || [];
+        
+        const stats = {
+          total: eventEncounters.length,
+          attended: eventEncounters.filter((e: any) => Boolean(e.attended)).length,
+          revenue: eventEncounters.reduce((sum: number, e: any) => sum + (parseFloat(e.amount_paid) || 0), 0)
+        };
+
+        return {
+          ...event,
+          registrations_count: stats.total,
+          attended_count: stats.attended,
+          total_revenue: stats.revenue,
+        };
+      });
+
       // Aplicar filtros
-      let filteredEvents = mockEvents;
+      let filteredEvents = eventsWithStats;
 
       if (filters?.encounterType) {
         filteredEvents = filteredEvents.filter(event => event.encounterType === filters.encounterType);
@@ -90,7 +89,7 @@ export const encounterEventsService = {
         const searchLower = filters.search.toLowerCase();
         filteredEvents = filteredEvents.filter(event =>
           event.name.toLowerCase().includes(searchLower) ||
-          event.description.toLowerCase().includes(searchLower) ||
+          event.description?.toLowerCase().includes(searchLower) ||
           event.location.toLowerCase().includes(searchLower)
         );
       }
@@ -102,86 +101,11 @@ export const encounterEventsService = {
     }
   },
 
-  // Criar eventos padrão se não existirem eventos reais
-  async createDefaultEvents(): Promise<EncounterEvent[]> {
-    try {
-      // Buscar dados reais dos encontros para calcular estatísticas
-      const { data: allEncounters, error: encountersError } = await supabase
-        .from('encounter_with_god')
-        .select('attended, amount_paid, encounter_type');
-
-      if (encountersError) {
-        console.error('Erro ao buscar encontros:', encountersError);
-      }
-
-      // Calcular estatísticas por tipo de encontro
-      const jovensEncounters = allEncounters?.filter((e: any) => e.encounter_type === 'jovens') || [];
-      const adultosEncounters = allEncounters?.filter((e: any) => e.encounter_type === 'adultos') || [];
-
-      const jovensStats = {
-        total: jovensEncounters.length,
-        attended: jovensEncounters.filter((e: any) => Boolean(e.attended)).length,
-        revenue: jovensEncounters.reduce((sum: number, e: any) => sum + (parseFloat(e.amount_paid) || 0), 0)
-      };
-
-      const adultosStats = {
-        total: 0, // Adultos não devem ter inscrições ainda
-        attended: 0,
-        revenue: 0
-      };
-
-      // Criar eventos com dados reais
-      const defaultEvents: EncounterEvent[] = [
-        {
-          id: 'default-jovens',
-          name: 'Encontro com Deus - Jovens',
-          description: 'Um encontro transformador para jovens',
-          event_dates: ['2025-09-26', '2025-09-27', '2025-09-28'],
-          location: 'Sítio Mairiporã',
-          encounterType: 'jovens',
-          max_capacity: 100,
-          registration_deadline: '2025-09-20',
-          price: 170,
-          requirements: 'Idade entre 13 e 30 anos',
-          status: 'completed',
-          created_by: 'system',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          registrations_count: jovensStats.total,
-          attended_count: jovensStats.attended,
-          total_revenue: jovensStats.revenue,
-        },
-        {
-          id: 'default-adultos',
-          name: 'Encontro com Deus - Adultos',
-          description: 'Um encontro profundo para adultos',
-          event_dates: ['2025-10-30', '2025-10-31', '2025-11-01'],
-          location: 'Sítio Mairiporã',
-          encounterType: 'adultos',
-          max_capacity: 80,
-          registration_deadline: '2025-09-28',
-          price: 170,
-          requirements: 'Idade acima de 30 anos',
-          status: 'published',
-          created_by: 'system',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          registrations_count: adultosStats.total,
-          attended_count: adultosStats.attended,
-          total_revenue: adultosStats.revenue,
-        }
-      ];
-
-      return defaultEvents;
-    } catch (error) {
-      console.error('Erro ao criar eventos padrão:', error);
-      return [];
-    }
-  },
 
   // Buscar evento por ID
   async getEventById(id: string): Promise<EncounterEvent | null> {
     try {
+      // Buscar todos os eventos e encontrar o específico
       const events = await this.getEvents();
       const foundEvent = events.find(event => event.id === id);
       
@@ -273,9 +197,9 @@ export const encounterEventsService = {
     total_revenue: number;
   }> {
     try {
-      // Determinar o tipo de evento baseado no ID
-      const isJovensEvent = eventId.includes('jovens');
-      const isAdultosEvent = eventId.includes('adultos');
+      // Por enquanto, retornar estatísticas mockadas baseadas no tipo de evento
+      const isJovensEvent = eventId.includes('jovens') || eventId === '550e8400-e29b-41d4-a716-446655440001';
+      const isAdultosEvent = eventId.includes('adultos') || eventId === '550e8400-e29b-41d4-a716-446655440002';
 
       if (isAdultosEvent) {
         // Adultos não devem ter inscrições ainda
