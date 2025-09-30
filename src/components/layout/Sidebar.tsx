@@ -11,6 +11,7 @@ import {
   Grape,
   Settings,
   UserCircle2,
+  Heart,
   LucideIcon
 } from 'lucide-react';
 import {
@@ -71,10 +72,22 @@ const navigationItems: NavigationItem[] = [
     roles: ['pastor', 'obreiro', 'discipulador', 'lider'],
   },
   {
-    title: 'Eventos',
+    title: 'Gerenciar Eventos',
     url: '/eventos',
     icon: Calendar,
     roles: ['pastor', 'obreiro', 'discipulador', 'lider'],
+  },
+  {
+    title: 'Gerenciar Encontro com Deus',
+    url: '/encounters',
+    icon: Heart,
+    roles: ['pastor', 'discipulador'],
+  },
+  {
+    title: 'Adicionar Encontro com Deus',
+    url: '/encounters/events',
+    icon: Calendar,
+    roles: ['pastor', 'discipulador'],
   },
   {
     title: 'Estatísticas',

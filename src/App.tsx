@@ -33,6 +33,10 @@ import CourseAdmin from "./pages/cursos/CourseAdmin";  // <-- admin do Pastor (r
 // EVENTOS
 import Events from "./pages/eventos/Events";           // <-- roteador (Pastor/Discipulador/Líder)
 
+// ENCONTROS
+import Encounters from "./pages/encounters/Encounters"; // <-- Encontro com Deus (Pastor/Discipulador)
+import EncounterEvents from "./pages/encounters/EncounterEvents"; // <-- Eventos de Encontro (Pastor/Discipulador)
+
 const queryClient = new QueryClient();
 
 type LoaderCopy = {
@@ -166,6 +170,8 @@ function AppContent() {
         <Route path="/cursos" element={<Courses />} />            {/* <- agora aponta pro roteador por papel */}
         <Route path="/admin-cursos" element={<CourseAdmin />} />  {/* <- admin do Pastor direto */}
         <Route path="/eventos" element={<Events />} />            {/* <- agora aponta pro roteador por papel */}
+        <Route path="/encounters" element={<Encounters />} />     {/* <- Encontro com Deus (Pastor/Discipulador) */}
+        <Route path="/encounters/events" element={<EncounterEvents />} /> {/* <- Eventos de Encontro (Pastor/Discipulador) */}
         <Route path="/estatisticas" element={<Statistics />} />
         <Route path="/gerenciar" element={<ChurchManagement />} />
         <Route path="/perfil" element={<Profile />} />
