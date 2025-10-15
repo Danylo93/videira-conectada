@@ -77,6 +77,11 @@ export function CellReports() {
   );
   const [loading, setLoading] = useState(true);
   const [chartMode, setChartMode] = useState<"semanal">("semanal");
+  
+  // Filtros de mês e ano
+  const currentDate = new Date();
+  const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
 
   const memberOptions = allMembers.filter((m) => m.type === "member");
   const visitorOptions = allMembers.filter((m) => m.type === "frequentador");
@@ -90,6 +95,13 @@ export function CellReports() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  // Recarregar relatórios quando mês ou ano mudarem
+  useEffect(() => {
+    if (user && user.role === "lider" && allMembers.length > 0) {
+      loadReports();
+    }
+  }, [selectedMonth, selectedYear]);
 
   const loadMembers = async (): Promise<Member[]> => {
     if (!user) return [];
@@ -128,10 +140,16 @@ export function CellReports() {
 
     const membersList = allMembers.length === 0 ? await loadMembers() : allMembers;
 
+    // Criar filtro de data baseado no mês e ano selecionados
+    const startDate = new Date(selectedYear, selectedMonth - 1, 1);
+    const endDate = new Date(selectedYear, selectedMonth, 0); // Último dia do mês
+
     const { data, error } = await supabase
       .from("cell_reports")
       .select("*")
       .eq("lider_id", user.id)
+      .gte("week_start", startDate.toISOString())
+      .lte("week_start", endDate.toISOString())
       .order("week_start", { ascending: false });
 
     if (error) {
@@ -689,6 +707,57 @@ Observações: ${report.observations || ""}`;
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* Filtro de Mês e Ano */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Filtro por Período</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
+            <div className="flex-1">
+              <Label htmlFor="month">Mês</Label>
+              <Select value={selectedMonth.toString()} onValueChange={(value) => setSelectedMonth(parseInt(value))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o mês" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">Janeiro</SelectItem>
+                  <SelectItem value="2">Fevereiro</SelectItem>
+                  <SelectItem value="3">Março</SelectItem>
+                  <SelectItem value="4">Abril</SelectItem>
+                  <SelectItem value="5">Maio</SelectItem>
+                  <SelectItem value="6">Junho</SelectItem>
+                  <SelectItem value="7">Julho</SelectItem>
+                  <SelectItem value="8">Agosto</SelectItem>
+                  <SelectItem value="9">Setembro</SelectItem>
+                  <SelectItem value="10">Outubro</SelectItem>
+                  <SelectItem value="11">Novembro</SelectItem>
+                  <SelectItem value="12">Dezembro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex-1">
+              <Label htmlFor="year">Ano</Label>
+              <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o ano" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 5 }, (_, i) => {
+                    const year = currentDate.getFullYear() - 2 + i;
+                    return (
+                      <SelectItem key={year} value={year.toString()}>
+                        {year}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">

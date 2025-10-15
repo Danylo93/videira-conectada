@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Label } from '@/components/ui/label';
 import {
   ResponsiveContainer,
   CartesianGrid,
@@ -62,6 +63,11 @@ export function NetworkReports() {
   const [churchReports, setChurchReports] = useState<CellReportType[]>([]);
   const [chartMode, setChartMode] = useState<'mensal' | 'semanal'>('semanal');
   const [loading, setLoading] = useState(true);
+  
+  // Filtros de mês e ano
+  const currentDate = new Date();
+  const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
 
   /* ========== carregamento base ========== */
 
@@ -71,10 +77,17 @@ export function NetworkReports() {
         setter([]);
         return;
       }
+      
+      // Criar filtro de data baseado no mês e ano selecionados
+      const startDate = new Date(selectedYear, selectedMonth - 1, 1);
+      const endDate = new Date(selectedYear, selectedMonth, 0); // Último dia do mês
+      
       const { data } = await supabase
         .from('cell_reports')
         .select('*')
         .in('lider_id', leaderIds)
+        .gte('week_start', startDate.toISOString())
+        .lte('week_start', endDate.toISOString())
         .order('week_start', { ascending: true });
 
       const formatted: CellReportType[] = (data || []).map((r) => ({
@@ -105,7 +118,7 @@ export function NetworkReports() {
       }));
       setter(formatted);
     },
-    []
+    [selectedMonth, selectedYear]
   );
 
   const loadDiscipuladores = useCallback(async () => {
@@ -165,6 +178,16 @@ export function NetworkReports() {
       setLoading(false);
     }
   }, [user, loadDiscipuladores, loadLeaders]);
+
+  // Recarregar relatórios quando mês ou ano mudarem
+  useEffect(() => {
+    if (user && leaders.length > 0 && (user.role === 'discipulador' || user.role === 'pastor')) {
+      loadReportsForLeaders(
+        leaders.map((l) => l.id),
+        user.role === 'pastor' ? setChurchReports : setNetworkReports
+      );
+    }
+  }, [selectedMonth, selectedYear, leaders, loadReportsForLeaders, user]);
 
   const loadReports = useCallback(async () => {
     const { data } = await supabase
@@ -534,6 +557,57 @@ export function NetworkReports() {
               </div>
             </div>
 
+            {/* Filtro de Mês e Ano */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Filtro por Período</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
+                  <div className="flex-1">
+                    <Label htmlFor="month">Mês</Label>
+                    <Select value={selectedMonth.toString()} onValueChange={(value) => setSelectedMonth(parseInt(value))}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o mês" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">Janeiro</SelectItem>
+                        <SelectItem value="2">Fevereiro</SelectItem>
+                        <SelectItem value="3">Março</SelectItem>
+                        <SelectItem value="4">Abril</SelectItem>
+                        <SelectItem value="5">Maio</SelectItem>
+                        <SelectItem value="6">Junho</SelectItem>
+                        <SelectItem value="7">Julho</SelectItem>
+                        <SelectItem value="8">Agosto</SelectItem>
+                        <SelectItem value="9">Setembro</SelectItem>
+                        <SelectItem value="10">Outubro</SelectItem>
+                        <SelectItem value="11">Novembro</SelectItem>
+                        <SelectItem value="12">Dezembro</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex-1">
+                    <Label htmlFor="year">Ano</Label>
+                    <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o ano" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: 5 }, (_, i) => {
+                          const year = currentDate.getFullYear() - 2 + i;
+                          return (
+                            <SelectItem key={year} value={year.toString()}>
+                              {year}
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             <Card className="hover:grape-glow transition-smooth">
               <CardHeader>
                 <CardTitle className="text-base sm:text-lg">Resumo (Soma • Quantidade)</CardTitle>
@@ -655,6 +729,57 @@ export function NetworkReports() {
               </div>
             </div>
 
+            {/* Filtro de Mês e Ano */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Filtro por Período</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
+                  <div className="flex-1">
+                    <Label htmlFor="month">Mês</Label>
+                    <Select value={selectedMonth.toString()} onValueChange={(value) => setSelectedMonth(parseInt(value))}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o mês" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">Janeiro</SelectItem>
+                        <SelectItem value="2">Fevereiro</SelectItem>
+                        <SelectItem value="3">Março</SelectItem>
+                        <SelectItem value="4">Abril</SelectItem>
+                        <SelectItem value="5">Maio</SelectItem>
+                        <SelectItem value="6">Junho</SelectItem>
+                        <SelectItem value="7">Julho</SelectItem>
+                        <SelectItem value="8">Agosto</SelectItem>
+                        <SelectItem value="9">Setembro</SelectItem>
+                        <SelectItem value="10">Outubro</SelectItem>
+                        <SelectItem value="11">Novembro</SelectItem>
+                        <SelectItem value="12">Dezembro</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex-1">
+                    <Label htmlFor="year">Ano</Label>
+                    <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o ano" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: 5 }, (_, i) => {
+                          const year = currentDate.getFullYear() - 2 + i;
+                          return (
+                            <SelectItem key={year} value={year.toString()}>
+                              {year}
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             {selectedDiscipulador && (
               <Card className="hover:grape-glow transition-smooth">
                 <CardHeader><CardTitle>Resumo (Soma • Quantidade)</CardTitle></CardHeader>
@@ -704,6 +829,57 @@ export function NetworkReports() {
               </Select>
             </div>
           </div>
+
+          {/* Filtro de Mês e Ano */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Filtro por Período</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
+                <div className="flex-1">
+                  <Label htmlFor="month">Mês</Label>
+                  <Select value={selectedMonth.toString()} onValueChange={(value) => setSelectedMonth(parseInt(value))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o mês" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">Janeiro</SelectItem>
+                      <SelectItem value="2">Fevereiro</SelectItem>
+                      <SelectItem value="3">Março</SelectItem>
+                      <SelectItem value="4">Abril</SelectItem>
+                      <SelectItem value="5">Maio</SelectItem>
+                      <SelectItem value="6">Junho</SelectItem>
+                      <SelectItem value="7">Julho</SelectItem>
+                      <SelectItem value="8">Agosto</SelectItem>
+                      <SelectItem value="9">Setembro</SelectItem>
+                      <SelectItem value="10">Outubro</SelectItem>
+                      <SelectItem value="11">Novembro</SelectItem>
+                      <SelectItem value="12">Dezembro</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex-1">
+                  <Label htmlFor="year">Ano</Label>
+                  <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o ano" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 5 }, (_, i) => {
+                        const year = currentDate.getFullYear() - 2 + i;
+                        return (
+                          <SelectItem key={year} value={year.toString()}>
+                            {year}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           {selectedLeader && (
             <>
