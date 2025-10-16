@@ -28,7 +28,7 @@ import { Auth } from "./pages/Auth";
 
 // CURSOS
 import Courses from "./pages/cursos/Courses";          // <-- roteador (Pastor/Discipulador/Líder)
-import CourseAdmin from "./pages/cursos/CourseAdmin";  // <-- admin do Pastor (rota separada /admin-cursos)
+import CourseAdminNew from "./pages/cursos/CourseAdminNew";  // <-- admin do Pastor (rota separada /admin-cursos)
 
 // EVENTOS
 import Events from "./pages/eventos/Events";           // <-- roteador (Pastor/Discipulador/Líder)
@@ -36,6 +36,9 @@ import Events from "./pages/eventos/Events";           // <-- roteador (Pastor/D
 // ENCONTROS
 import Encounters from "./pages/encounters/Encounters"; // <-- Encontro com Deus (Pastor/Discipulador)
 import EncounterEvents from "./pages/encounters/EncounterEvents"; // <-- Eventos de Encontro (Pastor/Discipulador)
+
+// DÍZIMOS E OFERTAS
+import { TithesOfferings } from "./pages/TithesOfferings"; // <-- Dízimos e Ofertas (Pastor/Obreiro)
 
 const queryClient = new QueryClient();
 
@@ -168,10 +171,11 @@ function AppContent() {
         <Route path="/discipuladores" element={<DiscipuladorManagement />} />
         <Route path="/relatorios" element={<ReportsRouter />} />
         <Route path="/cursos" element={<Courses />} />            {/* <- agora aponta pro roteador por papel */}
-        <Route path="/admin-cursos" element={<CourseAdmin />} />  {/* <- admin do Pastor direto */}
+        <Route path="/admin-cursos" element={<CourseAdminNew />} />  {/* <- admin do Pastor direto */}
         <Route path="/eventos" element={<Events />} />            {/* <- agora aponta pro roteador por papel */}
         <Route path="/encounters" element={<Encounters />} />     {/* <- Encontro com Deus (Pastor/Discipulador) */}
         <Route path="/encounters/events" element={<EncounterEvents />} /> {/* <- Eventos de Encontro (Pastor/Discipulador) */}
+        <Route path="/dizimos-ofertas" element={<TithesOfferings />} /> {/* <- Dízimos e Ofertas (Pastor/Obreiro) */}
         <Route path="/estatisticas" element={<Statistics />} />
         <Route path="/gerenciar" element={<ChurchManagement />} />
         <Route path="/perfil" element={<Profile />} />

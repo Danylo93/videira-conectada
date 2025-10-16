@@ -1,128 +1,46 @@
-// Enhanced Course System - Custom Hooks
-// Comprehensive hooks for course management
-
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  createCourse,
-  getCourses,
-  getCourseById,
-  updateCourse,
-  deleteCourse,
-  createModule,
-  getCourseModules,
-  updateModule,
-  deleteModule,
-  createLesson,
-  getModuleLessons,
-  getCourseLessons,
-  updateLesson,
-  deleteLesson,
-  addInstructor,
-  getCourseInstructors,
-  removeInstructor,
-  createRegistration,
-  getRegistrations,
-  updateRegistration,
-  approveRegistration,
-  markAttendance,
-  getLessonAttendance,
-  getStudentAttendance,
-  createPayment,
-  getRegistrationPayments,
-  updatePayment,
-  createAssessment,
-  getCourseAssessments,
-  createGrade,
-  getAssessmentGrades,
-  getStudentGrades,
-  getCourseStats,
-  getCourseAnalytics,
-  getStudentProgress,
-  getCourseDashboardData,
-} from '@/integrations/supabase/courses';
-import type {
   Course,
   CourseModule,
   CourseLesson,
-  CourseInstructor,
   CourseRegistration,
   CourseAttendance,
   CoursePayment,
-  CourseAssessment,
-  CourseGrade,
-  CreateCourseData,
-  UpdateCourseData,
-  CreateModuleData,
-  CreateLessonData,
-  CreateRegistrationData,
-  CreatePaymentData,
-  CreateAssessmentData,
-  CreateGradeData,
   CourseFilters,
-  RegistrationFilters,
+  AttendanceFilters,
   CourseStats,
-  CourseAnalytics,
-  StudentProgress,
-  CourseDashboardData,
+  AttendanceStats,
+  AttendanceReport,
+  LessonAttendance
 } from '@/types/course';
+import * as coursesService from '@/integrations/supabase/courses';
 
-// ==================== COURSES HOOK ====================
-
+// Hook para gerenciar cursos
 export function useCourses(filters?: CourseFilters) {
   const [courses, setCourses] = useState<Course[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchCourses = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await getCourses(filters);
+      const data = await coursesService.getCourses(filters);
       setCourses(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar cursos');
+      console.error('Error fetching courses:', err);
     } finally {
       setLoading(false);
     }
   }, [filters]);
 
-  const createNewCourse = useCallback(async (data: CreateCourseData) => {
-    try {
-      setError(null);
-      const newCourse = await createCourse(data);
-      setCourses(prev => [newCourse, ...prev]);
-      return newCourse;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao criar curso');
-      throw err;
-    }
-  }, []);
-
-  const updateExistingCourse = useCallback(async (id: string, data: UpdateCourseData) => {
-    try {
-      setError(null);
-      const updatedCourse = await updateCourse(id, data);
-      setCourses(prev => prev.map(course => course.id === id ? updatedCourse : course));
-      return updatedCourse;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao atualizar curso');
-      throw err;
-    }
-  }, []);
-
-  const removeCourse = useCallback(async (id: string) => {
-    try {
-      setError(null);
-      await deleteCourse(id);
-      setCourses(prev => prev.filter(course => course.id !== id));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao remover curso');
-      throw err;
-    }
-  }, []);
-
   useEffect(() => {
+    fetchCourses();
+  }, [fetchCourses]);
+
+  const refetch = useCallback(() => {
     fetchCourses();
   }, [fetchCourses]);
 
@@ -130,182 +48,121 @@ export function useCourses(filters?: CourseFilters) {
     courses,
     loading,
     error,
-    refetch: fetchCourses,
-    createCourse: createNewCourse,
-    updateCourse: updateExistingCourse,
-    deleteCourse: removeCourse,
+    refetch
   };
 }
 
-// ==================== COURSE DETAILS HOOK ====================
-
-export function useCourseDetails(courseId: string) {
+// Hook para um curso específico
+export function useCourse(courseId: string) {
   const [course, setCourse] = useState<Course | null>(null);
-  const [modules, setModules] = useState<CourseModule[]>([]);
-  const [instructors, setInstructors] = useState<CourseInstructor[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchCourseDetails = useCallback(async () => {
+  const fetchCourse = useCallback(async () => {
     if (!courseId) return;
 
     try {
       setLoading(true);
       setError(null);
-      
-      const [courseData, modulesData, instructorsData] = await Promise.all([
-        getCourseById(courseId),
-        getCourseModules(courseId),
-        getCourseInstructors(courseId),
-      ]);
-
-      setCourse(courseData);
-      setModules(modulesData);
-      setInstructors(instructorsData);
+      const data = await coursesService.getCourseById(courseId);
+      setCourse(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao carregar detalhes do curso');
+      setError(err instanceof Error ? err.message : 'Erro ao carregar curso');
+      console.error('Error fetching course:', err);
     } finally {
       setLoading(false);
     }
   }, [courseId]);
 
-  const addNewModule = useCallback(async (data: CreateModuleData) => {
-    try {
-      setError(null);
-      const newModule = await createModule(data);
-      setModules(prev => [...prev, newModule]);
-      return newModule;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao criar módulo');
-      throw err;
-    }
-  }, []);
-
-  const updateExistingModule = useCallback(async (id: string, data: Partial<CreateModuleData>) => {
-    try {
-      setError(null);
-      const updatedModule = await updateModule(id, data);
-      setModules(prev => prev.map(module => module.id === id ? updatedModule : module));
-      return updatedModule;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao atualizar módulo');
-      throw err;
-    }
-  }, []);
-
-  const removeModule = useCallback(async (id: string) => {
-    try {
-      setError(null);
-      await deleteModule(id);
-      setModules(prev => prev.filter(module => module.id !== id));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao remover módulo');
-      throw err;
-    }
-  }, []);
-
-  const addNewInstructor = useCallback(async (instructorId: string, role: string = 'instructor') => {
-    if (!courseId) return;
-
-    try {
-      setError(null);
-      const newInstructor = await addInstructor(courseId, instructorId, role);
-      setInstructors(prev => [...prev, newInstructor]);
-      return newInstructor;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao adicionar instrutor');
-      throw err;
-    }
-  }, [courseId]);
-
-  const removeExistingInstructor = useCallback(async (id: string) => {
-    try {
-      setError(null);
-      await removeInstructor(id);
-      setInstructors(prev => prev.filter(instructor => instructor.id !== id));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao remover instrutor');
-      throw err;
-    }
-  }, []);
-
   useEffect(() => {
-    fetchCourseDetails();
-  }, [fetchCourseDetails]);
+    fetchCourse();
+  }, [fetchCourse]);
+
+  const refetch = useCallback(() => {
+    fetchCourse();
+  }, [fetchCourse]);
 
   return {
     course,
-    modules,
-    instructors,
     loading,
     error,
-    refetch: fetchCourseDetails,
-    createModule: addNewModule,
-    updateModule: updateExistingModule,
-    deleteModule: removeModule,
-    addInstructor: addNewInstructor,
-    removeInstructor: removeExistingInstructor,
+    refetch
   };
 }
 
-// ==================== COURSE LESSONS HOOK ====================
+// Hook para módulos do curso
+export function useCourseModules(courseId: string) {
+  const [modules, setModules] = useState<CourseModule[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
+  const fetchModules = useCallback(async () => {
+    if (!courseId || courseId.trim() === '') {
+      setModules([]);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await coursesService.getCourseModules(courseId);
+      setModules(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao carregar módulos');
+      console.error('Error fetching modules:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [courseId]);
+
+  useEffect(() => {
+    fetchModules();
+  }, [fetchModules]);
+
+  const refetch = useCallback(() => {
+    fetchModules();
+  }, [fetchModules]);
+
+  return {
+    modules,
+    loading,
+    error,
+    refetch
+  };
+}
+
+// Hook para lições do módulo
 export function useCourseLessons(moduleId: string) {
   const [lessons, setLessons] = useState<CourseLesson[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchLessons = useCallback(async () => {
-    if (!moduleId) return;
+    if (!moduleId || moduleId.trim() === '') {
+      setLessons([]);
+      setLoading(false);
+      return;
+    }
 
     try {
       setLoading(true);
       setError(null);
-      const data = await getModuleLessons(moduleId);
+      const data = await coursesService.getCourseLessons(moduleId);
       setLessons(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao carregar aulas');
+      setError(err instanceof Error ? err.message : 'Erro ao carregar lições');
+      console.error('Error fetching lessons:', err);
     } finally {
       setLoading(false);
     }
   }, [moduleId]);
 
-  const createNewLesson = useCallback(async (data: CreateLessonData) => {
-    try {
-      setError(null);
-      const newLesson = await createLesson(data);
-      setLessons(prev => [...prev, newLesson]);
-      return newLesson;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao criar aula');
-      throw err;
-    }
-  }, []);
-
-  const updateExistingLesson = useCallback(async (id: string, data: Partial<CreateLessonData>) => {
-    try {
-      setError(null);
-      const updatedLesson = await updateLesson(id, data);
-      setLessons(prev => prev.map(lesson => lesson.id === id ? updatedLesson : lesson));
-      return updatedLesson;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao atualizar aula');
-      throw err;
-    }
-  }, []);
-
-  const removeLesson = useCallback(async (id: string) => {
-    try {
-      setError(null);
-      await deleteLesson(id);
-      setLessons(prev => prev.filter(lesson => lesson.id !== id));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao remover aula');
-      throw err;
-    }
-  }, []);
-
   useEffect(() => {
+    fetchLessons();
+  }, [fetchLessons]);
+
+  const refetch = useCallback(() => {
     fetchLessons();
   }, [fetchLessons]);
 
@@ -313,16 +170,12 @@ export function useCourseLessons(moduleId: string) {
     lessons,
     loading,
     error,
-    refetch: fetchLessons,
-    createLesson: createNewLesson,
-    updateLesson: updateExistingLesson,
-    deleteLesson: removeLesson,
+    refetch
   };
 }
 
-// ==================== COURSE REGISTRATIONS HOOK ====================
-
-export function useCourseRegistrations(filters?: RegistrationFilters) {
+// Hook para matrículas do curso
+export function useCourseRegistrations(courseId?: string) {
   const [registrations, setRegistrations] = useState<CourseRegistration[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -331,52 +184,21 @@ export function useCourseRegistrations(filters?: RegistrationFilters) {
     try {
       setLoading(true);
       setError(null);
-      const data = await getRegistrations(filters);
+      const data = await coursesService.getCourseRegistrations(courseId);
       setRegistrations(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao carregar inscrições');
+      setError(err instanceof Error ? err.message : 'Erro ao carregar matrículas');
+      console.error('Error fetching registrations:', err);
     } finally {
       setLoading(false);
     }
-  }, [filters]);
-
-  const createNewRegistration = useCallback(async (data: CreateRegistrationData) => {
-    try {
-      setError(null);
-      const newRegistration = await createRegistration(data);
-      setRegistrations(prev => [newRegistration, ...prev]);
-      return newRegistration;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao criar inscrição');
-      throw err;
-    }
-  }, []);
-
-  const updateExistingRegistration = useCallback(async (id: string, data: Partial<CreateRegistrationData>) => {
-    try {
-      setError(null);
-      const updatedRegistration = await updateRegistration(id, data);
-      setRegistrations(prev => prev.map(reg => reg.id === id ? updatedRegistration : reg));
-      return updatedRegistration;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao atualizar inscrição');
-      throw err;
-    }
-  }, []);
-
-  const approveExistingRegistration = useCallback(async (id: string, approvedBy: string) => {
-    try {
-      setError(null);
-      const approvedRegistration = await approveRegistration(id, approvedBy);
-      setRegistrations(prev => prev.map(reg => reg.id === id ? approvedRegistration : reg));
-      return approvedRegistration;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao aprovar inscrição');
-      throw err;
-    }
-  }, []);
+  }, [courseId]);
 
   useEffect(() => {
+    fetchRegistrations();
+  }, [fetchRegistrations]);
+
+  const refetch = useCallback(() => {
     fetchRegistrations();
   }, [fetchRegistrations]);
 
@@ -384,117 +206,118 @@ export function useCourseRegistrations(filters?: RegistrationFilters) {
     registrations,
     loading,
     error,
-    refetch: fetchRegistrations,
-    createRegistration: createNewRegistration,
-    updateRegistration: updateExistingRegistration,
-    approveRegistration: approveExistingRegistration,
+    refetch
   };
 }
 
-// ==================== COURSE ATTENDANCE HOOK ====================
-
-export function useCourseAttendance(lessonId: string) {
+// Hook para presença
+export function useCourseAttendance(filters?: AttendanceFilters) {
   const [attendance, setAttendance] = useState<CourseAttendance[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchAttendance = useCallback(async () => {
-    if (!lessonId) return;
+    // Se não há filtros ou lesson_id está vazio, não faz a consulta
+    if (!filters || (filters.lesson_id && filters.lesson_id.trim() === '')) {
+      setAttendance([]);
+      setLoading(false);
+      return;
+    }
 
     try {
       setLoading(true);
       setError(null);
-      const data = await getLessonAttendance(lessonId);
+      const data = await coursesService.getCourseAttendance(filters);
       setAttendance(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao carregar presenças');
+      setError(err instanceof Error ? err.message : 'Erro ao carregar presença');
+      console.error('Error fetching attendance:', err);
     } finally {
       setLoading(false);
     }
-  }, [lessonId]);
-
-  const markStudentAttendance = useCallback(async (registrationId: string, status: string, notes?: string) => {
-    try {
-      setError(null);
-      const newAttendance = await markAttendance(lessonId, registrationId, status, notes);
-      
-      // Update local state
-      setAttendance(prev => {
-        const existing = prev.find(a => a.registration_id === registrationId);
-        if (existing) {
-          return prev.map(a => a.registration_id === registrationId ? newAttendance : a);
-        } else {
-          return [...prev, newAttendance];
-        }
-      });
-      
-      return newAttendance;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao marcar presença');
-      throw err;
-    }
-  }, [lessonId]);
+  }, [filters]);
 
   useEffect(() => {
     fetchAttendance();
   }, [fetchAttendance]);
 
+  const refetch = useCallback(() => {
+    fetchAttendance();
+  }, [fetchAttendance]);
+
+  const markAttendance = useCallback(async (attendanceData: Omit<CourseAttendance, 'id' | 'created_at'>) => {
+    try {
+      const data = await coursesService.markAttendance(attendanceData);
+      setAttendance(prev => {
+        const existing = prev.find(a => a.lesson_id === attendanceData.lesson_id && a.registration_id === attendanceData.registration_id);
+        if (existing) {
+          return prev.map(a => 
+            a.id === existing.id ? data : a
+          );
+        }
+        return [...prev, data];
+      });
+      return data;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao marcar presença');
+      throw err;
+    }
+  }, []);
+
+  const updateAttendance = useCallback(async (id: string, updates: Partial<CourseAttendance>) => {
+    try {
+      const data = await coursesService.updateAttendance(id, updates);
+      setAttendance(prev => 
+        prev.map(a => a.id === id ? data : a)
+      );
+      return data;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao atualizar presença');
+      throw err;
+    }
+  }, []);
+
   return {
     attendance,
     loading,
     error,
-    refetch: fetchAttendance,
-    markAttendance: markStudentAttendance,
+    refetch,
+    markAttendance,
+    updateAttendance
   };
 }
 
-// ==================== COURSE PAYMENTS HOOK ====================
-
-export function useCoursePayments(registrationId: string) {
+// Hook para pagamentos
+export function useCoursePayments(registrationId?: string) {
   const [payments, setPayments] = useState<CoursePayment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchPayments = useCallback(async () => {
-    if (!registrationId) return;
+    if (!registrationId || registrationId.trim() === '') {
+      setPayments([]);
+      setLoading(false);
+      return;
+    }
 
     try {
       setLoading(true);
       setError(null);
-      const data = await getRegistrationPayments(registrationId);
+      const data = await coursesService.getCoursePayments(registrationId);
       setPayments(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar pagamentos');
+      console.error('Error fetching payments:', err);
     } finally {
       setLoading(false);
     }
   }, [registrationId]);
 
-  const createNewPayment = useCallback(async (data: CreatePaymentData) => {
-    try {
-      setError(null);
-      const newPayment = await createPayment(data);
-      setPayments(prev => [newPayment, ...prev]);
-      return newPayment;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao criar pagamento');
-      throw err;
-    }
-  }, []);
-
-  const updateExistingPayment = useCallback(async (id: string, data: Partial<CreatePaymentData>) => {
-    try {
-      setError(null);
-      const updatedPayment = await updatePayment(id, data);
-      setPayments(prev => prev.map(payment => payment.id === id ? updatedPayment : payment));
-      return updatedPayment;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao atualizar pagamento');
-      throw err;
-    }
-  }, []);
-
   useEffect(() => {
+    fetchPayments();
+  }, [fetchPayments]);
+
+  const refetch = useCallback(() => {
     fetchPayments();
   }, [fetchPayments]);
 
@@ -502,18 +325,13 @@ export function useCoursePayments(registrationId: string) {
     payments,
     loading,
     error,
-    refetch: fetchPayments,
-    createPayment: createNewPayment,
-    updatePayment: updateExistingPayment,
+    refetch
   };
 }
 
-// ==================== COURSE STATISTICS HOOK ====================
-
-export function useCourseStats() {
+// Hook para estatísticas do curso
+export function useCourseStats(courseId?: string) {
   const [stats, setStats] = useState<CourseStats | null>(null);
-  const [analytics, setAnalytics] = useState<CourseAnalytics[]>([]);
-  const [studentProgress, setStudentProgress] = useState<StudentProgress[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -521,86 +339,157 @@ export function useCourseStats() {
     try {
       setLoading(true);
       setError(null);
-      
-      const [statsData, analyticsData, progressData] = await Promise.all([
-        getCourseStats(),
-        getCourseAnalytics(),
-        getStudentProgress(),
-      ]);
-
-      setStats(statsData);
-      setAnalytics(analyticsData);
-      setStudentProgress(progressData);
+      const data = await coursesService.getCourseStats(courseId);
+      setStats(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar estatísticas');
+      console.error('Error fetching course stats:', err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [courseId]);
 
   useEffect(() => {
     fetchStats();
   }, [fetchStats]);
 
+  const refetch = useCallback(() => {
+    fetchStats();
+  }, [fetchStats]);
+
   return {
     stats,
-    analytics,
-    studentProgress,
     loading,
     error,
-    refetch: fetchStats,
+    refetch
   };
 }
 
-// ==================== COURSE DASHBOARD HOOK ====================
-
-export function useCourseDashboard() {
-  const [dashboardData, setDashboardData] = useState<CourseDashboardData | null>(null);
+// Hook para estatísticas de presença
+export function useAttendanceStats(courseId?: string) {
+  const [stats, setStats] = useState<AttendanceStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchDashboardData = useCallback(async () => {
+  const fetchStats = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await getCourseDashboardData();
-      setDashboardData(data);
+      const data = await coursesService.getAttendanceStats(courseId);
+      setStats(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao carregar dados do dashboard');
+      setError(err instanceof Error ? err.message : 'Erro ao carregar estatísticas de presença');
+      console.error('Error fetching attendance stats:', err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [courseId]);
 
   useEffect(() => {
-    fetchDashboardData();
-  }, [fetchDashboardData]);
+    // Só executa se courseId não estiver vazio
+    if (courseId && courseId.trim() !== '') {
+      fetchStats();
+    } else {
+      setStats({
+        totalLessons: 0,
+        totalAttendance: 0,
+        attendanceRate: 0,
+        presentCount: 0,
+        absentCount: 0,
+        lateCount: 0,
+        excusedCount: 0,
+        makeupCount: 0
+      });
+      setLoading(false);
+    }
+  }, [courseId, fetchStats]);
+
+  const refetch = useCallback(() => {
+    fetchStats();
+  }, [fetchStats]);
 
   return {
-    dashboardData,
+    stats,
     loading,
     error,
-    refetch: fetchDashboardData,
+    refetch
   };
 }
 
-// ==================== ROLE-BASED COURSE ACCESS HOOK ====================
+// Hook para relatório de presença
+export function useAttendanceReport(courseId?: string) {
+  const [report, setReport] = useState<AttendanceReport[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-export function useCourseAccess() {
-  const { user } = useAuth();
+  const fetchReport = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await coursesService.getAttendanceReport(courseId);
+      setReport(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao carregar relatório de presença');
+      console.error('Error fetching attendance report:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [courseId]);
 
-  const canManageCourses = user?.role === 'pastor' || user?.role === 'obreiro';
-  const canViewCourses = true; // All authenticated users can view courses
-  const canEnrollStudents = user?.role === 'lider' || user?.role === 'discipulador';
-  const canMarkAttendance = user?.role === 'discipulador' || user?.role === 'pastor' || user?.role === 'obreiro';
-  const canViewAnalytics = user?.role === 'pastor' || user?.role === 'obreiro' || user?.role === 'discipulador';
+  useEffect(() => {
+    fetchReport();
+  }, [fetchReport]);
+
+  const refetch = useCallback(() => {
+    fetchReport();
+  }, [fetchReport]);
 
   return {
-    canManageCourses,
-    canViewCourses,
-    canEnrollStudents,
-    canMarkAttendance,
-    canViewAnalytics,
-    userRole: user?.role,
+    report,
+    loading,
+    error,
+    refetch
+  };
+}
+
+// Hook para presença por lição
+export function useLessonAttendance(courseId?: string) {
+  const [lessons, setLessons] = useState<LessonAttendance[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchLessons = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await coursesService.getLessonAttendance(courseId);
+      setLessons(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao carregar presença por lição');
+      console.error('Error fetching lesson attendance:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [courseId]);
+
+  useEffect(() => {
+    // Só executa se courseId não estiver vazio
+    if (courseId && courseId.trim() !== '') {
+      fetchLessons();
+    } else {
+      setLessons([]);
+      setLoading(false);
+    }
+  }, [courseId, fetchLessons]);
+
+  const refetch = useCallback(() => {
+    fetchLessons();
+  }, [fetchLessons]);
+
+  return {
+    lessons,
+    loading,
+    error,
+    refetch
   };
 }

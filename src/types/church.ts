@@ -82,3 +82,55 @@ export interface EventRegistration {
   discipuladorName: string;
   registrationDate: Date;
 }
+
+export interface TitheOffering {
+  id: string;
+  personId: string;
+  personName: string;
+  personType: 'member' | 'frequentador' | 'lider' | 'discipulador' | 'pastor';
+  type: 'tithe' | 'offering' | 'special_offering';
+  amount: number;
+  month: number;
+  year: number;
+  description?: string;
+  paymentMethod: 'cash' | 'pix' | 'card' | 'bank_transfer';
+  receivedBy: string; // ID do pastor/obreiro que recebeu
+  receivedByName: string;
+  receivedAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface TitheOfferingFilters {
+  personType?: 'member' | 'frequentador' | 'lider' | 'discipulador' | 'pastor';
+  type?: 'tithe' | 'offering' | 'special_offering';
+  month?: number;
+  year?: number;
+  search?: string;
+  receivedBy?: string;
+}
+
+export interface TitheOfferingStats {
+  totalTithes: number;
+  totalOfferings: number;
+  totalSpecialOfferings: number;
+  totalAmount: number;
+  monthlyBreakdown: Array<{
+    month: number;
+    year: number;
+    tithes: number;
+    offerings: number;
+    specialOfferings: number;
+    total: number;
+  }>;
+  byPersonType: Array<{
+    personType: string;
+    count: number;
+    totalAmount: number;
+  }>;
+  byPaymentMethod: Array<{
+    paymentMethod: string;
+    count: number;
+    totalAmount: number;
+  }>;
+}

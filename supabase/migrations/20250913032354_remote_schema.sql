@@ -296,7 +296,7 @@ revoke update on table "public"."profiles" from "service_role";
 
 alter table "public"."cell_reports" alter column "month" set not null;
 
-alter table "public"."cell_reports" alter column "week_start" drop not null;
+-- alter table "public"."cell_reports" alter column "week_start" drop not null;
 
 alter table "public"."cell_reports" alter column "year" set not null;
 

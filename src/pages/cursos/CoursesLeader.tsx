@@ -3,7 +3,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useCourses, useCourseAccess } from '@/hooks/useCourses';
+import { useCourses } from '@/hooks/useCourses';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,7 +45,9 @@ const tips = [
 export default function CoursesLeader() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { canViewCourses, canEnrollStudents } = useCourseAccess();
+  // Verificação de acesso baseada no role do usuário
+  const canViewCourses = user?.role === 'lider' || user?.role === 'discipulador' || user?.role === 'pastor' || user?.role === 'obreiro';
+  const canEnrollStudents = user?.role === 'lider' || user?.role === 'discipulador' || user?.role === 'pastor' || user?.role === 'obreiro';
   
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');

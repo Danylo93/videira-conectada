@@ -3,7 +3,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useCourses, useCourseAccess } from '@/hooks/useCourses';
+import { useCourses } from '@/hooks/useCourses';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,8 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
 import FancyLoader from '@/components/FancyLoader';
-import { CourseCard } from '@/components/courses/CourseCard';
-import { CourseForm } from '@/components/courses/CourseForm';
+// Componentes removidos - serão implementados inline
 import { 
   Plus, 
   Search, 
@@ -46,7 +45,8 @@ const tips = [
 export default function CoursesAdmin() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { canManageCourses } = useCourseAccess();
+  // Verificação de acesso baseada no role do usuário
+  const canManageCourses = user?.role === 'pastor' || user?.role === 'obreiro';
   
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');

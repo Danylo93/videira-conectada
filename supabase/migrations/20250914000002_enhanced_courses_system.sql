@@ -427,49 +427,49 @@ USING (
   )
 );
 
--- Insert sample courses
-INSERT INTO public.courses (
-  name, description, short_description, duration_weeks, price, 
-  difficulty_level, category, status, start_date, end_date,
-  requirements, learning_objectives, materials_included, certification_required,
-  certification_name, created_by
-) VALUES 
-(
-  'Maturidade no Espírito',
-  'Curso completo de desenvolvimento espiritual e crescimento cristão, abordando fundamentos da fé, relacionamento com Deus e vida cristã prática.',
-  'Desenvolvimento espiritual e crescimento cristão',
-  8,
-  50.00,
-  'beginner',
-  'spiritual',
-  'active',
-  CURRENT_DATE + INTERVAL '7 days',
-  CURRENT_DATE + INTERVAL '63 days',
-  ARRAY['Ser membro ativo da igreja', 'Ter pelo menos 6 meses de conversão'],
-  ARRAY['Conhecer os fundamentos da fé cristã', 'Desenvolver relacionamento íntimo com Deus', 'Aplicar princípios bíblicos na vida diária'],
-  ARRAY['Apostila completa', 'Bíblia de estudo', 'Caderno de anotações'],
-  true,
-  'Certificado de Maturidade Espiritual',
-  (SELECT id FROM public.profiles WHERE role = 'pastor' LIMIT 1)
-),
-(
-  'CTL - Curso de Treinamento de Liderança',
-  'Programa intensivo de formação de líderes, preparando discípulos para assumirem posições de liderança na igreja e na sociedade.',
-  'Formação de líderes cristãos',
-  12,
-  80.00,
-  'intermediate',
-  'leadership',
-  'active',
-  CURRENT_DATE + INTERVAL '14 days',
-  CURRENT_DATE + INTERVAL '98 days',
-  ARRAY['Ter completado Maturidade no Espírito', 'Ser indicado por um líder', 'Ter pelo menos 1 ano de conversão'],
-  ARRAY['Desenvolver habilidades de liderança', 'Aprender princípios de discipulado', 'Preparar-se para multiplicação'],
-  ARRAY['Manual do líder', 'Livros de referência', 'Material de apoio'],
-  true,
-  'Certificado de Liderança Cristã',
-  (SELECT id FROM public.profiles WHERE role = 'pastor' LIMIT 1)
-);
+-- Insert sample courses (commented out - will be inserted manually after user registration)
+-- INSERT INTO public.courses (
+--   name, description, short_description, duration_weeks, price, 
+--   difficulty_level, category, status, start_date, end_date,
+--   requirements, learning_objectives, materials_included, certification_required,
+--   certification_name, created_by
+-- ) VALUES 
+-- (
+--   'Maturidade no Espírito',
+--   'Curso completo de desenvolvimento espiritual e crescimento cristão, abordando fundamentos da fé, relacionamento com Deus e vida cristã prática.',
+--   'Desenvolvimento espiritual e crescimento cristão',
+--   8,
+--   50.00,
+--   'beginner',
+--   'spiritual',
+--   'active',
+--   CURRENT_DATE + INTERVAL '7 days',
+--   CURRENT_DATE + INTERVAL '63 days',
+--   ARRAY['Ser membro ativo da igreja', 'Ter pelo menos 6 meses de conversão'],
+--   ARRAY['Conhecer os fundamentos da fé cristã', 'Desenvolver relacionamento íntimo com Deus', 'Aplicar princípios bíblicos na vida diária'],
+--   ARRAY['Apostila completa', 'Bíblia de estudo', 'Caderno de anotações'],
+--   true,
+--   'Certificado de Maturidade Espiritual',
+--   (SELECT id FROM public.profiles WHERE role = 'pastor' LIMIT 1)
+-- ),
+-- (
+--   'CTL - Curso de Treinamento de Liderança',
+--   'Programa intensivo de formação de líderes, preparando discípulos para assumirem posições de liderança na igreja e na sociedade.',
+--   'Formação de líderes cristãos',
+--   12,
+--   80.00,
+--   'intermediate',
+--   'leadership',
+--   'active',
+--   CURRENT_DATE + INTERVAL '14 days',
+--   CURRENT_DATE + INTERVAL '98 days',
+--   ARRAY['Ter completado Maturidade no Espírito', 'Ser indicado por um líder', 'Ter pelo menos 1 ano de conversão'],
+--   ARRAY['Desenvolver habilidades de liderança', 'Aprender princípios de discipulado', 'Preparar-se para multiplicação'],
+--   ARRAY['Manual do líder', 'Livros de referência', 'Material de apoio'],
+--   true,
+--   'Certificado de Liderança Cristã',
+--   (SELECT id FROM public.profiles WHERE role = 'pastor' LIMIT 1)
+-- );
 
 -- Create indexes for better performance
 CREATE INDEX idx_courses_status ON public.courses(status, active);

@@ -77,6 +77,12 @@ const navigationItems: NavigationItem[] = [
     icon: Calendar,
     roles: ['pastor', 'obreiro', 'discipulador', 'lider'],
   },
+  {
+    title: 'Dízimos e Ofertas',
+    url: '/dizimos-ofertas',
+    icon: Church,
+    roles: ['pastor', 'obreiro'],
+  },
   // {
   //   title: 'Gerenciar Encontro com Deus',
   //   url: '/encounters',

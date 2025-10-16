@@ -78,7 +78,7 @@ Este módulo implementa um sistema completo de gerenciamento de cursos para a Vi
 
 ### Hooks Personalizados
 - **useCourses**: Gerenciamento de cursos
-- **useCourseAccess**: Controle de acesso
+- **Controle de Acesso**: Baseado no role do usuário
 - **useCourseStats**: Estatísticas e analytics
 - **useCourseDashboard**: Dados do dashboard
 

@@ -1,6 +1,4 @@
-// Enhanced Course System Types
-// Comprehensive type definitions for the course management system
-
+// Tipos para o sistema de cursos
 export interface Course {
   id: string;
   name: string;
@@ -16,9 +14,9 @@ export interface Course {
   start_date?: string;
   end_date?: string;
   registration_deadline?: string;
-  requirements: string[];
-  learning_objectives: string[];
-  materials_included: string[];
+  requirements?: string[];
+  learning_objectives?: string[];
+  materials_included?: string[];
   certification_required: boolean;
   certification_name?: string;
   created_by: string;
@@ -35,8 +33,8 @@ export interface CourseModule {
   order_index: number;
   duration_hours: number;
   is_required: boolean;
-  prerequisites: string[];
-  learning_outcomes: string[];
+  prerequisites?: string[];
+  learning_outcomes?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -52,7 +50,7 @@ export interface CourseLesson {
   end_time?: string;
   location?: string;
   online_link?: string;
-  materials: string[];
+  materials?: string[];
   homework?: string;
   order_index: number;
   is_mandatory: boolean;
@@ -67,14 +65,9 @@ export interface CourseInstructor {
   instructor_id: string;
   role: 'instructor' | 'assistant' | 'mentor' | 'evaluator';
   is_primary: boolean;
-  assigned_modules: string[];
+  assigned_modules?: string[];
   hourly_rate?: number;
   created_at: string;
-  instructor?: {
-    id: string;
-    name: string;
-    role: string;
-  };
 }
 
 export interface CourseRegistration {
@@ -99,17 +92,6 @@ export interface CourseRegistration {
   completed_at?: string;
   created_at: string;
   updated_at: string;
-  student?: {
-    id: string;
-    name: string;
-    type: 'member' | 'frequentador';
-  };
-  course?: Course;
-  leader?: {
-    id: string;
-    name: string;
-    role: string;
-  };
 }
 
 export interface CourseAttendance {
@@ -123,11 +105,6 @@ export interface CourseAttendance {
   marked_by?: string;
   marked_at: string;
   created_at: string;
-  lesson?: CourseLesson;
-  student?: {
-    id: string;
-    name: string;
-  };
 }
 
 export interface CoursePayment {
@@ -146,259 +123,66 @@ export interface CoursePayment {
   updated_at: string;
 }
 
-export interface CourseAssessment {
-  id: string;
-  course_id: string;
-  title: string;
-  description?: string;
-  assessment_type: 'quiz' | 'exam' | 'project' | 'presentation' | 'practical' | 'participation';
-  weight_percentage: number;
-  max_score: number;
-  passing_score: number;
-  due_date?: string;
-  instructions?: string;
-  created_by: string;
-  created_at: string;
-  updated_at: string;
-  course?: Course;
-  created_by_profile?: {
-    id: string;
-    name: string;
-  };
-}
-
-export interface CourseGrade {
-  id: string;
-  assessment_id: string;
-  registration_id: string;
-  score?: number;
-  max_score: number;
-  grade_letter?: string;
-  feedback?: string;
-  graded_by?: string;
-  graded_at?: string;
-  created_at: string;
-  updated_at: string;
-  assessment?: CourseAssessment;
-  student?: {
-    id: string;
-    name: string;
-  };
-}
-
-export interface CourseCertificate {
-  id: string;
-  registration_id: string;
-  certificate_number: string;
-  issued_date: string;
-  valid_until?: string;
-  digital_signature?: string;
-  issued_by: string;
-  status: 'active' | 'revoked' | 'expired';
-  created_at: string;
-  student?: {
-    id: string;
-    name: string;
-  };
-  course?: Course;
-}
-
-// Form data types
-export interface CreateCourseData {
-  name: string;
-  description?: string;
-  short_description?: string;
-  duration_weeks: number;
-  price: number;
-  max_students?: number;
-  min_students?: number;
-  difficulty_level: 'beginner' | 'intermediate' | 'advanced';
-  category: 'spiritual' | 'leadership' | 'ministry' | 'biblical' | 'practical';
-  start_date?: string;
-  end_date?: string;
-  registration_deadline?: string;
-  requirements: string[];
-  learning_objectives: string[];
-  materials_included: string[];
-  certification_required: boolean;
-  certification_name?: string;
-}
-
-export interface UpdateCourseData extends Partial<CreateCourseData> {
-  status?: 'draft' | 'active' | 'paused' | 'completed' | 'cancelled';
-}
-
-export interface CreateModuleData {
-  course_id: string;
-  title: string;
-  description?: string;
-  order_index?: number;
-  duration_hours?: number;
-  is_required?: boolean;
-  prerequisites?: string[];
-  learning_outcomes?: string[];
-}
-
-export interface CreateLessonData {
-  module_id: string;
-  title: string;
-  description?: string;
-  lesson_type: 'classroom' | 'online' | 'practical' | 'field_work' | 'assessment';
-  scheduled_date?: string;
-  start_time?: string;
-  end_time?: string;
-  location?: string;
-  online_link?: string;
-  materials?: string[];
-  homework?: string;
-  order_index?: number;
-  is_mandatory?: boolean;
-  max_attendance?: number;
-}
-
-export interface CreateRegistrationData {
-  course_id: string;
-  student_id: string;
-  payment_plan?: 'full' | 'installments' | 'scholarship';
-  installment_count?: number;
-  notes?: string;
-  emergency_contact?: string;
-  medical_info?: string;
-  special_needs?: string;
-}
-
-export interface CreatePaymentData {
-  registration_id: string;
-  amount: number;
-  payment_method: 'cash' | 'pix' | 'credit_card' | 'debit_card' | 'bank_transfer' | 'check' | 'scholarship';
-  payment_reference?: string;
-  installment_number?: number;
-  due_date?: string;
-  paid_date?: string;
-  notes?: string;
-}
-
-export interface CreateAssessmentData {
-  course_id: string;
-  title: string;
-  description?: string;
-  assessment_type: 'quiz' | 'exam' | 'project' | 'presentation' | 'practical' | 'participation';
-  weight_percentage: number;
-  max_score: number;
-  passing_score: number;
-  due_date?: string;
-  instructions?: string;
-}
-
-export interface CreateGradeData {
-  assessment_id: string;
-  registration_id: string;
-  score?: number;
-  max_score?: number;
-  grade_letter?: string;
-  feedback?: string;
-}
-
-// Statistics and analytics types
-export interface CourseStats {
-  total_courses: number;
-  active_courses: number;
-  total_students: number;
-  total_registrations: number;
-  completion_rate: number;
-  average_attendance: number;
-  revenue: number;
-  pending_payments: number;
-}
-
-export interface CourseAnalytics {
-  course_id: string;
-  course_name: string;
-  total_students: number;
-  completion_rate: number;
-  average_attendance: number;
-  revenue: number;
-  student_satisfaction?: number;
-  instructor_rating?: number;
-}
-
-export interface StudentProgress {
-  registration_id: string;
-  student_name: string;
-  course_name: string;
-  progress_percentage: number;
-  attendance_rate: number;
-  average_grade: number;
-  completed_modules: number;
-  total_modules: number;
-  status: string;
-  last_attendance?: string;
-}
-
-// Filter and search types
+// Tipos para formulários e filtros
 export interface CourseFilters {
+  status?: string;
   category?: string;
   difficulty_level?: string;
-  status?: string;
-  instructor_id?: string;
-  start_date_from?: string;
-  start_date_to?: string;
-  price_min?: number;
-  price_max?: number;
   search?: string;
 }
 
-export interface RegistrationFilters {
-  course_id?: string;
+export interface AttendanceFilters {
+  lesson_id?: string;
+  registration_id?: string;
   status?: string;
-  payment_status?: string;
-  leader_id?: string;
-  student_name?: string;
+  date_from?: string;
+  date_to?: string;
 }
 
-// Dashboard data types
-export interface CourseDashboardData {
-  recent_courses: Course[];
-  upcoming_lessons: CourseLesson[];
-  pending_registrations: CourseRegistration[];
-  attendance_summary: {
-    total_students: number;
-    present_today: number;
-    absent_today: number;
-    attendance_rate: number;
-  };
-  financial_summary: {
-    total_revenue: number;
-    pending_payments: number;
-    monthly_revenue: number;
-  };
-  student_progress: StudentProgress[];
+// Tipos para estatísticas
+export interface CourseStats {
+  totalCourses: number;
+  activeCourses: number;
+  totalStudents: number;
+  totalLessons: number;
+  averageAttendance: number;
+  completionRate: number;
+  revenue: number;
 }
 
-// Export all types
-export type {
-  Course,
-  CourseModule,
-  CourseLesson,
-  CourseInstructor,
-  CourseRegistration,
-  CourseAttendance,
-  CoursePayment,
-  CourseAssessment,
-  CourseGrade,
-  CourseCertificate,
-  CreateCourseData,
-  UpdateCourseData,
-  CreateModuleData,
-  CreateLessonData,
-  CreateRegistrationData,
-  CreatePaymentData,
-  CreateAssessmentData,
-  CreateGradeData,
-  CourseStats,
-  CourseAnalytics,
-  StudentProgress,
-  CourseFilters,
-  RegistrationFilters,
-  CourseDashboardData,
-};
+export interface AttendanceStats {
+  totalLessons: number;
+  totalAttendance: number;
+  attendanceRate: number;
+  presentCount: number;
+  absentCount: number;
+  lateCount: number;
+  excusedCount: number;
+  makeupCount: number;
+}
+
+// Tipos para relatórios
+export interface AttendanceReport {
+  studentId: string;
+  studentName: string;
+  courseName: string;
+  totalLessons: number;
+  attendedLessons: number;
+  attendanceRate: number;
+  status: 'approved' | 'pending' | 'failed';
+}
+
+export interface LessonAttendance {
+  lessonId: string;
+  lessonTitle: string;
+  scheduledDate: string;
+  attendance: {
+    present: number;
+    absent: number;
+    late: number;
+    excused: number;
+    makeup: number;
+  };
+  totalStudents: number;
+  attendanceRate: number;
+}
