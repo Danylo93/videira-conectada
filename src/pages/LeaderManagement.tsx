@@ -10,9 +10,10 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Users, Plus, Phone, Mail } from 'lucide-react';
+import { Users, Plus, Phone, Mail, Edit, Trash2 } from 'lucide-react';
 import { Leader, Discipulador } from '@/types/church';
 import FancyLoader from '@/components/FancyLoader';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 export function LeaderManagement() {
   const { user } = useAuth();
@@ -21,6 +22,8 @@ export function LeaderManagement() {
   const [discipuladores, setDiscipuladores] = useState<Discipulador[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingLeader, setEditingLeader] = useState<Leader | null>(null);
   const [newLeader, setNewLeader] = useState({
     name: '',
     email: '',
@@ -218,6 +221,101 @@ export function LeaderManagement() {
     toast({ title: 'Sucesso', description: 'Líder cadastrado com sucesso!' });
   };
 
+  const handleEditLeader = (leader: Leader) => {
+    setEditingLeader(leader);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateLeader = async () => {
+    if (!user || !editingLeader || user.role !== 'pastor') return;
+
+    // Buscar o user_id e email atual do perfil
+    const { data: profileData, error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .select('user_id, email')
+      .eq('id', editingLeader.id)
+      .single();
+
+    if (profileError || !profileData) {
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível encontrar o perfil do líder.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Atualizar o perfil
+    const { error: updateError } = await supabaseAdmin
+      .from('profiles')
+      .update({
+        name: editingLeader.name,
+        email: editingLeader.email,
+        phone: editingLeader.phone || null,
+        discipulador_uuid: editingLeader.discipuladorId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', editingLeader.id);
+
+    if (updateError) {
+      console.error('Error updating leader:', updateError);
+      toast({
+        title: 'Erro',
+        description: 'Falha ao atualizar o líder.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Atualizar email no auth se necessário
+    if (editingLeader.email !== profileData.email) {
+      await supabaseAdmin.auth.admin.updateUserById(profileData.user_id, {
+        email: editingLeader.email,
+      });
+    }
+
+    await loadLeaders();
+    setIsEditDialogOpen(false);
+    setEditingLeader(null);
+    toast({ title: 'Sucesso', description: 'Líder atualizado com sucesso!' });
+  };
+
+  const handleDeleteLeader = async (leaderId: string) => {
+    if (!user || user.role !== 'pastor') return;
+
+    // Buscar o user_id do perfil
+    const { data: profileData, error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .select('user_id')
+      .eq('id', leaderId)
+      .single();
+
+    if (profileError || !profileData) {
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível encontrar o perfil do líder.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Deletar o usuário do auth (isso vai deletar o perfil automaticamente devido ao CASCADE)
+    const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(profileData.user_id);
+
+    if (deleteError) {
+      console.error('Error deleting leader:', deleteError);
+      toast({
+        title: 'Erro',
+        description: 'Falha ao deletar o líder.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    await loadLeaders();
+    toast({ title: 'Sucesso', description: 'Líder deletado com sucesso!' });
+  };
+
   return (
     <div className="space-y-8 animate-fade-in pb-12">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -289,6 +387,9 @@ export function LeaderManagement() {
                 <TableHead className="min-w-[200px]">Nome</TableHead>
                 <TableHead className="min-w-[220px]">Email</TableHead>
                 <TableHead className="min-w-[160px]">Telefone</TableHead>
+                {user.role === 'pastor' && (
+                  <TableHead className="min-w-[120px]">Ações</TableHead>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -309,12 +410,118 @@ export function LeaderManagement() {
                       </div>
                     )}
                   </TableCell>
+                  {user.role === 'pastor' && (
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleEditLeader(leader)}
+                        >
+                          <Edit className="w-3 h-3" />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button size="sm" variant="outline">
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Tem certeza que deseja deletar o líder {leader.name}? Esta ação não pode ser desfeita.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDeleteLeader(leader.id)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Deletar
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
+
+      {/* Edit Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Editar Líder</DialogTitle>
+          </DialogHeader>
+          {editingLeader && (
+            <div className="space-y-4">
+              {user.role === 'pastor' && (
+                <div className="space-y-2">
+                  <Label htmlFor="edit-discipulador">Discipulador</Label>
+                  <Select
+                    value={editingLeader.discipuladorId}
+                    onValueChange={(value) =>
+                      setEditingLeader({ ...editingLeader, discipuladorId: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um discipulador" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {discipuladores.map((d) => (
+                        <SelectItem key={d.id} value={d.id}>
+                          {d.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label htmlFor="edit-name">Nome</Label>
+                <Input
+                  id="edit-name"
+                  value={editingLeader.name}
+                  onChange={(e) =>
+                    setEditingLeader({ ...editingLeader, name: e.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-email">Email</Label>
+                <Input
+                  id="edit-email"
+                  type="email"
+                  value={editingLeader.email}
+                  onChange={(e) =>
+                    setEditingLeader({ ...editingLeader, email: e.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-phone">Telefone</Label>
+                <Input
+                  id="edit-phone"
+                  value={editingLeader.phone || ''}
+                  onChange={(e) =>
+                    setEditingLeader({ ...editingLeader, phone: e.target.value })
+                  }
+                />
+              </div>
+              <Button onClick={handleUpdateLeader} className="w-full gradient-primary">
+                Salvar Alterações
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

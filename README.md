@@ -71,3 +71,15 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+
+
+
+- acessos : 
+
+Pastor Christian : christian.almeida@videirasaomiguel.com Senha: 123456
+
+Discipulador Danylo : danylo.oliveira73@gmail.com Senha: 123456
+Discipulador Marcos : marcos.moreira@videirasaomiguel.com Senha: 123456
+Discipulador Denis : denis.sousa@rlsaomiguel.com Senha: 123456
+
+https://videira-conectada.vercel.app/auth

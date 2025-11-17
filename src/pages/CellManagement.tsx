@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +14,7 @@ import {
   DialogTitle, 
   DialogTrigger 
 } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   Table, 
@@ -36,11 +38,14 @@ import FancyLoader from '@/components/FancyLoader';
 
 export function CellManagement() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [leaders, setLeaders] = useState<Leader[]>([]);
   const [selectedLeaderId, setSelectedLeaderId] = useState<string>('');
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [newMember, setNewMember] = useState({
     name: '',
     phone: '',
@@ -198,6 +203,65 @@ export function CellManagement() {
     setMembers([newMemberData, ...members]);
     setNewMember({ name: '', phone: '', email: '', type: 'member' });
     setIsAddDialogOpen(false);
+    toast({ title: 'Sucesso', description: 'Pessoa adicionada com sucesso!' });
+  };
+
+  const handleEditMember = (member: Member) => {
+    if (user?.role !== 'pastor') return;
+    setEditingMember(member);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateMember = async () => {
+    if (!user || !editingMember || user.role !== 'pastor') return;
+
+    const { error } = await supabase
+      .from('members')
+      .update({
+        name: editingMember.name,
+        phone: editingMember.phone || null,
+        email: editingMember.email || null,
+        type: editingMember.type,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', editingMember.id);
+
+    if (error) {
+      console.error('Error updating member:', error);
+      toast({
+        title: 'Erro',
+        description: 'Falha ao atualizar a pessoa.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    await loadMembers();
+    setIsEditDialogOpen(false);
+    setEditingMember(null);
+    toast({ title: 'Sucesso', description: 'Pessoa atualizada com sucesso!' });
+  };
+
+  const handleDeleteMember = async (memberId: string) => {
+    if (!user || user.role !== 'pastor') return;
+
+    const { error } = await supabase
+      .from('members')
+      .update({ active: false })
+      .eq('id', memberId);
+
+    if (error) {
+      console.error('Error deleting member:', error);
+      toast({
+        title: 'Erro',
+        description: 'Falha ao deletar a pessoa.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    await loadMembers();
+    toast({ title: 'Sucesso', description: 'Pessoa deletada com sucesso!' });
   };
 
   const totalMembers = members.filter(m => m.type === 'member').length;
@@ -346,7 +410,9 @@ export function CellManagement() {
                 <TableHead className="min-w-[160px]">Contato</TableHead>
                 <TableHead className="min-w-[150px]">Data de Entrada</TableHead>
                 <TableHead className="min-w-[150px]">Última Presença</TableHead>
-                <TableHead className="min-w-[110px]">Ações</TableHead>
+                {user.role === 'pastor' && (
+                  <TableHead className="min-w-[110px]">Ações</TableHead>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -388,22 +454,116 @@ export function CellManagement() {
                       </div>
                     )}
                   </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-2">
-                      <Button size="sm" variant="outline">
-                        <Edit className="w-3 h-3" />
-                      </Button>
-                      <Button size="sm" variant="outline">
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
-                    </div>
-                  </TableCell>
+                  {user.role === 'pastor' && (
+                    <TableCell>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleEditMember(member)}
+                        >
+                          <Edit className="w-3 h-3" />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button size="sm" variant="outline">
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Tem certeza que deseja deletar {member.name}? Esta ação não pode ser desfeita.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDeleteMember(member.id)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Deletar
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
+
+      {/* Edit Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Editar Pessoa</DialogTitle>
+          </DialogHeader>
+          {editingMember && (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="edit-name">Nome</Label>
+                <Input
+                  id="edit-name"
+                  value={editingMember.name}
+                  onChange={(e) =>
+                    setEditingMember({ ...editingMember, name: e.target.value })
+                  }
+                  placeholder="Nome completo"
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-phone">Telefone</Label>
+                <Input
+                  id="edit-phone"
+                  value={editingMember.phone || ''}
+                  onChange={(e) =>
+                    setEditingMember({ ...editingMember, phone: e.target.value })
+                  }
+                  placeholder="(11) 99999-9999"
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-email">Email (opcional)</Label>
+                <Input
+                  id="edit-email"
+                  type="email"
+                  value={editingMember.email || ''}
+                  onChange={(e) =>
+                    setEditingMember({ ...editingMember, email: e.target.value })
+                  }
+                  placeholder="email@exemplo.com"
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-type">Tipo</Label>
+                <Select
+                  value={editingMember.type}
+                  onValueChange={(value: 'member' | 'frequentador') =>
+                    setEditingMember({ ...editingMember, type: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="member">Membro</SelectItem>
+                    <SelectItem value="frequentador">Frequentador</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button onClick={handleUpdateMember} className="w-full gradient-primary">
+                Salvar Alterações
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
