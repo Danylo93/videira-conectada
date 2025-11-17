@@ -42,6 +42,17 @@ export interface CellReport {
   status: 'draft' | 'submitted' | 'approved' | 'needs_correction';
 }
 
+export interface ServiceAttendanceReport {
+  id: string;
+  liderId: string;
+  serviceDate: Date;
+  members: Member[];
+  frequentadores: Member[];
+  observations?: string;
+  submittedAt: Date;
+  status: 'draft' | 'submitted' | 'approved' | 'needs_correction';
+}
+
 export interface Course {
   id: string;
   name: 'Maturidade no Espírito' | 'CTL';

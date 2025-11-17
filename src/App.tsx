@@ -15,6 +15,7 @@ import { LeaderManagement } from "@/pages/LeaderManagement";
 import { DiscipuladorManagement } from "@/pages/DiscipuladorManagement";
 import { CellReports } from "@/pages/CellReports";
 import { NetworkReports } from "@/pages/NetworkReports";
+import { ServiceReports } from "@/pages/ServiceReports";
 import { StatisticsNew as Statistics } from "@/pages/StatisticsNew";
 import { ChurchManagementNew as ChurchManagement } from "@/pages/ChurchManagementNew";
 import { Profile } from "@/pages/Profile";
@@ -170,6 +171,7 @@ function AppContent() {
         <Route path="/lideres" element={<LeaderManagement />} />
         <Route path="/discipuladores" element={<DiscipuladorManagement />} />
         <Route path="/relatorios" element={<ReportsRouter />} />
+        <Route path="/relatorios-culto" element={<ServiceReports />} />
         <Route path="/cursos" element={<Courses />} />            {/* <- agora aponta pro roteador por papel */}
         <Route path="/admin-cursos" element={<CourseAdminNew />} />  {/* <- admin do Pastor direto */}
         <Route path="/eventos" element={<Events />} />            {/* <- agora aponta pro roteador por papel */}

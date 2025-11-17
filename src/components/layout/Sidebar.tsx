@@ -66,6 +66,12 @@ const navigationItems: NavigationItem[] = [
     roles: ['pastor', 'obreiro', 'discipulador', 'lider'],
   },
   {
+    title: 'Relatórios de Culto',
+    url: '/relatorios-culto',
+    icon: Church,
+    roles: ['pastor', 'lider'],
+  },
+  {
     title: 'Cursos',
     url: '/cursos',
     icon: GraduationCap,
