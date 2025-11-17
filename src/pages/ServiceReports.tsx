@@ -137,7 +137,7 @@ export function ServiceReports() {
       loadReports();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMonth, selectedYear, selectedLeaderId]);
+  }, [selectedMonth, selectedYear, selectedLeaderId, allMembers.length]);
 
   const loadMembers = async (): Promise<Member[]> => {
     if (!user) return [];
@@ -205,6 +205,12 @@ export function ServiceReports() {
 
     if (error) {
       console.error("Error loading reports:", error);
+      // Se a tabela não existir ainda, apenas retorna array vazio
+      if (error.code === "42P01" || error.message.includes("does not exist")) {
+        setReports([]);
+        setLoading(false);
+        return;
+      }
       setLoading(false);
       return;
     }
@@ -344,9 +350,12 @@ export function ServiceReports() {
     ]);
 
     if (error) {
+      console.error("Error creating service report:", error);
       toast({
         title: "Erro",
-        description: "Não foi possível criar o relatório.",
+        description: error.message.includes("does not exist") 
+          ? "A tabela de relatórios de culto ainda não foi criada. Execute a migração do banco de dados."
+          : "Não foi possível criar o relatório.",
         variant: "destructive",
       });
       return;

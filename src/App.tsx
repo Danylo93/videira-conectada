@@ -105,7 +105,12 @@ const PUBLIC_LOADER_COPY: Record<AuthTransition, LoaderCopy> = {
 function ReportsRouter() {
   const { user } = useAuth();
   if (!user) return null;
-  return user.role === "lider" ? <CellReports /> : <NetworkReports />;
+  // Líderes e pastores veem CellReports (pastor pode criar relatórios com abas)
+  // Discipuladores e obreiros veem NetworkReports (apenas visualização)
+  if (user.role === "lider" || user.role === "pastor") {
+    return <CellReports />;
+  }
+  return <NetworkReports />;
 }
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
