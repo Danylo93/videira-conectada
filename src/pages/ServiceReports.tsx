@@ -113,20 +113,31 @@ export function ServiceReports() {
 
   // ---- data load -----------------------------------------------------------
   useEffect(() => {
-    if (user && user.role === "pastor") {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+    
+    if (user.role === "pastor") {
       void loadLeaders();
-    } else if (user && user.role === "lider") {
-      loadMembers().then(loadReports);
+      setLoading(false);
+    } else if (user.role === "lider") {
+      loadMembers().then(() => {
+        loadReports();
+      });
     } else {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, loadLeaders]);
+  }, [user]);
 
   // Recarregar membros quando líder selecionado mudar (para pastor)
   useEffect(() => {
     if (user && user.role === "pastor" && selectedLeaderId) {
-      loadMembers().then(loadReports);
+      setLoading(true);
+      loadMembers().then(() => {
+        loadReports();
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedLeaderId]);
@@ -134,10 +145,11 @@ export function ServiceReports() {
   // Recarregar relatórios quando mês ou ano mudarem
   useEffect(() => {
     if (user && ((user.role === "lider" && allMembers.length > 0) || (user.role === "pastor" && selectedLeaderId && allMembers.length > 0))) {
+      setLoading(true);
       loadReports();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMonth, selectedYear, selectedLeaderId, allMembers.length]);
+  }, [selectedMonth, selectedYear]);
 
   const loadMembers = async (): Promise<Member[]> => {
     if (!user) return [];
@@ -205,12 +217,13 @@ export function ServiceReports() {
 
     if (error) {
       console.error("Error loading reports:", error);
-      // Se a tabela não existir ainda, apenas retorna array vazio
-      if (error.code === "42P01" || error.message.includes("does not exist")) {
+      // Se a tabela não existir ainda ou erro de permissão, apenas retorna array vazio
+      if (error.code === "42P01" || error.message.includes("does not exist") || error.code === "PGRST116") {
         setReports([]);
         setLoading(false);
         return;
       }
+      setReports([]);
       setLoading(false);
       return;
     }
