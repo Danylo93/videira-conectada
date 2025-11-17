@@ -31,11 +31,13 @@ import {
   Mail, 
   Calendar 
 } from 'lucide-react';
-import { Member } from '@/types/church';
+import { Member, Leader } from '@/types/church';
 import FancyLoader from '@/components/FancyLoader';
 
 export function CellManagement() {
   const { user } = useAuth();
+  const [leaders, setLeaders] = useState<Leader[]>([]);
+  const [selectedLeaderId, setSelectedLeaderId] = useState<string>('');
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -46,6 +48,32 @@ export function CellManagement() {
     type: 'member' as 'member' | 'frequentador',
   });
 
+  // Load leaders for pastor
+  const loadLeaders = useCallback(async () => {
+    if (!user || user.role !== 'pastor') return;
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, name, email, celula')
+      .eq('role', 'lider')
+      .eq('pastor_uuid', user.id)
+      .order('name');
+
+    if (error) {
+      console.error('Error loading leaders:', error);
+      return;
+    }
+
+    const formatted: Leader[] = (data || []).map((l) => ({
+      id: l.id,
+      name: l.name,
+      email: l.email || '',
+      discipuladorId: '',
+      createdAt: new Date(),
+    }));
+    setLeaders(formatted);
+  }, [user]);
+
   // Load members on component mount
   const loadMembers = useCallback(async () => {
     if (!user) {
@@ -55,10 +83,18 @@ export function CellManagement() {
 
     setLoading(true);
 
+    const liderId = user.role === 'pastor' ? selectedLeaderId : user.id;
+    
+    if (user.role === 'pastor' && !selectedLeaderId) {
+      setMembers([]);
+      setLoading(false);
+      return;
+    }
+
     const { data, error } = await supabase
       .from('members')
       .select('*')
-      .eq('lider_id', user.id)
+      .eq('lider_id', liderId)
       .eq('active', true)
       .order('created_at', { ascending: false });
 
@@ -82,20 +118,26 @@ export function CellManagement() {
 
     setMembers(formattedMembers);
     setLoading(false);
-  }, [user]);
+  }, [user, selectedLeaderId]);
 
   useEffect(() => {
-    if (user && user.role === 'lider') {
+    if (user && user.role === 'pastor') {
+      void loadLeaders();
+    }
+  }, [user, loadLeaders]);
+
+  useEffect(() => {
+    if (user && (user.role === 'lider' || (user.role === 'pastor' && selectedLeaderId))) {
       void loadMembers();
     } else {
       setLoading(false);
     }
-  }, [user, loadMembers]);
+  }, [user, selectedLeaderId, loadMembers]);
 
-  if (!user || user.role !== 'lider') {
+  if (!user || (user.role !== 'lider' && user.role !== 'pastor')) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">Acesso restrito para líderes de célula.</p>
+        <p className="text-muted-foreground">Acesso restrito para líderes de célula e pastores.</p>
       </div>
     );
   }
@@ -115,6 +157,12 @@ export function CellManagement() {
 
   const handleAddMember = async () => {
     if (!user) return;
+
+    const liderId = user.role === 'pastor' ? selectedLeaderId : user.id;
+    
+    if (user.role === 'pastor' && !selectedLeaderId) {
+      return;
+    }
     
     const { data, error } = await supabase
       .from('members')
@@ -124,7 +172,7 @@ export function CellManagement() {
           phone: newMember.phone || null,
           email: newMember.email || null,
           type: newMember.type,
-          lider_id: user.id,
+          lider_id: liderId,
         }
       ])
       .select()
@@ -155,18 +203,42 @@ export function CellManagement() {
   const totalMembers = members.filter(m => m.type === 'member').length;
   const totalVisitors = members.filter(m => m.type === 'frequentador').length;
 
+  const selectedLeader = user.role === 'pastor' ? leaders.find(l => l.id === selectedLeaderId) : null;
+  const cellName = user.role === 'pastor' 
+    ? (selectedLeader ? `Célula de ${selectedLeader.name}` : 'Selecione um líder')
+    : user.celula;
+
   return (
     <div className="space-y-8 animate-fade-in pb-12">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-foreground">Minha Célula</h1>
-          <p className="text-sm md:text-base text-muted-foreground">{user.celula}</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground">
+            {user.role === 'pastor' ? 'Gerenciar Células' : 'Minha Célula'}
+          </h1>
+          {user.role === 'pastor' ? (
+            <div className="mt-2">
+              <Select value={selectedLeaderId} onValueChange={setSelectedLeaderId}>
+                <SelectTrigger className="w-full sm:w-[300px]">
+                  <SelectValue placeholder="Selecione um líder" />
+                </SelectTrigger>
+                <SelectContent>
+                  {leaders.map((leader) => (
+                    <SelectItem key={leader.id} value={leader.id}>
+                      {leader.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <p className="text-sm md:text-base text-muted-foreground">{cellName}</p>
+          )}
         </div>
 
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="gradient-primary">
+            <Button className="gradient-primary" disabled={user.role === 'pastor' && !selectedLeaderId}>
               <Plus className="w-4 h-4 mr-2" />
               Adicionar Pessoa
             </Button>

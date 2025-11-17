@@ -51,7 +51,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { useToast } from "@/hooks/use-toast";
-import { Member, CellReport as CellReportType } from "@/types/church";
+import { Member, CellReport as CellReportType, Leader } from "@/types/church";
 import * as XLSX from "xlsx";
 import FancyLoader from "@/components/FancyLoader";
 
@@ -61,6 +61,8 @@ export function CellReports() {
 
   // ---- state ---------------------------------------------------------------
   const [reports, setReports] = useState<CellReportType[]>([]);
+  const [leaders, setLeaders] = useState<Leader[]>([]);
+  const [selectedLeaderId, setSelectedLeaderId] = useState<string>("");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false); // <-- NOVO
@@ -86,30 +88,74 @@ export function CellReports() {
   const memberOptions = allMembers.filter((m) => m.type === "member");
   const visitorOptions = allMembers.filter((m) => m.type === "frequentador");
 
+  // Load leaders for pastor
+  const loadLeaders = useCallback(async () => {
+    if (!user || user.role !== "pastor") return;
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id, name, email, celula")
+      .eq("role", "lider")
+      .eq("pastor_uuid", user.id)
+      .order("name");
+
+    if (error) {
+      console.error("Error loading leaders:", error);
+      return;
+    }
+
+    const formatted: Leader[] = (data || []).map((l) => ({
+      id: l.id,
+      name: l.name,
+      email: l.email || "",
+      discipuladorId: "",
+      createdAt: new Date(),
+    }));
+    setLeaders(formatted);
+  }, [user]);
+
   // ---- data load -----------------------------------------------------------
   useEffect(() => {
-    if (user && user.role === "lider") {
+    if (user && user.role === "pastor") {
+      void loadLeaders();
+    } else if (user && user.role === "lider") {
       loadMembers().then(loadReports);
     } else {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, loadLeaders]);
+
+  // Recarregar membros quando líder selecionado mudar (para pastor)
+  useEffect(() => {
+    if (user && user.role === "pastor" && selectedLeaderId) {
+      loadMembers().then(loadReports);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedLeaderId]);
 
   // Recarregar relatórios quando mês ou ano mudarem
   useEffect(() => {
-    if (user && user.role === "lider" && allMembers.length > 0) {
+    if (user && ((user.role === "lider" && allMembers.length > 0) || (user.role === "pastor" && selectedLeaderId && allMembers.length > 0))) {
       loadReports();
     }
-  }, [selectedMonth, selectedYear]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMonth, selectedYear, selectedLeaderId]);
 
   const loadMembers = async (): Promise<Member[]> => {
     if (!user) return [];
 
+    const liderId = user.role === "pastor" ? selectedLeaderId : user.id;
+    
+    if (user.role === "pastor" && !selectedLeaderId) {
+      setAllMembers([]);
+      return [];
+    }
+
     const { data, error } = await supabase
       .from("members")
       .select("*")
-      .eq("lider_id", user.id)
+      .eq("lider_id", liderId)
       .eq("active", true);
 
     if (error) {
@@ -138,6 +184,14 @@ export function CellReports() {
   const loadReports = async () => {
     if (!user) return;
 
+    const liderId = user.role === "pastor" ? selectedLeaderId : user.id;
+    
+    if (user.role === "pastor" && !selectedLeaderId) {
+      setReports([]);
+      setLoading(false);
+      return;
+    }
+
     const membersList = allMembers.length === 0 ? await loadMembers() : allMembers;
 
     // Criar filtro de data baseado no mês e ano selecionados
@@ -147,7 +201,7 @@ export function CellReports() {
     const { data, error } = await supabase
       .from("cell_reports")
       .select("*")
-      .eq("lider_id", user.id)
+      .eq("lider_id", liderId)
       .gte("week_start", startDate.toISOString())
       .lte("week_start", endDate.toISOString())
       .order("week_start", { ascending: false });
@@ -296,10 +350,10 @@ export function CellReports() {
   );
 
   // ---- returns condicionais ------------------------------------------------
-  if (!user || user.role !== "lider") {
+  if (!user || (user.role !== "lider" && user.role !== "pastor")) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">Acesso restrito para líderes de célula.</p>
+        <p className="text-muted-foreground">Acesso restrito para líderes de célula e pastores.</p>
       </div>
     );
   }
@@ -321,9 +375,20 @@ export function CellReports() {
   const handleCreateReport = async () => {
     if (!user || !selectedWeek) return;
 
+    const liderId = user.role === "pastor" ? selectedLeaderId : user.id;
+    
+    if (user.role === "pastor" && !selectedLeaderId) {
+      toast({
+        title: "Erro",
+        description: "Por favor, selecione um líder.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const { error } = await supabase.from("cell_reports").insert([
       {
-        lider_id: user.id,
+        lider_id: liderId,
         week_start: selectedWeek,
         multiplication_date: multiplicationDate || null,
         observations: observations || null,
@@ -468,19 +533,43 @@ Observações: ${report.observations || ""}`;
   };
 
   // ---- UI ------------------------------------------------------------------
+  const selectedLeader = user.role === "pastor" ? leaders.find((l) => l.id === selectedLeaderId) : null;
+  const cellName = user.role === "pastor"
+    ? selectedLeader
+      ? `Célula de ${selectedLeader.name}`
+      : "Selecione um líder"
+    : user.celula;
+
   return (
     <div className="space-y-10 animate-fade-in pb-16">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-foreground">
-            Relatórios de Célula
+            {user.role === "pastor" ? "Criar Relatórios de Célula" : "Relatórios de Célula"}
           </h1>
-          <p className="text-sm md:text-base text-muted-foreground">{user.celula}</p>
+          {user.role === "pastor" ? (
+            <div className="mt-2">
+              <Select value={selectedLeaderId} onValueChange={setSelectedLeaderId}>
+                <SelectTrigger className="w-full sm:w-[300px]">
+                  <SelectValue placeholder="Selecione um líder" />
+                </SelectTrigger>
+                <SelectContent>
+                  {leaders.map((leader) => (
+                    <SelectItem key={leader.id} value={leader.id}>
+                      {leader.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <p className="text-sm md:text-base text-muted-foreground">{cellName}</p>
+          )}
         </div>
 
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="gradient-primary">
+            <Button className="gradient-primary" disabled={user.role === "pastor" && !selectedLeaderId}>
               <Plus className="w-4 h-4 mr-2" />
               Novo Relatório
             </Button>

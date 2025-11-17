@@ -79,3 +79,4 @@ Para ativar a funcionalidade, execute a migração:
 5. Verifique as estatísticas
 
 
+

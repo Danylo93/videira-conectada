@@ -8,15 +8,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Users, Plus, Phone, Mail } from 'lucide-react';
-import { Leader } from '@/types/church';
+import { Leader, Discipulador } from '@/types/church';
 import FancyLoader from '@/components/FancyLoader';
 
 export function LeaderManagement() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [leaders, setLeaders] = useState<Leader[]>([]);
+  const [discipuladores, setDiscipuladores] = useState<Discipulador[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newLeader, setNewLeader] = useState({
@@ -24,7 +26,29 @@ export function LeaderManagement() {
     email: '',
     phone: '',
     password: '',
+    discipuladorId: '',
   });
+
+  const loadDiscipuladores = useCallback(async () => {
+    if (!user || user.role !== 'pastor') return;
+    
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, name, email, phone, created_at')
+      .eq('pastor_uuid', user.id)
+      .eq('role', 'discipulador')
+      .order('created_at', { ascending: false });
+
+    const formatted: Discipulador[] = (data || []).map((d) => ({
+      id: d.id,
+      name: d.name,
+      email: d.email,
+      phone: d.phone || undefined,
+      pastorId: user.id,
+      createdAt: new Date(d.created_at),
+    }));
+    setDiscipuladores(formatted);
+  }, [user]);
 
   const loadLeaders = useCallback(async () => {
     if (!user) {
@@ -33,12 +57,18 @@ export function LeaderManagement() {
     }
 
     setLoading(true);
-    const { data, error } = await supabase
+    let query = supabase
       .from('profiles')
-      .select('id, name, email, phone, created_at, pastor_uuid')
-      .eq('discipulador_uuid', user.id)
-      .eq('role', 'lider')
-      .order('created_at', { ascending: false });
+      .select('id, name, email, phone, created_at, pastor_uuid, discipulador_uuid')
+      .eq('role', 'lider');
+
+    if (user.role === 'discipulador') {
+      query = query.eq('discipulador_uuid', user.id);
+    } else if (user.role === 'pastor') {
+      query = query.eq('pastor_uuid', user.id);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
 
     if (error) {
       console.error('Error loading leaders:', error);
@@ -51,7 +81,7 @@ export function LeaderManagement() {
       name: l.name,
       email: l.email,
       phone: l.phone || undefined,
-      discipuladorId: user.id,
+      discipuladorId: l.discipulador_uuid || user.id,
       pastorId: l.pastor_uuid || undefined,
       createdAt: new Date(l.created_at),
     }));
@@ -60,17 +90,20 @@ export function LeaderManagement() {
   }, [user]);
 
   useEffect(() => {
-    if (user && user.role === 'discipulador') {
+    if (user && (user.role === 'discipulador' || user.role === 'pastor')) {
+      if (user.role === 'pastor') {
+        void loadDiscipuladores();
+      }
       void loadLeaders();
     } else {
       setLoading(false);
     }
-  }, [user, loadLeaders]);
+  }, [user, loadLeaders, loadDiscipuladores]);
 
-  if (!user || user.role !== 'discipulador') {
+  if (!user || (user.role !== 'discipulador' && user.role !== 'pastor')) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">Acesso restrito para discipuladores.</p>
+        <p className="text-muted-foreground">Acesso restrito para discipuladores e pastores.</p>
       </div>
     );
   }
@@ -91,6 +124,16 @@ export function LeaderManagement() {
   const handleAddLeader = async () => {
     if (!user) return;
 
+    // Validação: se for pastor, precisa selecionar um discipulador
+    if (user.role === 'pastor' && !newLeader.discipuladorId) {
+      toast({
+        title: 'Erro',
+        description: 'Por favor, selecione um discipulador.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email: newLeader.email,
       password: newLeader.password,
@@ -108,13 +151,14 @@ export function LeaderManagement() {
       return;
     }
 
+    const discipuladorId = user.role === 'pastor' ? newLeader.discipuladorId : user.id;
     const profilePayload = {
       user_id: authData.user.id,
       name: newLeader.name,
       email: newLeader.email,
       phone: newLeader.phone || null,
-      discipulador_uuid: user.id,
-      pastor_uuid: user.pastorId || null,
+      discipulador_uuid: discipuladorId,
+      pastor_uuid: user.role === 'pastor' ? user.id : (user.pastorId || null),
       role: 'lider' as const,
     };
 
@@ -162,15 +206,15 @@ export function LeaderManagement() {
       name: newLeader.name,
       email: newLeader.email,
       phone: newLeader.phone || undefined,
-      discipuladorId: user.id,
-      pastorId: user.pastorId || undefined,
+      discipuladorId: discipuladorId,
+      pastorId: user.role === 'pastor' ? user.id : (user.pastorId || undefined),
       createdAt: new Date(),
     };
 
     setLeaders([leaderData, ...leaders]);
     await loadLeaders();
     setIsAddDialogOpen(false);
-    setNewLeader({ name: '', email: '', phone: '', password: '' });
+    setNewLeader({ name: '', email: '', phone: '', password: '', discipuladorId: '' });
     toast({ title: 'Sucesso', description: 'Líder cadastrado com sucesso!' });
   };
 
@@ -190,6 +234,23 @@ export function LeaderManagement() {
               <DialogTitle>Adicionar Líder</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
+              {user.role === 'pastor' && (
+                <div className="space-y-2">
+                  <Label htmlFor="discipulador">Discipulador</Label>
+                  <Select value={newLeader.discipuladorId} onValueChange={(value) => setNewLeader({ ...newLeader, discipuladorId: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um discipulador" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {discipuladores.map((d) => (
+                        <SelectItem key={d.id} value={d.id}>
+                          {d.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="name">Nome</Label>
                 <Input id="name" value={newLeader.name} onChange={(e) => setNewLeader({ ...newLeader, name: e.target.value })} />

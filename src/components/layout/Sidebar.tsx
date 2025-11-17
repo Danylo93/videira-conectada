@@ -45,13 +45,13 @@ const navigationItems: NavigationItem[] = [
     title: 'Minha Célula',
     url: '/celula',
     icon: Users,
-    roles: ['lider'],
+    roles: ['lider', 'pastor'],
   },
   {
     title: 'Líderes',
     url: '/lideres',
     icon: Users,
-    roles: ['discipulador'],
+    roles: ['discipulador', 'pastor'],
   },
   {
     title: 'Discipuladores',
