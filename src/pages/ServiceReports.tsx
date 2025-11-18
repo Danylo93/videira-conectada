@@ -69,6 +69,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Member, ServiceAttendanceReport as ServiceReportType, Leader } from "@/types/church";
 import * as XLSX from "xlsx";
 import FancyLoader from "@/components/FancyLoader";
+import { formatDateBR, formatDateBRLong } from "@/lib/dateUtils";
 
 export function ServiceReports() {
   const { user } = useAuth();
@@ -352,11 +353,7 @@ export function ServiceReports() {
         .map((r) => {
           const total = r.members.length + r.frequentadores.length;
           return {
-            monthLabel: r.serviceDate.toLocaleDateString("pt-BR", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            }),
+            monthLabel: formatDateBR(r.serviceDate),
             members: 0,
             frequentadores: 0,
             total: total,
@@ -389,10 +386,7 @@ export function ServiceReports() {
           new Date(`${b.monthKey}-01`).getTime()
       )
       .map((m) => ({
-        monthLabel: new Date(`${m.monthKey}-01`).toLocaleDateString("pt-BR", {
-          month: "short",
-          year: "numeric",
-        }),
+        monthLabel: formatDateBRLong(new Date(`${m.monthKey}-01`)).split(" ")[2] + " " + formatDateBRLong(new Date(`${m.monthKey}-01`)).split(" ")[4],
         members: m.weeks > 0 ? Math.round(m.mSum / m.weeks) : 0,
         frequentadores: m.weeks > 0 ? Math.round(m.fSum / m.weeks) : 0,
         total: m.weeks > 0 ? Math.round((m.mSum + m.fSum) / m.weeks) : 0,
@@ -630,7 +624,7 @@ export function ServiceReports() {
   const handleExportReport = (report: ServiceReportType) => {
     const data = [
       {
-        [isKidsMode ? "Data do Domingo Kids" : "Data do Culto"]: report.serviceDate.toLocaleDateString("pt-BR"),
+        [isKidsMode ? "Data do Domingo Kids" : "Data do Culto"]: formatDateBR(report.serviceDate),
         "Membros (qtde)": report.members.map((m) => m.name).join(", "),
         "Frequentadores (qtde)": report.frequentadores.map((f) => f.name).join(", "),
         Observacoes: report.observations || "",
@@ -646,7 +640,7 @@ export function ServiceReports() {
   };
 
   const handleShareReport = (report: ServiceReportType) => {
-    const message = `${isKidsMode ? 'Relatório de Domingo Kids' : 'Relatório de Presença no Culto'} ${report.serviceDate.toLocaleDateString("pt-BR")}
+    const message = `${isKidsMode ? 'Relatório de Domingo Kids' : 'Relatório de Presença no Culto'} ${formatDateBR(report.serviceDate)}
 Membros: ${report.members.map((m) => m.name).join(", ")}
 Frequentadores: ${report.frequentadores.map((f) => f.name).join(", ")}
 Observações: ${report.observations || ""}`;
@@ -901,12 +895,12 @@ Observações: ${report.observations || ""}`;
                       {reports.map((report) => (
                         <TableRow key={report.id}>
                           <TableCell className="font-medium">
-                            {report.serviceDate.toLocaleDateString("pt-BR")}
+                            {formatDateBR(report.serviceDate)}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1 text-sm">
                               <Calendar className="w-3 h-3" />
-                              {report.submittedAt.toLocaleDateString("pt-BR")}
+                              {formatDateBR(report.submittedAt)}
                             </div>
                           </TableCell>
                           <TableCell className="text-right">
@@ -988,11 +982,7 @@ Observações: ${report.observations || ""}`;
                             <div className="flex items-center gap-2">
                               <Calendar className="w-5 h-5 text-primary" />
                               <CardTitle className="text-lg">
-                                {report.serviceDate.toLocaleDateString("pt-BR", {
-                                  day: '2-digit',
-                                  month: 'short',
-                                  year: 'numeric'
-                                })}
+                                {formatDateBR(report.serviceDate)}
                               </CardTitle>
                             </div>
                           </div>
@@ -1017,7 +1007,7 @@ Observações: ${report.observations || ""}`;
                           <div className="flex items-center justify-between pt-2 border-t">
                             <div className="flex items-center gap-1 text-xs text-muted-foreground">
                               <Calendar className="w-3 h-3" />
-                              {report.submittedAt.toLocaleDateString("pt-BR")}
+                              {formatDateBR(report.submittedAt)}
                             </div>
                             <div className="flex items-center gap-1">
                               <Button

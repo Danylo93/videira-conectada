@@ -7,6 +7,7 @@ import { eventsService } from "@/integrations/supabase/events";
 import FancyLoader from "@/components/FancyLoader";
 import { useStatistics } from "@/hooks/useStatistics";
 import type { Event } from "@/types/event";
+import { formatDateBR, formatDateBRLong, formatDateShort, formatDateMedium } from "@/lib/dateUtils";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -57,13 +58,8 @@ const roleGreetings = {
   lider: "Líder",
 } as const;
 
-function formatBRLong(d: Date) {
-  return d.toLocaleDateString("pt-BR", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+function formatBRLong(d: Date | string) {
+  return formatDateBRLong(d);
 }
 function monthKeyOf(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -169,7 +165,7 @@ const MonthCalendar = ({ events }: { events: Event[] }) => {
                   <div className="w-2 h-2 rounded-full bg-primary" />
                   <span className="font-medium">{event.name}</span>
                   <span className="text-muted-foreground ml-auto">
-                    {eventDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                    {formatDateShort(event.event_date)}
                   </span>
                 </div>
               );
@@ -332,7 +328,7 @@ export function Dashboard() {
             id: "overdue-report",
             type: "warning",
             title: "Relatório em Atraso",
-            message: `Você tem relatórios pendentes desde ${new Date(overdueReports[0].week_start).toLocaleDateString('pt-BR')}`,
+            message: `Você tem relatórios pendentes desde ${formatDateBR(overdueReports[0].week_start)}`,
             action: "Ver Relatórios"
           });
         }
@@ -505,7 +501,7 @@ export function Dashboard() {
             activity.push({
               id: `report-${report.week_start}`,
               type: 'report',
-              title: `Relatório da semana ${new Date(report.week_start).toLocaleDateString('pt-BR')}`,
+              title: `Relatório da semana ${formatDateBR(report.week_start)}`,
               date: report.week_start,
               status: report.status === 'approved' ? 'completed' : report.status === 'needs_correction' ? 'overdue' : 'pending'
             });
@@ -1125,12 +1121,12 @@ export function Dashboard() {
                     <p className="text-xs text-muted-foreground mt-1">pessoas por culto</p>
                   </div>
                   <div className="p-4 bg-primary/5 rounded-lg">
-                    <p className="text-sm text-muted-foreground">Últimos 5 Cultos</p>
+                    <p className="text-sm text-muted-foreground">Últimos 3 Cultos</p>
                     <div className="mt-2 space-y-1">
                       {serviceReportsData.recentReports.slice(0, 3).map((report, idx) => (
                         <div key={idx} className="flex justify-between text-xs">
                           <span className="text-muted-foreground">
-                            {new Date(report.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                            {formatDateShort(report.date)}
                           </span>
                           <span className="font-medium">{report.attendance} pessoas</span>
                         </div>
@@ -1145,13 +1141,13 @@ export function Dashboard() {
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis 
                           dataKey="date" 
-                          tickFormatter={(value) => new Date(value).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                          tickFormatter={(value) => formatDateShort(value)}
                           tick={{ fontSize: 12 }}
                         />
                         <YAxis />
                         <Tooltip 
                           formatter={(value: number) => [`${value} pessoas`, 'Presença']}
-                          labelFormatter={(value) => new Date(value).toLocaleDateString('pt-BR')}
+                          labelFormatter={(value) => formatDateBR(value)}
                         />
                         <Bar dataKey="attendance" fill="var(--primary)" radius={[8, 8, 0, 0]} />
                       </BarChart>
@@ -1195,11 +1191,7 @@ export function Dashboard() {
                     <p className="text-sm text-muted-foreground">Última Atualização</p>
                     {cellReportsData.recentReports.length > 0 && (
                       <p className="text-sm font-medium">
-                        {new Date(cellReportsData.recentReports[0].weekStart).toLocaleDateString('pt-BR', { 
-                          day: '2-digit', 
-                          month: 'long',
-                          year: 'numeric'
-                        })}
+                        {formatDateMedium(cellReportsData.recentReports[0].weekStart)}
                       </p>
                     )}
                   </div>
@@ -1210,10 +1202,10 @@ export function Dashboard() {
                     <div key={idx} className="flex items-center justify-between p-3 bg-muted rounded-lg hover:bg-muted/80 transition-colors">
                       <div>
                         <p className="font-medium text-sm">
-                          Semana de {new Date(report.weekStart).toLocaleDateString('pt-BR')}
+                          Semana de {formatDateBR(report.weekStart)}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {new Date(report.weekStart).toLocaleDateString('pt-BR', { weekday: 'long' })}
+                          {formatDateBRLong(report.weekStart).split(',')[0]}
                         </p>
                       </div>
                       <Button 
@@ -1273,7 +1265,7 @@ export function Dashboard() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{activity.title}</p>
                     <p className="text-xs text-muted-foreground">
-                      {new Date(activity.date).toLocaleDateString("pt-BR")}
+                      {formatDateBR(activity.date)}
                     </p>
                   </div>
                   <Badge variant={activity.status === 'completed' ? 'default' : activity.status === 'pending' ? 'secondary' : 'destructive'}>
@@ -1384,11 +1376,7 @@ export function Dashboard() {
                 <div className="flex-1">
                   <h4 className="font-medium text-sm">{e.title}</h4>
                   <p className="text-xs text-muted-foreground">
-                    {new Date(e.date).toLocaleDateString("pt-BR", {
-                      day: "2-digit",
-                      month: "long",
-                      year: "numeric",
-                    })}
+                    {formatDateMedium(e.date)}
                   </p>
                 </div>
               </div>

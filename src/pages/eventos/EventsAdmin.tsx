@@ -12,8 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar, MapPin, Users, Plus, Edit, Trash2, Eye } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { formatDateCustom, formatDateForInput } from '@/lib/dateUtils';
 
 const EVENT_TYPES = [
   { value: 'conferencia', label: 'Conferência' },
@@ -129,35 +128,11 @@ export default function EventsAdmin() {
     }
   };
 
-  // Helper para converter Date para string no formato YYYY-MM-DD (timezone local)
-  // Quando o Supabase retorna a data, ela vem como ISO string (UTC)
-  // A data foi salva como 03:00 UTC do dia selecionado (representa meia-noite no Brasil UTC-3)
-  // Então usamos métodos UTC para extrair o dia, mês e ano corretos
-  const formatDateForInput = (dateString: string): string => {
-    const date = new Date(dateString);
-    // Usa métodos UTC porque a data foi salva como 03:00 UTC do dia selecionado
-    // Então precisamos ler como UTC para obter o dia correto
-    const year = date.getUTCFullYear();
-    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(date.getUTCDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
+  // Usa a função utilitária que já trata timezone corretamente
 
   // Helper para formatar data para exibição (usando UTC para evitar problemas de timezone)
-  // A data vem do Supabase como ISO string (ex: "2025-11-29T03:00:00.000Z")
-  // Precisamos extrair o dia, mês e ano diretamente da string UTC, sem conversão de timezone
   const formatDateForDisplay = (dateString: string): string => {
-    const date = new Date(dateString);
-    // Usa métodos UTC para extrair o dia, mês e ano corretos
-    // Isso garante que o dia exibido seja o mesmo que foi salvo no banco
-    const year = date.getUTCFullYear();
-    const month = date.getUTCMonth(); // 0-11
-    const day = date.getUTCDate();
-    
-    // Cria uma data local usando os valores UTC (sem conversão de timezone)
-    // Isso garante que o format do date-fns use o dia correto
-    const localDate = new Date(year, month, day);
-    return format(localDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
+    return formatDateCustom(dateString, "dd 'de' MMMM 'de' yyyy");
   };
 
   const openEditDialog = (event: Event) => {

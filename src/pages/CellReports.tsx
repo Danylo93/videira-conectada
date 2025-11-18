@@ -66,6 +66,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Member, CellReport as CellReportType, Leader } from "@/types/church";
 import * as XLSX from "xlsx";
 import FancyLoader from "@/components/FancyLoader";
+import { formatDateBR, formatDateBRLong } from "@/lib/dateUtils";
 
 export function CellReports() {
   const { user } = useAuth();
@@ -327,10 +328,7 @@ export function CellReports() {
           new Date(`${b.monthKey}-01`).getTime()
       )
       .map((m) => ({
-        monthLabel: new Date(`${m.monthKey}-01`).toLocaleDateString("pt-BR", {
-          month: "short",
-          year: "numeric",
-        }),
+        monthLabel: formatDateBRLong(new Date(`${m.monthKey}-01`)).split(" ")[2] + " " + formatDateBRLong(new Date(`${m.monthKey}-01`)).split(" ")[4],
         members: m.weeks > 0 ? Math.round(m.mSum / m.weeks) : 0,
         frequentadores: m.weeks > 0 ? Math.round(m.fSum / m.weeks) : 0,
       }));
@@ -338,7 +336,7 @@ export function CellReports() {
 
   const fmtPtWeekPart = useCallback((d: Date) => {
     const dia = String(d.getDate()).padStart(2, "0");
-    const mes = d.toLocaleDateString("pt-BR", { month: "long" });
+    const mes = formatDateBRLong(d).split(" ")[2];
     const ano2 = String(d.getFullYear()).slice(-2);
     return `${dia}/${mes}/${ano2}`;
   }, []);
@@ -543,7 +541,7 @@ export function CellReports() {
   const handleExportReport = (report: CellReportType) => {
     const data = [
       {
-        Semana: report.weekStart.toLocaleDateString("pt-BR"),
+        Semana: formatDateBR(report.weekStart),
         Fase: report.phase,
         "Membros (qtde)": report.members.map((m) => m.name).join(", "),
         "Frequentadores (qtde)": report.frequentadores.map((f) => f.name).join(", "),
@@ -560,7 +558,7 @@ export function CellReports() {
   };
 
   const handleShareReport = (report: CellReportType) => {
-    const message = `Relatório ${report.weekStart.toLocaleDateString("pt-BR")}
+    const message = `Relatório ${formatDateBR(report.weekStart)}
 Fase: ${report.phase}
 Membros: ${report.members.map((m) => m.name).join(", ")}
 Frequentadores: ${report.frequentadores.map((f) => f.name).join(", ")}
@@ -1001,7 +999,7 @@ Observações: ${report.observations || ""}`;
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <p className="text-xs text-muted-foreground">Semana</p>
-                    <p className="font-medium">{viewingReport.weekStart.toLocaleDateString("pt-BR")}</p>
+                    <p className="font-medium">{formatDateBR(viewingReport.weekStart)}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Fase</p>
@@ -1011,7 +1009,7 @@ Observações: ${report.observations || ""}`;
                     <p className="text-xs text-muted-foreground">Data de Multiplicação</p>
                     <p className="font-medium">
                       {viewingReport.multiplicationDate
-                        ? viewingReport.multiplicationDate.toLocaleDateString("pt-BR")
+                        ? formatDateBR(viewingReport.multiplicationDate)
                         : "-"}
                     </p>
                   </div>
@@ -1229,14 +1227,14 @@ Observações: ${report.observations || ""}`;
                     {reports.map((report) => (
                       <TableRow key={report.id}>
                         <TableCell className="font-medium">
-                          {report.weekStart.toLocaleDateString("pt-BR")}
+                          {formatDateBR(report.weekStart)}
                         </TableCell>
                         <TableCell>{report.phase}</TableCell>
                         <TableCell>
                           {report.multiplicationDate ? (
                             <div className="flex items-center gap-1 text-sm">
                               <Calendar className="w-3 h-3" />
-                              {report.multiplicationDate.toLocaleDateString("pt-BR")}
+                              {formatDateBR(report.multiplicationDate)}
                             </div>
                           ) : (
                             <span className="text-muted-foreground">-</span>
@@ -1278,7 +1276,7 @@ Observações: ${report.observations || ""}`;
                                 <AlertDialogHeader>
                                   <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    Tem certeza que deseja excluir o relatório da semana de {report.weekStart.toLocaleDateString("pt-BR")}? Esta ação não pode ser desfeita.
+                                    Tem certeza que deseja excluir o relatório da semana de {formatDateBR(report.weekStart)}? Esta ação não pode ser desfeita.
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
@@ -1442,7 +1440,7 @@ Observações: ${report.observations || ""}`;
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <p className="text-xs text-muted-foreground">Semana</p>
-                      <p className="font-medium">{viewingReport.weekStart.toLocaleDateString("pt-BR")}</p>
+                      <p className="font-medium">{formatDateBR(viewingReport.weekStart)}</p>
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">Fase</p>
@@ -1452,7 +1450,7 @@ Observações: ${report.observations || ""}`;
                       <p className="text-xs text-muted-foreground">Data de Multiplicação</p>
                       <p className="font-medium">
                         {viewingReport.multiplicationDate
-                          ? viewingReport.multiplicationDate.toLocaleDateString("pt-BR")
+                          ? formatDateBR(viewingReport.multiplicationDate)
                           : "-"}
                       </p>
                     </div>

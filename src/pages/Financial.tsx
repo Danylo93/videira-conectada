@@ -58,6 +58,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import FancyLoader from '@/components/FancyLoader';
 import { Checkbox } from '@/components/ui/checkbox';
+import { formatDateBR } from '@/lib/dateUtils';
 
 type Sector = 'dizimos' | 'ofertas' | 'cantina';
 type Status = 'pending' | 'approved' | 'rejected';
@@ -439,10 +440,10 @@ export function Financial() {
                       {filteredReports.map((report) => (
                         <TableRow key={report.id}>
                           <TableCell>
-                            {new Date(report.date).toLocaleDateString('pt-BR')}
+                            {formatDateBR(report.date)}
                           </TableCell>
                           <TableCell>
-                            {new Date(report.week_start).toLocaleDateString('pt-BR')}
+                            {formatDateBR(report.week_start)}
                           </TableCell>
                           <TableCell>
                             R$ {report.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
