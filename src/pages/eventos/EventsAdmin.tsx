@@ -129,12 +129,43 @@ export default function EventsAdmin() {
     }
   };
 
+  // Helper para converter Date para string no formato YYYY-MM-DD (timezone local)
+  // Quando o Supabase retorna a data, ela vem como ISO string (UTC)
+  // A data foi salva como 03:00 UTC do dia selecionado (representa meia-noite no Brasil UTC-3)
+  // Então usamos métodos UTC para extrair o dia, mês e ano corretos
+  const formatDateForInput = (dateString: string): string => {
+    const date = new Date(dateString);
+    // Usa métodos UTC porque a data foi salva como 03:00 UTC do dia selecionado
+    // Então precisamos ler como UTC para obter o dia correto
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(date.getUTCDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Helper para formatar data para exibição (usando UTC para evitar problemas de timezone)
+  // A data vem do Supabase como ISO string (ex: "2025-11-29T03:00:00.000Z")
+  // Precisamos extrair o dia, mês e ano diretamente da string UTC, sem conversão de timezone
+  const formatDateForDisplay = (dateString: string): string => {
+    const date = new Date(dateString);
+    // Usa métodos UTC para extrair o dia, mês e ano corretos
+    // Isso garante que o dia exibido seja o mesmo que foi salvo no banco
+    const year = date.getUTCFullYear();
+    const month = date.getUTCMonth(); // 0-11
+    const day = date.getUTCDate();
+    
+    // Cria uma data local usando os valores UTC (sem conversão de timezone)
+    // Isso garante que o format do date-fns use o dia correto
+    const localDate = new Date(year, month, day);
+    return format(localDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
+  };
+
   const openEditDialog = (event: Event) => {
     setSelectedEvent(event);
     setFormData({
       name: event.name,
       description: event.description,
-      event_date: event.event_date.split('T')[0],
+      event_date: formatDateForInput(event.event_date),
       location: event.location,
       type: event.type,
       max_capacity: event.max_capacity || undefined,
@@ -150,8 +181,12 @@ export default function EventsAdmin() {
     const now = new Date();
     const event = new Date(eventDate);
     
-    if (event < now) return 'completed';
-    if (event.toDateString() === now.toDateString()) return 'ongoing';
+    // Compara usando UTC para evitar problemas de timezone
+    const nowUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const eventUTC = new Date(Date.UTC(event.getUTCFullYear(), event.getUTCMonth(), event.getUTCDate()));
+    
+    if (eventUTC < nowUTC) return 'completed';
+    if (eventUTC.getTime() === nowUTC.getTime()) return 'ongoing';
     return 'upcoming';
   };
 
@@ -290,7 +325,7 @@ export default function EventsAdmin() {
                     <CardTitle className="text-lg">{event.name}</CardTitle>
                     <CardDescription className="flex items-center gap-2 mt-1">
                       <Calendar className="w-4 h-4" />
-                      {format(new Date(event.event_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                      {formatDateForDisplay(event.event_date)}
                     </CardDescription>
                   </div>
                   {getStatusBadge(status)}

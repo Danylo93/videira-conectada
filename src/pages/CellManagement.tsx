@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useProfileMode } from '@/contexts/ProfileModeContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -38,7 +39,9 @@ import FancyLoader from '@/components/FancyLoader';
 
 export function CellManagement() {
   const { user } = useAuth();
+  const { mode } = useProfileMode();
   const { toast } = useToast();
+  const isKidsMode = mode === 'kids';
   const [leaders, setLeaders] = useState<Leader[]>([]);
   const [selectedLeaderId, setSelectedLeaderId] = useState<string>('');
   const [members, setMembers] = useState<Member[]>([]);
@@ -57,12 +60,20 @@ export function CellManagement() {
   const loadLeaders = useCallback(async () => {
     if (!user || user.role !== 'pastor') return;
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('profiles')
-      .select('id, name, email, celula')
+      .select('id, name, email, celula, is_kids')
       .eq('role', 'lider')
-      .eq('pastor_uuid', user.id)
-      .order('name');
+      .eq('pastor_uuid', user.id);
+    
+    // No modo Kids, mostrar apenas os do modo Kids. No modo normal, mostrar apenas os do modo normal
+    if (isKidsMode) {
+      query = query.eq('is_kids', true);
+    } else {
+      query = query.or('is_kids.is.null,is_kids.eq.false');
+    }
+    
+    const { data, error } = await query.order('name');
 
     if (error) {
       console.error('Error loading leaders:', error);
@@ -129,7 +140,7 @@ export function CellManagement() {
     if (user && user.role === 'pastor') {
       void loadLeaders();
     }
-  }, [user, loadLeaders]);
+  }, [user, mode, loadLeaders]);
 
   useEffect(() => {
     if (user && (user.role === 'lider' || (user.role === 'pastor' && selectedLeaderId))) {
@@ -137,7 +148,7 @@ export function CellManagement() {
     } else {
       setLoading(false);
     }
-  }, [user, selectedLeaderId, loadMembers]);
+  }, [user, selectedLeaderId, mode, loadMembers]);
 
   if (!user || (user.role !== 'lider' && user.role !== 'pastor')) {
     return (
@@ -278,7 +289,10 @@ export function CellManagement() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-foreground">
-            {user.role === 'pastor' ? 'Gerenciar Células' : 'Minha Célula'}
+            {isKidsMode 
+              ? (user.role === 'pastor' ? 'Gerenciar Células Kids' : 'Minha Célula Kids')
+              : (user.role === 'pastor' ? 'Gerenciar Células' : 'Minha Célula')
+            }
           </h1>
           {user.role === 'pastor' ? (
             <div className="mt-2">
@@ -309,7 +323,9 @@ export function CellManagement() {
           </DialogTrigger>
           <DialogContent className="sm:max-w-lg">
             <DialogHeader>
-              <DialogTitle>Adicionar Nova Pessoa</DialogTitle>
+              <DialogTitle>
+                {isKidsMode ? 'Adicionar Nova Criança' : 'Adicionar Nova Pessoa'}
+              </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div>
@@ -347,8 +363,12 @@ export function CellManagement() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="member">Membro</SelectItem>
-                    <SelectItem value="frequentador">Frequentador</SelectItem>
+                    <SelectItem value="member">
+                      {isKidsMode ? 'Criança' : 'Membro'}
+                    </SelectItem>
+                    <SelectItem value="frequentador">
+                      {isKidsMode ? 'Visitante' : 'Frequentador'}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -364,7 +384,9 @@ export function CellManagement() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         <Card className="hover:grape-glow transition-smooth">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total de Membros</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              {isKidsMode ? 'Total de Crianças' : 'Total de Membros'}
+            </CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -374,7 +396,9 @@ export function CellManagement() {
 
         <Card className="hover:grape-glow transition-smooth">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Frequentadores</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              {isKidsMode ? 'Visitantes' : 'Frequentadores'}
+            </CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -398,7 +422,7 @@ export function CellManagement() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="w-5 h-5 text-primary" />
-            Lista de Pessoas
+            {isKidsMode ? 'Lista de Crianças' : 'Lista de Pessoas'}
           </CardTitle>
         </CardHeader>
         <CardContent className="overflow-x-auto">
@@ -421,7 +445,10 @@ export function CellManagement() {
                   <TableCell className="font-medium">{member.name}</TableCell>
                   <TableCell>
                     <Badge variant={member.type === 'member' ? 'default' : 'secondary'}>
-                      {member.type === 'member' ? 'Membro' : 'Frequentador'}
+                      {member.type === 'member' 
+                        ? (isKidsMode ? 'Criança' : 'Membro')
+                        : (isKidsMode ? 'Visitante' : 'Frequentador')
+                      }
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -502,7 +529,9 @@ export function CellManagement() {
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Editar Pessoa</DialogTitle>
+            <DialogTitle>
+              {isKidsMode ? 'Editar Criança' : 'Editar Pessoa'}
+            </DialogTitle>
           </DialogHeader>
           {editingMember && (
             <div className="space-y-4">
@@ -552,8 +581,12 @@ export function CellManagement() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="member">Membro</SelectItem>
-                    <SelectItem value="frequentador">Frequentador</SelectItem>
+                    <SelectItem value="member">
+                      {isKidsMode ? 'Criança' : 'Membro'}
+                    </SelectItem>
+                    <SelectItem value="frequentador">
+                      {isKidsMode ? 'Visitante' : 'Frequentador'}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>

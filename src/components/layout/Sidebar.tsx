@@ -1,4 +1,5 @@
 import { useAuth } from '@/contexts/AuthContext';
+import { useProfileMode } from '@/contexts/ProfileModeContext';
 import { useLocation, NavLink } from 'react-router-dom';
 import {
   Home,
@@ -11,9 +12,11 @@ import {
   Settings,
   UserCircle2,
   Heart,
+  DollarSign,
   LucideIcon
 } from 'lucide-react';
 import logoVideira from '@/assets/logo-videira.png';
+import logoKids from '@/assets/logo-kids.jpg';
 import {
   Sidebar as SidebarComponent,
   SidebarContent,
@@ -32,6 +35,7 @@ interface NavigationItem {
   url: string;
   icon: LucideIcon;
   roles: string[];
+  kidsMode?: boolean; // Se true, aparece apenas no modo Kids. Se false, aparece apenas no modo normal. Se undefined, aparece em ambos
 }
 
 const navigationItems: NavigationItem[] = [
@@ -70,24 +74,28 @@ const navigationItems: NavigationItem[] = [
     url: '/relatorios-culto',
     icon: Church,
     roles: ['pastor', 'lider'],
+    kidsMode: undefined, // Aparece em ambos os modos, mas o título muda
   },
   {
     title: 'Cursos',
     url: '/cursos',
     icon: GraduationCap,
     roles: ['pastor', 'obreiro', 'discipulador', 'lider'],
+    kidsMode: false, // Não aparece no modo Kids
   },
   {
-    title: 'Gerenciar Eventos',
+    title: 'Agenda',
     url: '/eventos',
     icon: Calendar,
     roles: ['pastor', 'obreiro', 'discipulador', 'lider'],
+    kidsMode: false, // Não aparece no modo Kids
   },
   {
-    title: 'Dízimos e Ofertas',
-    url: '/dizimos-ofertas',
-    icon: Church,
+    title: 'Financeiro',
+    url: '/financeiro',
+    icon: DollarSign,
     roles: ['pastor', 'obreiro'],
+    kidsMode: false, // Não aparece no modo Kids
   },
   // {
   //   title: 'Gerenciar Encontro com Deus',
@@ -100,12 +108,14 @@ const navigationItems: NavigationItem[] = [
     url: '/encounters/events',
     icon: Calendar,
     roles: ['pastor', 'discipulador'],
+    kidsMode: false, // Não aparece no modo Kids
   },
   {
     title: 'Estatísticas',
     url: '/estatisticas',
     icon: BarChart3,
     roles: ['pastor', 'obreiro', 'discipulador'],
+    kidsMode: false, // Não aparece no modo Kids
   },
   {
     title: 'Gerenciar Igreja',
@@ -132,16 +142,36 @@ const accountItems: NavigationItem[] = [
 
 export function Sidebar() {
   const { user } = useAuth();
+  const { mode } = useProfileMode();
   const { state } = useSidebar();
   const location = useLocation();
 
   if (!user) return null;
 
   const collapsed = state === "collapsed";
+  const isKidsMode = mode === 'kids';
 
-  const filteredItems = navigationItems.filter(item =>
-    item.roles.includes(user.role)
-  );
+  const filteredItems = navigationItems.filter(item => {
+    // Verifica se o item está disponível para o role do usuário
+    if (!item.roles.includes(user.role)) return false;
+    
+    // Filtra por modo Kids
+    if (isKidsMode) {
+      // No modo Kids, mostra apenas itens sem kidsMode ou com kidsMode === true
+      if (item.kidsMode === false) return false;
+    } else {
+      // No modo normal, mostra apenas itens sem kidsMode ou com kidsMode === false
+      if (item.kidsMode === true) return false;
+    }
+    
+    return true;
+  }).map(item => {
+    // Renomeia "Relatórios de Culto" para "Domingo Kids" no modo Kids
+    if (item.url === '/relatorios-culto' && isKidsMode) {
+      return { ...item, title: 'Domingo Kids' };
+    }
+    return item;
+  });
 
   const filteredAccountItems = accountItems.filter(item =>
     item.roles.includes(user.role)
@@ -156,14 +186,20 @@ export function Sidebar() {
         <div className="p-4 border-b">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-md">
-              <img src={logoVideira} alt="Videira Logo" className="w-9 h-9" />
+              <img 
+                src={isKidsMode ? logoKids : logoVideira} 
+                alt={isKidsMode ? "Videira Kids Logo" : "Videira Logo"} 
+                className={`w-9 h-9 ${isKidsMode ? 'rounded-full' : ''}`}
+              />
             </div>
             {!collapsed && (
               <div>
-                <h2 className="font-bold text-lg bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
-                  Videira
+                <h2 className={`font-bold text-lg ${isKidsMode ? 'bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent' : 'bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent'}`}>
+                  {isKidsMode ? 'Videira Kids' : 'Videira'}
                 </h2>
-                <p className="text-xs text-muted-foreground">São Miguel</p>
+                {!isKidsMode && (
+                  <p className="text-xs text-muted-foreground">São Miguel</p>
+                )}
               </div>
             )}
           </div>

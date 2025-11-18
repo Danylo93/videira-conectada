@@ -1,0 +1,224 @@
+{
+  "name": "Enviar Eventos para WhatsApp (Evolution API)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "supabase-webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook Supabase",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "supabase-events"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Processar dados do webhook do Supabase\nconst body = $input.item.json;\n\n// Supabase envia os dados em body.record ou body.new\nconst event = body.record || body.new || body;\n\n// Verificar se o evento está ativo e ainda não foi enviado\nif (event.active && !event.whatsapp_sent) {\n  return {\n    json: {\n      id: event.id,\n      name: event.name,\n      description: event.description,\n      event_date: event.event_date,\n      location: event.location,\n      type: event.type,\n      shouldSend: true\n    }\n  };\n}\n\nreturn {\n  json: {\n    shouldSend: false,\n    reason: event.whatsapp_sent ? 'Já foi enviado' : 'Evento inativo'\n  }\n};"
+      },
+      "id": "process-data",
+      "name": "Processar Dados",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.shouldSend }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-send",
+      "name": "Verificar se deve enviar",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Formatar mensagem para WhatsApp\nconst event = $input.item.json;\n\n// Formatar data\nconst eventDate = new Date(event.event_date);\nconst formattedDate = eventDate.toLocaleDateString('pt-BR', {\n  weekday: 'long',\n  year: 'numeric',\n  month: 'long',\n  day: 'numeric',\n  hour: '2-digit',\n  minute: '2-digit'\n});\n\n// Criar mensagem formatada\nconst message = `📅 *${event.name}*\n\n${event.description}\n\n📍 *Local:* ${event.location}\n📆 *Data:* ${formattedDate}\n🏷️ *Tipo:* ${event.type}\n\n_Evento criado na Agenda da Videira Conectada_`;\n\nreturn {\n  json: {\n    message: message,\n    eventId: event.id,\n    groupId: $env.WHATSAPP_GROUP_ID || '{{ $env.WHATSAPP_GROUP_ID }}'\n  }\n};"
+      },
+      "id": "format-message",
+      "name": "Formatar Mensagem",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 200]
+    },
+    {
+      "parameters": {
+        "instanceName": "={{ $env.EVOLUTION_INSTANCE_NAME }}",
+        "operation": "sendText",
+        "number": "={{ $json.groupId }}",
+        "text": "={{ $json.message }}"
+      },
+      "id": "send-whatsapp",
+      "name": "Enviar via Evolution API",
+      "type": "@evolution-api/n8n-nodes-evolution-api",
+      "typeVersion": 1,
+      "position": [1050, 200],
+      "credentials": {
+        "evolutionApi": {
+          "id": "evolution-api",
+          "name": "Evolution API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/events?id=eq.{{ $('Formatar Mensagem').item.json.eventId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"whatsapp_sent\": true\n}",
+        "options": {}
+      },
+      "id": "update-sent",
+      "name": "Marcar como Enviado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1250, 200],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "supabase-api",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"message\": \"Evento enviado para WhatsApp com sucesso\",\n  \"eventId\": \"{{ $('Formatar Mensagem').item.json.eventId }}\"\n}"
+      },
+      "id": "respond",
+      "name": "Responder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1450, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": false,\n  \"message\": \"Evento não enviado\",\n  \"reason\": \"{{ $('Processar Dados').item.json.reason || 'Erro desconhecido' }}\"\n}"
+      },
+      "id": "respond-skip",
+      "name": "Responder (Pular)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [850, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": false,\n  \"message\": \"Erro ao enviar para WhatsApp\",\n  \"error\": \"{{ $json }}\"\n}"
+      },
+      "id": "respond-error",
+      "name": "Responder (Erro)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1250, 400]
+    }
+  ],
+  "connections": {
+    "Webhook Supabase": {
+      "main": [
+        [
+          {
+            "node": "Processar Dados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar Dados": {
+      "main": [
+        [
+          {
+            "node": "Verificar se deve enviar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar se deve enviar": {
+      "main": [
+        [
+          {
+            "node": "Formatar Mensagem",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder (Pular)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar Mensagem": {
+      "main": [
+        [
+          {
+            "node": "Enviar via Evolution API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar via Evolution API": {
+      "main": [
+        [
+          {
+            "node": "Marcar como Enviado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar como Enviado": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-01-16T00:00:00.000Z",
+  "versionId": "1"
+}

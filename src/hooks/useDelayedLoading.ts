@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
  * Mantém o loader visível por, no mínimo, `minDelayMs`.
  * Retorna `true` enquanto o overlay deve ser exibido.
  */
-export function useDelayedLoading(ready: boolean, minDelayMs = 3500) {
+export function useDelayedLoading(ready: boolean, minDelayMs = 1000) {
   const start = useRef<number | null>(null);
   const [show, setShow] = useState(true);
 

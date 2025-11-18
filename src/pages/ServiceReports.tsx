@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useProfileMode } from "@/contexts/ProfileModeContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -14,6 +14,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   Select,
   SelectContent,
@@ -39,8 +50,10 @@ import {
   Edit,
   Trash2,
   Download,
-  Eye,
   Church,
+  Users,
+  TrendingUp,
+  BarChart3,
 } from "lucide-react";
 import {
   LineChart,
@@ -59,7 +72,9 @@ import FancyLoader from "@/components/FancyLoader";
 
 export function ServiceReports() {
   const { user } = useAuth();
+  const { mode } = useProfileMode();
   const { toast } = useToast();
+  const isKidsMode = mode === 'kids';
 
   // ---- state ---------------------------------------------------------------
   const [reports, setReports] = useState<ServiceReportType[]>([]);
@@ -67,8 +82,7 @@ export function ServiceReports() {
   const [selectedLeaderId, setSelectedLeaderId] = useState<string>("");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
-  const [viewingReport, setViewingReport] = useState<ServiceReportType | null>(null);
+  const [deleteReportId, setDeleteReportId] = useState<string | null>(null);
   const [serviceDate, setServiceDate] = useState("");
   const [observations, setObservations] = useState("");
   const [allMembers, setAllMembers] = useState<Member[]>([]);
@@ -76,6 +90,8 @@ export function ServiceReports() {
   const [selectedVisitorIds, setSelectedVisitorIds] = useState<string[]>([]);
   const [editingReport, setEditingReport] = useState<ServiceReportType | null>(null);
   const [loading, setLoading] = useState(true);
+  // Para modo normal: apenas quantidade
+  const [totalAttendance, setTotalAttendance] = useState<number>(0);
   
   // Filtros de mês e ano
   const currentDate = new Date();
@@ -85,16 +101,38 @@ export function ServiceReports() {
   const memberOptions = allMembers.filter((m) => m.type === "member");
   const visitorOptions = allMembers.filter((m) => m.type === "frequentador");
 
+  // Helper para converter string de data (YYYY-MM-DD) para Date no timezone local
+  const parseLocalDate = (dateString: string): Date => {
+    const [year, month, day] = dateString.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  };
+
+  // Helper para converter Date para string no formato YYYY-MM-DD (timezone local)
+  const formatDateForInput = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   // Load leaders for pastor
   const loadLeaders = useCallback(async () => {
     if (!user || user.role !== "pastor") return;
 
-    const { data, error } = await supabase
+    let query = supabase
       .from("profiles")
-      .select("id, name, email, celula")
+      .select("id, name, email, celula, is_kids")
       .eq("role", "lider")
-      .eq("pastor_uuid", user.id)
-      .order("name");
+      .eq("pastor_uuid", user.id);
+    
+    // No modo Kids, mostrar apenas os do modo Kids. No modo normal, mostrar apenas os do modo normal
+    if (isKidsMode) {
+      query = query.eq('is_kids', true);
+    } else {
+      query = query.or('is_kids.is.null,is_kids.eq.false');
+    }
+    
+    const { data, error } = await query.order("name");
 
     if (error) {
       console.error("Error loading leaders:", error);
@@ -109,7 +147,7 @@ export function ServiceReports() {
       createdAt: new Date(),
     }));
     setLeaders(formatted);
-  }, [user]);
+  }, [user, isKidsMode]);
 
   // ---- data load -----------------------------------------------------------
   useEffect(() => {
@@ -129,27 +167,35 @@ export function ServiceReports() {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, mode]);
 
-  // Recarregar membros quando líder selecionado mudar (para pastor)
+  // Recarregar membros quando líder selecionado mudar (para pastor no modo Kids)
   useEffect(() => {
-    if (user && user.role === "pastor" && selectedLeaderId) {
+    if (user && user.role === "pastor" && isKidsMode && selectedLeaderId) {
       setLoading(true);
       loadMembers().then(() => {
         loadReports();
       });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedLeaderId]);
-
-  // Recarregar relatórios quando mês ou ano mudarem
-  useEffect(() => {
-    if (user && ((user.role === "lider" && allMembers.length > 0) || (user.role === "pastor" && selectedLeaderId && allMembers.length > 0))) {
+    } else if (user && user.role === "pastor" && !isKidsMode) {
+      // No modo normal, carregar relatórios do próprio pastor
       setLoading(true);
       loadReports();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMonth, selectedYear]);
+  }, [selectedLeaderId, isKidsMode]);
+
+  // Recarregar relatórios quando mês ou ano mudarem
+  useEffect(() => {
+    if (user && (
+      (user.role === "lider" && allMembers.length > 0) || 
+      (user.role === "pastor" && isKidsMode && selectedLeaderId && allMembers.length > 0) ||
+      (user.role === "pastor" && !isKidsMode)
+    )) {
+      setLoading(true);
+      loadReports();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMonth, selectedYear, isKidsMode]);
 
   const loadMembers = async (): Promise<Member[]> => {
     if (!user) return [];
@@ -193,21 +239,35 @@ export function ServiceReports() {
   const loadReports = async () => {
     if (!user) return;
 
-    const liderId = user.role === "pastor" ? selectedLeaderId : user.id;
-    
-    if (user.role === "pastor" && !selectedLeaderId) {
-      setReports([]);
-      setLoading(false);
-      return;
+    let liderId: string;
+    if (user.role === "pastor") {
+      if (isKidsMode) {
+        // Modo Kids: precisa selecionar líder
+        if (!selectedLeaderId) {
+          setReports([]);
+          setLoading(false);
+          return;
+        }
+        liderId = selectedLeaderId;
+      } else {
+        // Modo Normal: usar o próprio pastor
+        liderId = user.id;
+      }
+    } else {
+      liderId = user.id;
     }
 
-    const membersList = allMembers.length === 0 ? await loadMembers() : allMembers;
+    // No modo normal (pastor), não precisa carregar membros
+    let membersList: Member[] = [];
+    if (isKidsMode || user.role === "lider") {
+      membersList = allMembers.length === 0 ? await loadMembers() : allMembers;
+    }
 
     // Criar filtro de data baseado no mês e ano selecionados
     const startDate = new Date(selectedYear, selectedMonth - 1, 1);
     const endDate = new Date(selectedYear, selectedMonth, 0); // Último dia do mês
 
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from("service_attendance_reports")
       .select("*")
       .eq("lider_id", liderId)
@@ -228,22 +288,55 @@ export function ServiceReports() {
       return;
     }
 
-    const formattedReports: ServiceReportType[] = (data || []).map((report) => ({
-      id: report.id,
-      liderId: report.lider_id,
-      serviceDate: new Date(report.service_date),
-      members: membersList.filter((m) => report.members_present?.includes(m.id)),
-      frequentadores: membersList.filter((m) =>
-        report.visitors_present?.includes(m.id)
-      ),
-      observations: report.observations,
-      status: report.status as
-        | "draft"
-        | "submitted"
-        | "approved"
-        | "needs_correction",
-      submittedAt: new Date(report.submitted_at),
-    }));
+    const formattedReports: ServiceReportType[] = (data || []).map((report) => {
+      // No modo normal (pastor), usar total_attendance se disponível
+      if (!isKidsMode && user.role === "pastor" && report.total_attendance) {
+        const total = report.total_attendance;
+        return {
+          id: report.id,
+          liderId: report.lider_id,
+          serviceDate: parseLocalDate(report.service_date),
+          members: Array(total).fill(null).map((_, i) => ({
+            id: `total_${i}`,
+            name: '',
+            phone: '',
+            email: '',
+            type: 'member' as const,
+            liderId: report.lider_id,
+            joinDate: new Date(),
+            active: true,
+          })),
+          frequentadores: [],
+          observations: report.observations,
+          status: report.status as
+            | "draft"
+            | "submitted"
+            | "approved"
+            | "needs_correction",
+          submittedAt: new Date(report.submitted_at),
+          totalAttendance: total,
+        };
+      }
+      
+      // Modo Kids ou Líder: usar membros reais
+      return {
+        id: report.id,
+        liderId: report.lider_id,
+        serviceDate: parseLocalDate(report.service_date),
+        members: membersList.filter((m) => report.members_present?.includes(m.id)),
+        frequentadores: membersList.filter((m) =>
+          report.visitors_present?.includes(m.id)
+        ),
+        observations: report.observations,
+        status: report.status as
+          | "draft"
+          | "submitted"
+          | "approved"
+          | "needs_correction",
+        submittedAt: new Date(report.submitted_at),
+        totalAttendance: report.total_attendance || undefined,
+      };
+    });
 
     setReports(formattedReports);
     setLoading(false);
@@ -252,6 +345,26 @@ export function ServiceReports() {
   // ---- DERIVED DATA (apenas QUANTIDADE) ------------------------------------
 
   const monthlyChartData = useMemo(() => {
+    if (!isKidsMode && user?.role === "pastor") {
+      // Modo Normal: mostrar dados por data individual (não agrupar por mês)
+      return reports
+        .sort((a, b) => a.serviceDate.getTime() - b.serviceDate.getTime())
+        .map((r) => {
+          const total = r.members.length + r.frequentadores.length;
+          return {
+            monthLabel: r.serviceDate.toLocaleDateString("pt-BR", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            }),
+            members: 0,
+            frequentadores: 0,
+            total: total,
+          };
+        });
+    }
+
+    // Modo Kids: agrupar por mês e calcular média
     const map = reports.reduce((acc, r) => {
       const d = r.serviceDate;
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -282,37 +395,14 @@ export function ServiceReports() {
         }),
         members: m.weeks > 0 ? Math.round(m.mSum / m.weeks) : 0,
         frequentadores: m.weeks > 0 ? Math.round(m.fSum / m.weeks) : 0,
+        total: m.weeks > 0 ? Math.round((m.mSum + m.fSum) / m.weeks) : 0,
       }));
-  }, [reports]);
+  }, [reports, isKidsMode, user?.role]);
 
   const chartData = monthlyChartData;
   const xKey = "monthLabel";
 
-  // ---- helpers visualização ------------------------------------------------
-  const openViewReport = (report: ServiceReportType) => {
-    setViewingReport(report);
-    setIsViewDialogOpen(true);
-  };
 
-  const StatusBadge = ({ status }: { status: ServiceReportType["status"] }) => (
-    <Badge
-      variant={
-        status === "approved"
-          ? "default"
-          : status === "needs_correction"
-          ? "destructive"
-          : "secondary"
-      }
-    >
-      {status === "draft"
-        ? "Rascunho"
-        : status === "submitted"
-        ? "Enviado"
-        : status === "needs_correction"
-        ? "Correção"
-        : "Aprovado"}
-    </Badge>
-  );
 
   // ---- returns condicionais ------------------------------------------------
   if (!user || (user.role !== "lider" && user.role !== "pastor")) {
@@ -340,27 +430,54 @@ export function ServiceReports() {
   const handleCreateReport = async () => {
     if (!user || !serviceDate) return;
 
-    const liderId = user.role === "pastor" ? selectedLeaderId : user.id;
+    // No modo normal (pastor), usar o próprio pastor como lider_id e apenas quantidade
+    let liderId: string;
+    let membersPresent: string[] = [];
+    let visitorsPresent: string[] = [];
     
-    if (user.role === "pastor" && !selectedLeaderId) {
-      toast({
-        title: "Erro",
-        description: "Por favor, selecione um líder.",
-        variant: "destructive",
-      });
-      return;
+    if (user.role === "pastor") {
+      if (isKidsMode) {
+        // Modo Kids: precisa selecionar líder
+        if (!selectedLeaderId) {
+          toast({
+            title: "Erro",
+            description: "Por favor, selecione um líder.",
+            variant: "destructive",
+          });
+          return;
+        }
+        liderId = selectedLeaderId;
+        membersPresent = selectedMemberIds;
+        visitorsPresent = selectedVisitorIds;
+      } else {
+        // Modo Normal: usar o próprio pastor e quantidade total
+        liderId = user.id;
+        // No modo normal, deixar arrays vazios e usar total_attendance
+        membersPresent = [];
+        visitorsPresent = [];
+      }
+    } else {
+      // Líder: usar o próprio ID
+      liderId = user.id;
+      membersPresent = selectedMemberIds;
+      visitorsPresent = selectedVisitorIds;
     }
 
-    const { error } = await supabase.from("service_attendance_reports").insert([
-      {
-        lider_id: liderId,
-        service_date: serviceDate,
-        observations: observations || null,
-        status: "draft",
-        members_present: selectedMemberIds,
-        visitors_present: selectedVisitorIds,
-      },
-    ]);
+    const insertData: any = {
+      lider_id: liderId,
+      service_date: serviceDate,
+      observations: observations || null,
+      status: "draft",
+      members_present: membersPresent,
+      visitors_present: visitorsPresent,
+    };
+
+    // No modo normal (pastor), adicionar total_attendance
+    if (user.role === "pastor" && !isKidsMode) {
+      insertData.total_attendance = totalAttendance;
+    }
+
+    const { error } = await (supabase as any).from("service_attendance_reports").insert([insertData]);
 
     if (error) {
       console.error("Error creating service report:", error);
@@ -380,40 +497,104 @@ export function ServiceReports() {
     setObservations("");
     setSelectedMemberIds([]);
     setSelectedVisitorIds([]);
+    setTotalAttendance(0);
 
     toast({ title: "Sucesso", description: "Relatório criado com sucesso!" });
   };
 
   const openEditReport = (report: ServiceReportType) => {
     setEditingReport(report);
-    setServiceDate(report.serviceDate.toISOString().split("T")[0]);
+    setServiceDate(formatDateForInput(report.serviceDate));
     setObservations(report.observations || "");
-    setSelectedMemberIds(report.members.map((m) => m.id));
-    setSelectedVisitorIds(report.frequentadores.map((f) => f.id));
+    
+    // No modo normal (pastor), calcular quantidade total
+    if (!isKidsMode && user?.role === "pastor") {
+      // Se o relatório tem total_attendance, usar ele; senão, calcular
+      const total = report.totalAttendance || (report.members.length + report.frequentadores.length);
+      setTotalAttendance(total);
+      setSelectedMemberIds([]);
+      setSelectedVisitorIds([]);
+    } else {
+      // Modo Kids ou Líder: usar membros reais
+      setSelectedMemberIds(report.members.map((m) => m.id));
+      setSelectedVisitorIds(report.frequentadores.map((f) => f.id));
+      setTotalAttendance(0);
+    }
+    
     setIsEditDialogOpen(true);
   };
 
   const handleUpdateReport = async () => {
-    if (!user || !editingReport) return;
+    if (!user || !editingReport) {
+      console.error("handleUpdateReport: user ou editingReport não definido", { user, editingReport });
+      return;
+    }
 
-    const { error } = await supabase
-      .from("service_attendance_reports")
-      .update({
-        service_date: serviceDate,
-        observations: observations || null,
-        members_present: selectedMemberIds,
-        visitors_present: selectedVisitorIds,
-      })
-      .eq("id", editingReport.id);
+    console.log("handleUpdateReport iniciado", {
+      serviceDate,
+      totalAttendance,
+      isKidsMode,
+      userRole: user.role,
+      editingReportId: editingReport.id,
+    });
 
-    if (error) {
+    // Validação: data é obrigatória
+    if (!serviceDate) {
       toast({
         title: "Erro",
-        description: "Não foi possível atualizar o relatório.",
+        description: "Por favor, selecione uma data.",
         variant: "destructive",
       });
       return;
     }
+
+    // Validação: no modo normal (pastor), quantidade deve ser maior que 0
+    if (!isKidsMode && user.role === "pastor" && (!totalAttendance || totalAttendance === 0)) {
+      toast({
+        title: "Erro",
+        description: "Por favor, informe a quantidade de pessoas.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    let membersPresent: string[] = selectedMemberIds;
+    let visitorsPresent: string[] = selectedVisitorIds;
+    
+    const updateData: any = {
+      service_date: serviceDate,
+      observations: observations || null,
+      members_present: membersPresent,
+      visitors_present: visitorsPresent,
+    };
+
+    // No modo normal (pastor), usar quantidade total
+    if (!isKidsMode && user.role === "pastor") {
+      updateData.members_present = [];
+      updateData.visitors_present = [];
+      updateData.total_attendance = totalAttendance;
+    }
+
+    console.log("Dados para atualização:", updateData);
+
+    // Usar uma query mais explícita para evitar problemas de tipo
+    const { error, data } = await (supabase as any)
+      .from("service_attendance_reports")
+      .update(updateData)
+      .eq("id", editingReport.id)
+      .select();
+
+    if (error) {
+      console.error("Erro ao atualizar relatório:", error);
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível atualizar o relatório.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    console.log("Relatório atualizado com sucesso:", data);
 
     await loadReports();
     setIsEditDialogOpen(false);
@@ -422,29 +603,34 @@ export function ServiceReports() {
     setObservations("");
     setSelectedMemberIds([]);
     setSelectedVisitorIds([]);
+    setTotalAttendance(0);
 
     toast({ title: "Sucesso", description: "Relatório atualizado com sucesso!" });
   };
 
-  const handleDeleteReport = async (id: string) => {
-    const { error } = await supabase.from("service_attendance_reports").delete().eq("id", id);
+  const handleDeleteReport = async () => {
+    if (!deleteReportId) return;
+
+    const { error } = await (supabase as any).from("service_attendance_reports").delete().eq("id", deleteReportId);
     if (error) {
       toast({
         title: "Erro",
         description: "Não foi possível excluir o relatório.",
         variant: "destructive",
       });
+      setDeleteReportId(null);
       return;
     }
 
     await loadReports();
+    setDeleteReportId(null);
     toast({ title: "Sucesso", description: "Relatório excluído com sucesso!" });
   };
 
   const handleExportReport = (report: ServiceReportType) => {
     const data = [
       {
-        "Data do Culto": report.serviceDate.toLocaleDateString("pt-BR"),
+        [isKidsMode ? "Data do Domingo Kids" : "Data do Culto"]: report.serviceDate.toLocaleDateString("pt-BR"),
         "Membros (qtde)": report.members.map((m) => m.name).join(", "),
         "Frequentadores (qtde)": report.frequentadores.map((f) => f.name).join(", "),
         Observacoes: report.observations || "",
@@ -460,14 +646,14 @@ export function ServiceReports() {
   };
 
   const handleShareReport = (report: ServiceReportType) => {
-    const message = `Relatório de Presença no Culto ${report.serviceDate.toLocaleDateString("pt-BR")}
+    const message = `${isKidsMode ? 'Relatório de Domingo Kids' : 'Relatório de Presença no Culto'} ${report.serviceDate.toLocaleDateString("pt-BR")}
 Membros: ${report.members.map((m) => m.name).join(", ")}
 Frequentadores: ${report.frequentadores.map((f) => f.name).join(", ")}
 Observações: ${report.observations || ""}`;
     const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
     window.open(url, "_blank");
     if (report.status === "draft") {
-      supabase
+      (supabase as any)
         .from("service_attendance_reports")
         .update({ status: "submitted" })
         .eq("id", report.id)
@@ -492,297 +678,39 @@ Observações: ${report.observations || ""}`;
   // Se for pastor, usar abas
   if (user.role === "pastor") {
     return (
-      <Tabs defaultValue="create" className="space-y-6 sm:space-y-8 animate-fade-in pb-16">
+      <Tabs defaultValue="view" className="space-y-6 sm:space-y-8 animate-fade-in pb-16">
         <TabsList className="sticky top-0 z-10 mx-auto w-full sm:w-auto overflow-auto rounded-xl">
-          <TabsTrigger value="create">Criar Relatório</TabsTrigger>
-          <TabsTrigger value="view">Ver Relatórios</TabsTrigger>
+          <TabsTrigger value="view">
+            {isKidsMode ? 'Ver Relatórios Domingo Kids' : 'Ver Relatórios'}
+          </TabsTrigger>
+          <TabsTrigger value="create">
+            {isKidsMode ? 'Criar Relatório Domingo Kids' : 'Criar Relatório'}
+          </TabsTrigger>
         </TabsList>
-
-        {/* Aba de Criar Relatório */}
-        <TabsContent value="create" className="space-y-10">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-foreground">
-                Criar Relatório de Presença no Culto
-              </h1>
-              <div className="mt-2">
-                <Select value={selectedLeaderId} onValueChange={setSelectedLeaderId}>
-                  <SelectTrigger className="w-full sm:w-[300px]">
-                    <SelectValue placeholder="Selecione um líder" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {leaders.map((leader) => (
-                      <SelectItem key={leader.id} value={leader.id}>
-                        {leader.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="gradient-primary" disabled={!selectedLeaderId}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Novo Relatório
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
-                <DialogHeader>
-                  <DialogTitle>Criar Novo Relatório de Presença no Culto</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="service-date">Data do Culto</Label>
-                    <Input
-                      id="service-date"
-                      type="date"
-                      value={serviceDate}
-                      onChange={(e) => setServiceDate(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <Label>Membros Presentes</Label>
-                    <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
-                      {memberOptions.map((m) => (
-                        <div key={m.id} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`member-${m.id}`}
-                            checked={selectedMemberIds.includes(m.id)}
-                            onCheckedChange={(checked) =>
-                              setSelectedMemberIds(
-                                checked
-                                  ? [...selectedMemberIds, m.id]
-                                  : selectedMemberIds.filter((id) => id !== m.id)
-                              )
-                            }
-                          />
-                          <label htmlFor={`member-${m.id}`} className="text-sm">
-                            {m.name}
-                          </label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <Label>Frequentadores Presentes</Label>
-                    <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
-                      {visitorOptions.map((v) => (
-                        <div key={v.id} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`visitor-${v.id}`}
-                            checked={selectedVisitorIds.includes(v.id)}
-                            onCheckedChange={(checked) =>
-                              setSelectedVisitorIds(
-                                checked
-                                  ? [...selectedVisitorIds, v.id]
-                                  : selectedVisitorIds.filter((id) => id !== v.id)
-                              )
-                            }
-                          />
-                          <label htmlFor={`visitor-${v.id}`} className="text-sm">
-                            {v.name}
-                          </label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <Label htmlFor="observations">Observações</Label>
-                    <Textarea
-                      id="observations"
-                      value={observations}
-                      onChange={(e) => setObservations(e.target.value)}
-                      placeholder="Observações sobre o culto..."
-                      rows={3}
-                    />
-                  </div>
-                  <Button onClick={handleCreateReport} className="w-full gradient-primary">
-                    Criar Relatório
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-
-            {/* Diálogos de Editar e Visualizar */}
-            <Dialog
-              open={isEditDialogOpen}
-              onOpenChange={(open) => {
-                setIsEditDialogOpen(open);
-                if (!open) setEditingReport(null);
-              }}
-            >
-              <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
-                <DialogHeader>
-                  <DialogTitle>Editar Relatório</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="edit-service-date">Data do Culto</Label>
-                    <Input
-                      id="edit-service-date"
-                      type="date"
-                      value={serviceDate}
-                      onChange={(e) => setServiceDate(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <Label>Membros Presentes</Label>
-                    <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
-                      {memberOptions.map((m) => (
-                        <div key={m.id} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`edit-member-${m.id}`}
-                            checked={selectedMemberIds.includes(m.id)}
-                            onCheckedChange={(checked) =>
-                              setSelectedMemberIds(
-                                checked
-                                  ? [...selectedMemberIds, m.id]
-                                  : selectedMemberIds.filter((id) => id !== m.id)
-                              )
-                            }
-                          />
-                          <label htmlFor={`edit-member-${m.id}`} className="text-sm">
-                            {m.name}
-                          </label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <Label>Frequentadores Presentes</Label>
-                    <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
-                      {visitorOptions.map((v) => (
-                        <div key={v.id} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`edit-visitor-${v.id}`}
-                            checked={selectedVisitorIds.includes(v.id)}
-                            onCheckedChange={(checked) =>
-                              setSelectedVisitorIds(
-                                checked
-                                  ? [...selectedVisitorIds, v.id]
-                                  : selectedVisitorIds.filter((id) => id !== v.id)
-                              )
-                            }
-                          />
-                          <label htmlFor={`edit-visitor-${v.id}`} className="text-sm">
-                            {v.name}
-                          </label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <Label htmlFor="edit-observations">Observações</Label>
-                    <Textarea
-                      id="edit-observations"
-                      value={observations}
-                      onChange={(e) => setObservations(e.target.value)}
-                      placeholder="Observações sobre o culto..."
-                      rows={3}
-                    />
-                  </div>
-                  <div className="flex justify-end gap-2 pt-2">
-                    <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-                      Cancelar
-                    </Button>
-                    <Button className="gradient-primary" onClick={handleUpdateReport}>
-                      Salvar alterações
-                    </Button>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
-
-            <Dialog
-              open={isViewDialogOpen}
-              onOpenChange={(open) => {
-                setIsViewDialogOpen(open);
-                if (!open) setViewingReport(null);
-              }}
-            >
-              <DialogContent className="sm:max-w-lg">
-                <DialogHeader>
-                  <DialogTitle>Resumo do Relatório</DialogTitle>
-                </DialogHeader>
-                {viewingReport && (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <p className="text-xs text-muted-foreground">Data do Culto</p>
-                        <p className="font-medium">{viewingReport.serviceDate.toLocaleDateString("pt-BR")}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Status</p>
-                        <div className="mt-1"><StatusBadge status={viewingReport.status} /></div>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Enviado em</p>
-                        <p className="font-medium">
-                          {viewingReport.submittedAt.toLocaleDateString("pt-BR")}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <p className="text-xs text-muted-foreground">Membros presentes ({viewingReport.members.length})</p>
-                      {viewingReport.members.length > 0 ? (
-                        <p className="text-sm leading-relaxed">
-                          {viewingReport.members.map((m) => m.name).join(", ")}
-                        </p>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">Nenhum membro presente.</p>
-                      )}
-                    </div>
-                    <div className="space-y-2">
-                      <p className="text-xs text-muted-foreground">Frequentadores presentes ({viewingReport.frequentadores.length})</p>
-                      {viewingReport.frequentadores.length > 0 ? (
-                        <p className="text-sm leading-relaxed">
-                          {viewingReport.frequentadores.map((f) => f.name).join(", ")}
-                        </p>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">Nenhum frequentador presente.</p>
-                      )}
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">Observações</p>
-                      <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                        {viewingReport.observations || "—"}
-                      </p>
-                    </div>
-                    <div className="flex justify-end gap-2 pt-1">
-                      <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>
-                        Fechar
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </DialogContent>
-            </Dialog>
-          </div>
-        </TabsContent>
 
         {/* Aba de Ver Relatórios */}
         <TabsContent value="view" className="space-y-10">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-foreground">
-                Relatórios de Presença no Culto
+                {isKidsMode ? 'Relatórios de Domingo Kids' : 'Relatórios de Presença no Culto'}
               </h1>
-              <div className="mt-2">
-                <Select value={selectedLeaderId} onValueChange={setSelectedLeaderId}>
-                  <SelectTrigger className="w-full sm:w-[300px]">
-                    <SelectValue placeholder="Selecione um líder" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {leaders.map((leader) => (
-                      <SelectItem key={leader.id} value={leader.id}>
-                        {leader.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {isKidsMode && (
+                <div className="mt-2">
+                  <Select value={selectedLeaderId} onValueChange={setSelectedLeaderId}>
+                    <SelectTrigger className="w-full sm:w-[300px]">
+                      <SelectValue placeholder="Selecione um líder" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {leaders.map((leader) => (
+                        <SelectItem key={leader.id} value={leader.id}>
+                          {leader.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
           </div>
 
@@ -800,32 +728,57 @@ Observações: ${report.observations || ""}`;
                       <SelectValue placeholder="Selecione o mês" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="1">Janeiro</SelectItem>
-                      <SelectItem value="2">Fevereiro</SelectItem>
-                      <SelectItem value="3">Março</SelectItem>
-                      <SelectItem value="4">Abril</SelectItem>
-                      <SelectItem value="5">Maio</SelectItem>
-                      <SelectItem value="6">Junho</SelectItem>
-                      <SelectItem value="7">Julho</SelectItem>
-                      <SelectItem value="8">Agosto</SelectItem>
-                      <SelectItem value="9">Setembro</SelectItem>
-                      <SelectItem value="10">Outubro</SelectItem>
-                      <SelectItem value="11">Novembro</SelectItem>
-                      <SelectItem value="12">Dezembro</SelectItem>
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((month) => {
+                        // Não permitir mês futuro se o ano for o atual
+                        const isCurrentYear = selectedYear === currentDate.getFullYear();
+                        const isFutureMonth = isCurrentYear && month > currentDate.getMonth() + 1;
+                        return (
+                          <SelectItem 
+                            key={month} 
+                            value={month.toString()}
+                            disabled={isFutureMonth}
+                          >
+                            {month === 1 && 'Janeiro'}
+                            {month === 2 && 'Fevereiro'}
+                            {month === 3 && 'Março'}
+                            {month === 4 && 'Abril'}
+                            {month === 5 && 'Maio'}
+                            {month === 6 && 'Junho'}
+                            {month === 7 && 'Julho'}
+                            {month === 8 && 'Agosto'}
+                            {month === 9 && 'Setembro'}
+                            {month === 10 && 'Outubro'}
+                            {month === 11 && 'Novembro'}
+                            {month === 12 && 'Dezembro'}
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="flex-1">
                   <Label htmlFor="year">Ano</Label>
-                  <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
+                  <Select value={selectedYear.toString()} onValueChange={(value) => {
+                    const newYear = parseInt(value);
+                    setSelectedYear(newYear);
+                    // Se selecionar o ano atual, ajustar o mês se necessário
+                    if (newYear === currentDate.getFullYear() && selectedMonth > currentDate.getMonth() + 1) {
+                      setSelectedMonth(currentDate.getMonth() + 1);
+                    }
+                  }}>
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione o ano" />
                     </SelectTrigger>
                     <SelectContent>
                       {Array.from({ length: 5 }, (_, i) => {
                         const year = currentDate.getFullYear() - 2 + i;
+                        const isFutureYear = year > currentDate.getFullYear();
                         return (
-                          <SelectItem key={year} value={year.toString()}>
+                          <SelectItem 
+                            key={year} 
+                            value={year.toString()}
+                            disabled={isFutureYear}
+                          >
                             {year}
                           </SelectItem>
                         );
@@ -837,145 +790,601 @@ Observações: ${report.observations || ""}`;
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className={isKidsMode ? '' : 'border-2 hover:shadow-lg transition-smooth'}>
             <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <CardTitle className="text-xl">
-                Presença no Culto (membros e frequentadores)
+              <CardTitle className={`text-xl flex items-center gap-2 ${isKidsMode ? '' : 'text-2xl'}`}>
+                {isKidsMode ? (
+                  'Presença no Culto (membros e frequentadores)'
+                ) : (
+                  <>
+                    <BarChart3 className="w-6 h-6 text-primary" />
+                    Presença Mensal no Culto
+                  </>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
               {chartData.length === 0 ? (
-                <p className="text-center text-muted-foreground">
-                  Nenhum dado disponível.
-                </p>
+                <div className="text-center py-12">
+                  <BarChart3 className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
+                  <p className="text-muted-foreground text-lg">
+                    Nenhum dado disponível para o período selecionado.
+                  </p>
+                </div>
               ) : (
-                <ResponsiveContainer width="100%" height={300}>
+                <ResponsiveContainer width="100%" height={isKidsMode ? 300 : 400}>
                   <LineChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis
                       dataKey={xKey}
                       interval={0}
                       height={60}
                       angle={-15}
                       tick={{ fontSize: 12 }}
+                      stroke="#6b7280"
                     />
-                    <YAxis allowDecimals={false} />
-                    <Tooltip />
+                    <YAxis allowDecimals={false} stroke="#6b7280" />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'white', 
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '8px',
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                      }} 
+                    />
                     <Legend />
-                    <Line
-                      type="monotone"
-                      dataKey="members"
-                      name="Membros (qtde)"
-                      stroke="#7c3aed"
-                      isAnimationActive
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="frequentadores"
-                      name="Frequentadores (qtde)"
-                      stroke="#16a34a"
-                      isAnimationActive
-                    />
+                    {isKidsMode ? (
+                      <>
+                        <Line
+                          type="monotone"
+                          dataKey="members"
+                          name="Membros (qtde)"
+                          stroke="#7c3aed"
+                          strokeWidth={2}
+                          dot={{ r: 4 }}
+                          isAnimationActive
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="frequentadores"
+                          name="Frequentadores (qtde)"
+                          stroke="#16a34a"
+                          strokeWidth={2}
+                          dot={{ r: 4 }}
+                          isAnimationActive
+                        />
+                      </>
+                    ) : (
+                      <Line
+                        type="monotone"
+                        dataKey="total"
+                        name="Quantidade Total"
+                        stroke="#7c3aed"
+                        strokeWidth={4}
+                        dot={{ r: 8, fill: '#7c3aed' }}
+                        activeDot={{ r: 10 }}
+                        isAnimationActive
+                      />
+                    )}
                   </LineChart>
                 </ResponsiveContainer>
               )}
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className={isKidsMode ? '' : 'border-2'}>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Church className="w-5 h-5 text-primary" />
-                Histórico de Relatórios
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Church className="w-6 h-6 text-primary" />
+                {isKidsMode ? 'Histórico de Relatórios' : 'Relatórios Registrados'}
               </CardTitle>
             </CardHeader>
-            <CardContent className="overflow-x-auto">
+            <CardContent>
               {reports.length === 0 ? (
-                <div className="text-center py-8">
-                  <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">Nenhum relatório criado ainda.</p>
+                <div className="text-center py-12">
+                  <FileText className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
+                  <p className="text-muted-foreground text-lg">
+                    Nenhum relatório criado ainda.
+                  </p>
+                </div>
+              ) : isKidsMode ? (
+                <div className="overflow-x-auto">
+                  <Table className="min-w-[820px]">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="min-w-[140px]">Data do Domingo Kids</TableHead>
+                        <TableHead className="min-w-[170px]">Data de Envio</TableHead>
+                        <TableHead className="min-w-[260px] text-right">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {reports.map((report) => (
+                        <TableRow key={report.id}>
+                          <TableCell className="font-medium">
+                            {report.serviceDate.toLocaleDateString("pt-BR")}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1 text-sm">
+                              <Calendar className="w-3 h-3" />
+                              {report.submittedAt.toLocaleDateString("pt-BR")}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex flex-wrap items-center justify-end gap-2">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => openEditReport(report)}
+                                aria-label="Editar relatório"
+                                title="Editar"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={() => setDeleteReportId(report.id)}
+                                    aria-label="Excluir relatório"
+                                    title="Excluir"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Tem certeza que deseja excluir o relatório de {report.serviceDate.toLocaleDateString("pt-BR")}? Esta ação não pode ser desfeita.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel onClick={() => setDeleteReportId(null)}>
+                                      Cancelar
+                                    </AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={handleDeleteReport}
+                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    >
+                                      Excluir
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => handleExportReport(report)}
+                                aria-label="Exportar relatório"
+                                title="Exportar"
+                              >
+                                <Download className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => handleShareReport(report)}
+                                aria-label="Compartilhar relatório"
+                                title="Compartilhar"
+                              >
+                                <Send className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </div>
               ) : (
-                <Table className="min-w-[820px]">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="min-w-[140px]">Data do Culto</TableHead>
-                      <TableHead className="min-w-[130px]">Status</TableHead>
-                      <TableHead className="min-w-[170px]">Data de Envio</TableHead>
-                      <TableHead className="min-w-[260px] text-right">Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {reports.map((report) => (
-                      <TableRow key={report.id}>
-                        <TableCell className="font-medium">
-                          {report.serviceDate.toLocaleDateString("pt-BR")}
-                        </TableCell>
-                        <TableCell>
-                          <StatusBadge status={report.status} />
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1 text-sm">
-                            <Calendar className="w-3 h-3" />
-                            {report.submittedAt.toLocaleDateString("pt-BR")}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {reports.map((report) => {
+                    const totalPeople = report.members.length + report.frequentadores.length;
+                    return (
+                      <Card key={report.id} className="hover:shadow-lg transition-smooth border-2">
+                        <CardHeader className="pb-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Calendar className="w-5 h-5 text-primary" />
+                              <CardTitle className="text-lg">
+                                {report.serviceDate.toLocaleDateString("pt-BR", {
+                                  day: '2-digit',
+                                  month: 'short',
+                                  year: 'numeric'
+                                })}
+                              </CardTitle>
+                            </div>
                           </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex flex-wrap items-center justify-end gap-2">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => openViewReport(report)}
-                              aria-label="Visualizar relatório"
-                              title="Visualizar"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => openEditReport(report)}
-                              aria-label="Editar relatório"
-                              title="Editar"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => handleDeleteReport(report.id)}
-                              aria-label="Excluir relatório"
-                              title="Excluir"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => handleExportReport(report)}
-                              aria-label="Exportar relatório"
-                              title="Exportar"
-                            >
-                              <Download className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => handleShareReport(report)}
-                              aria-label="Compartilhar relatório"
-                              title="Compartilhar"
-                            >
-                              <Send className="w-4 h-4" />
-                            </Button>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="flex items-center justify-center p-4 bg-gradient-to-br from-primary/10 to-primary/5 rounded-lg">
+                            <div className="text-center">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Users className="w-6 h-6 text-primary" />
+                                <span className="text-3xl font-bold text-primary">
+                                  {totalPeople}
+                                </span>
+                              </div>
+                              <p className="text-sm text-muted-foreground">pessoas presentes</p>
+                            </div>
                           </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                          {report.observations && (
+                            <div className="text-sm text-muted-foreground line-clamp-2">
+                              {report.observations}
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between pt-2 border-t">
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Calendar className="w-3 h-3" />
+                              {report.submittedAt.toLocaleDateString("pt-BR")}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8"
+                                onClick={() => openEditReport(report)}
+                                title="Editar"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-8 w-8 text-destructive hover:text-destructive"
+                                    onClick={() => setDeleteReportId(report.id)}
+                                    title="Excluir"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Tem certeza que deseja excluir o relatório de {report.serviceDate.toLocaleDateString("pt-BR")}? Esta ação não pode ser desfeita.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel onClick={() => setDeleteReportId(null)}>
+                                      Cancelar
+                                    </AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={handleDeleteReport}
+                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    >
+                                      Excluir
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Aba de Criar Relatório */}
+        <TabsContent value="create" className="space-y-10">
+          {isKidsMode ? (
+            // Modo Kids: interface original
+            <>
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <h1 className="text-2xl md:text-3xl font-bold text-foreground">
+                    Criar Relatório de Domingo Kids
+                  </h1>
+                  <div className="mt-2">
+                    <Select value={selectedLeaderId} onValueChange={setSelectedLeaderId}>
+                      <SelectTrigger className="w-full sm:w-[300px]">
+                        <SelectValue placeholder="Selecione um líder" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {leaders.map((leader) => (
+                          <SelectItem key={leader.id} value={leader.id}>
+                            {leader.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="gradient-primary" disabled={!selectedLeaderId}>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Novo Relatório
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle>Criar Novo Relatório de Domingo Kids</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="service-date">Data do Domingo Kids</Label>
+                        <Input
+                          id="service-date"
+                          type="date"
+                          value={serviceDate}
+                          onChange={(e) => setServiceDate(e.target.value)}
+                          max={new Date().toISOString().split('T')[0]}
+                        />
+                      </div>
+                      <div>
+                        <Label>Membros Presentes</Label>
+                        <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
+                          {memberOptions.map((m) => (
+                            <div key={m.id} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`member-${m.id}`}
+                                checked={selectedMemberIds.includes(m.id)}
+                                onCheckedChange={(checked) =>
+                                  setSelectedMemberIds(
+                                    checked
+                                      ? [...selectedMemberIds, m.id]
+                                      : selectedMemberIds.filter((id) => id !== m.id)
+                                  )
+                                }
+                              />
+                              <label htmlFor={`member-${m.id}`} className="text-sm">
+                                {m.name}
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <Label>Frequentadores Presentes</Label>
+                        <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
+                          {visitorOptions.map((v) => (
+                            <div key={v.id} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`visitor-${v.id}`}
+                                checked={selectedVisitorIds.includes(v.id)}
+                                onCheckedChange={(checked) =>
+                                  setSelectedVisitorIds(
+                                    checked
+                                      ? [...selectedVisitorIds, v.id]
+                                      : selectedVisitorIds.filter((id) => id !== v.id)
+                                  )
+                                }
+                              />
+                              <label htmlFor={`visitor-${v.id}`} className="text-sm">
+                                {v.name}
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <Label htmlFor="observations">Observações</Label>
+                        <Textarea
+                          id="observations"
+                          value={observations}
+                          onChange={(e) => setObservations(e.target.value)}
+                          placeholder="Observações sobre o domingo kids..."
+                          rows={3}
+                        />
+                      </div>
+                      <Button onClick={handleCreateReport} className="w-full gradient-primary">
+                        Criar Relatório
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </>
+          ) : (
+            // Modo Normal: interface moderna e simplificada
+            <div className="space-y-6">
+              <div className="text-center space-y-2">
+                <h1 className="text-3xl md:text-4xl font-bold text-foreground">
+                  Relatório de Presença no Culto
+                </h1>
+                <p className="text-muted-foreground">
+                  Registre a quantidade de pessoas presentes em cada culto
+                </p>
+              </div>
+
+              <Card className="border-2 hover:shadow-lg transition-smooth">
+                <CardHeader className="pb-4">
+                  <CardTitle className="flex items-center gap-2 text-xl">
+                    <Church className="w-6 h-6 text-primary" />
+                    Novo Relatório
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="service-date" className="text-base font-semibold">
+                        Data do Culto
+                      </Label>
+                      <Input
+                        id="service-date"
+                        type="date"
+                        value={serviceDate}
+                        onChange={(e) => setServiceDate(e.target.value)}
+                        max={new Date().toISOString().split('T')[0]}
+                        className="h-12 text-lg"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="total-attendance" className="text-base font-semibold">
+                        Quantidade de Pessoas
+                      </Label>
+                      <div className="relative">
+                        <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                        <Input
+                          id="total-attendance"
+                          type="number"
+                          min="0"
+                          value={totalAttendance || ''}
+                          onChange={(e) => setTotalAttendance(parseInt(e.target.value) || 0)}
+                          placeholder="Digite a quantidade"
+                          className="h-12 text-lg pl-10"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="observations" className="text-base font-semibold">
+                      Observações (opcional)
+                    </Label>
+                    <Textarea
+                      id="observations"
+                      value={observations}
+                      onChange={(e) => setObservations(e.target.value)}
+                      placeholder="Adicione observações sobre o culto..."
+                      rows={3}
+                      className="text-base"
+                    />
+                  </div>
+                  <Button 
+                    onClick={handleCreateReport} 
+                    className="w-full gradient-primary h-12 text-lg font-semibold"
+                    disabled={!serviceDate || totalAttendance === 0}
+                  >
+                    <Plus className="w-5 h-5 mr-2" />
+                    Criar Relatório
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Diálogos de Editar e Visualizar */}
+          <Dialog
+              open={isEditDialogOpen}
+              onOpenChange={(open) => {
+                setIsEditDialogOpen(open);
+                if (!open) setEditingReport(null);
+              }}
+            >
+              <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Editar Relatório</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="edit-service-date">
+                      {isKidsMode ? 'Data do Domingo Kids' : 'Data do Culto'}
+                    </Label>
+                    <Input
+                      id="edit-service-date"
+                      type="date"
+                      value={serviceDate}
+                      onChange={(e) => setServiceDate(e.target.value)}
+                      max={new Date().toISOString().split('T')[0]}
+                    />
+                  </div>
+                  {isKidsMode ? (
+                    <>
+                      <div>
+                        <Label>Membros Presentes</Label>
+                        <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
+                          {memberOptions.map((m) => (
+                            <div key={m.id} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`edit-member-${m.id}`}
+                                checked={selectedMemberIds.includes(m.id)}
+                                onCheckedChange={(checked) =>
+                                  setSelectedMemberIds(
+                                    checked
+                                      ? [...selectedMemberIds, m.id]
+                                      : selectedMemberIds.filter((id) => id !== m.id)
+                                  )
+                                }
+                              />
+                              <label htmlFor={`edit-member-${m.id}`} className="text-sm">
+                                {m.name}
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <Label>Frequentadores Presentes</Label>
+                        <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
+                          {visitorOptions.map((v) => (
+                            <div key={v.id} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`edit-visitor-${v.id}`}
+                                checked={selectedVisitorIds.includes(v.id)}
+                                onCheckedChange={(checked) =>
+                                  setSelectedVisitorIds(
+                                    checked
+                                      ? [...selectedVisitorIds, v.id]
+                                      : selectedVisitorIds.filter((id) => id !== v.id)
+                                  )
+                                }
+                              />
+                              <label htmlFor={`edit-visitor-${v.id}`} className="text-sm">
+                                {v.name}
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div>
+                      <Label htmlFor="edit-total-attendance" className="text-base font-semibold">
+                        Quantidade de Pessoas
+                      </Label>
+                      <div className="relative">
+                        <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                        <Input
+                          id="edit-total-attendance"
+                          type="number"
+                          min="0"
+                          value={totalAttendance || ''}
+                          onChange={(e) => setTotalAttendance(parseInt(e.target.value) || 0)}
+                          placeholder="Digite a quantidade total de pessoas"
+                          className="h-12 text-lg pl-10"
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <div>
+                    <Label htmlFor="edit-observations" className={isKidsMode ? '' : 'text-base font-semibold'}>
+                      Observações
+                    </Label>
+                    <Textarea
+                      id="edit-observations"
+                      value={observations}
+                      onChange={(e) => setObservations(e.target.value)}
+                      placeholder={isKidsMode ? "Observações sobre o domingo kids..." : "Observações sobre o culto..."}
+                      rows={3}
+                      className={isKidsMode ? '' : 'text-base'}
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                      Cancelar
+                    </Button>
+                    <Button 
+                      className="gradient-primary" 
+                      onClick={handleUpdateReport}
+                      disabled={!serviceDate || (!isKidsMode && user?.role === "pastor" && (!totalAttendance || totalAttendance === 0))}
+                    >
+                      Salvar alterações
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+
         </TabsContent>
       </Tabs>
     );
@@ -987,7 +1396,7 @@ Observações: ${report.observations || ""}`;
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-foreground">
-            Relatórios de Presença no Culto
+            {isKidsMode ? 'Relatórios de Domingo Kids' : 'Relatórios de Presença no Culto'}
           </h1>
           <p className="text-sm md:text-base text-muted-foreground">{cellName}</p>
         </div>
@@ -1001,16 +1410,21 @@ Observações: ${report.observations || ""}`;
           </DialogTrigger>
           <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Criar Novo Relatório de Presença no Culto</DialogTitle>
+              <DialogTitle>
+                {isKidsMode ? 'Criar Novo Relatório de Domingo Kids' : 'Criar Novo Relatório de Presença no Culto'}
+              </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <Label htmlFor="service-date">Data do Culto</Label>
+                <Label htmlFor="service-date">
+                  {isKidsMode ? 'Data do Domingo Kids' : 'Data do Culto'}
+                </Label>
                 <Input
                   id="service-date"
                   type="date"
                   value={serviceDate}
                   onChange={(e) => setServiceDate(e.target.value)}
+                  max={new Date().toISOString().split('T')[0]}
                 />
               </div>
               <div>
@@ -1065,7 +1479,7 @@ Observações: ${report.observations || ""}`;
                   id="observations"
                   value={observations}
                   onChange={(e) => setObservations(e.target.value)}
-                  placeholder="Observações sobre o culto..."
+                  placeholder={isKidsMode ? "Observações sobre o domingo kids..." : "Observações sobre o culto..."}
                   rows={3}
                 />
               </div>
@@ -1090,144 +1504,111 @@ Observações: ${report.observations || ""}`;
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <Label htmlFor="edit-service-date">Data do Culto</Label>
+                <Label htmlFor="edit-service-date">
+                  {isKidsMode ? 'Data do Domingo Kids' : 'Data do Culto'}
+                </Label>
                 <Input
                   id="edit-service-date"
                   type="date"
                   value={serviceDate}
                   onChange={(e) => setServiceDate(e.target.value)}
+                  max={new Date().toISOString().split('T')[0]}
                 />
               </div>
-              <div>
-                <Label>Membros Presentes</Label>
-                <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
-                  {memberOptions.map((m) => (
-                    <div key={m.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`edit-member-${m.id}`}
-                        checked={selectedMemberIds.includes(m.id)}
-                        onCheckedChange={(checked) =>
-                          setSelectedMemberIds(
-                            checked
-                              ? [...selectedMemberIds, m.id]
-                              : selectedMemberIds.filter((id) => id !== m.id)
-                          )
-                        }
-                      />
-                      <label htmlFor={`edit-member-${m.id}`} className="text-sm">
-                        {m.name}
-                      </label>
+              {isKidsMode ? (
+                <>
+                  <div>
+                    <Label>Membros Presentes</Label>
+                    <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
+                      {memberOptions.map((m) => (
+                        <div key={m.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`edit-member-${m.id}`}
+                            checked={selectedMemberIds.includes(m.id)}
+                            onCheckedChange={(checked) =>
+                              setSelectedMemberIds(
+                                checked
+                                  ? [...selectedMemberIds, m.id]
+                                  : selectedMemberIds.filter((id) => id !== m.id)
+                              )
+                            }
+                          />
+                          <label htmlFor={`edit-member-${m.id}`} className="text-sm">
+                            {m.name}
+                          </label>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <Label>Frequentadores Presentes</Label>
-                <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
-                  {visitorOptions.map((v) => (
-                    <div key={v.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`edit-visitor-${v.id}`}
-                        checked={selectedVisitorIds.includes(v.id)}
-                        onCheckedChange={(checked) =>
-                          setSelectedVisitorIds(
-                            checked
-                              ? [...selectedVisitorIds, v.id]
-                              : selectedVisitorIds.filter((id) => id !== v.id)
-                          )
-                        }
-                      />
-                      <label htmlFor={`edit-visitor-${v.id}`} className="text-sm">
-                        {v.name}
-                      </label>
+                  </div>
+                  <div>
+                    <Label>Frequentadores Presentes</Label>
+                    <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
+                      {visitorOptions.map((v) => (
+                        <div key={v.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`edit-visitor-${v.id}`}
+                            checked={selectedVisitorIds.includes(v.id)}
+                            onCheckedChange={(checked) =>
+                              setSelectedVisitorIds(
+                                checked
+                                  ? [...selectedVisitorIds, v.id]
+                                  : selectedVisitorIds.filter((id) => id !== v.id)
+                              )
+                            }
+                          />
+                          <label htmlFor={`edit-visitor-${v.id}`} className="text-sm">
+                            {v.name}
+                          </label>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  </div>
+                </>
+              ) : (
+                <div>
+                  <Label htmlFor="edit-total-attendance" className="text-base font-semibold">
+                    Quantidade de Pessoas
+                  </Label>
+                  <div className="relative">
+                    <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      id="edit-total-attendance"
+                      type="number"
+                      min="0"
+                      value={totalAttendance || ''}
+                      onChange={(e) => setTotalAttendance(parseInt(e.target.value) || 0)}
+                      placeholder="Digite a quantidade total de pessoas"
+                      className="h-12 text-lg pl-10"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
               <div>
-                <Label htmlFor="edit-observations">Observações</Label>
+                <Label htmlFor="edit-observations" className={isKidsMode ? '' : 'text-base font-semibold'}>
+                  Observações
+                </Label>
                 <Textarea
                   id="edit-observations"
                   value={observations}
                   onChange={(e) => setObservations(e.target.value)}
-                  placeholder="Observações sobre o culto..."
+                  placeholder={isKidsMode ? "Observações sobre o domingo kids..." : "Observações sobre o culto..."}
                   rows={3}
+                  className={isKidsMode ? '' : 'text-base'}
                 />
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
                   Cancelar
                 </Button>
-                <Button className="gradient-primary" onClick={handleUpdateReport}>
+                <Button 
+                  className="gradient-primary" 
+                  onClick={handleUpdateReport}
+                  disabled={!serviceDate || (!isKidsMode && user?.role === "pastor" && totalAttendance === 0)}
+                >
                   Salvar alterações
                 </Button>
               </div>
             </div>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog
-          open={isViewDialogOpen}
-          onOpenChange={(open) => {
-            setIsViewDialogOpen(open);
-            if (!open) setViewingReport(null);
-          }}
-        >
-          <DialogContent className="sm:max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Resumo do Relatório</DialogTitle>
-            </DialogHeader>
-            {viewingReport && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Data do Culto</p>
-                    <p className="font-medium">{viewingReport.serviceDate.toLocaleDateString("pt-BR")}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Status</p>
-                    <div className="mt-1"><StatusBadge status={viewingReport.status} /></div>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Enviado em</p>
-                    <p className="font-medium">
-                      {viewingReport.submittedAt.toLocaleDateString("pt-BR")}
-                    </p>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-xs text-muted-foreground">Membros presentes ({viewingReport.members.length})</p>
-                  {viewingReport.members.length > 0 ? (
-                    <p className="text-sm leading-relaxed">
-                      {viewingReport.members.map((m) => m.name).join(", ")}
-                    </p>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">Nenhum membro presente.</p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <p className="text-xs text-muted-foreground">Frequentadores presentes ({viewingReport.frequentadores.length})</p>
-                  {viewingReport.frequentadores.length > 0 ? (
-                    <p className="text-sm leading-relaxed">
-                      {viewingReport.frequentadores.map((f) => f.name).join(", ")}
-                    </p>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">Nenhum frequentador presente.</p>
-                  )}
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Observações</p>
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                    {viewingReport.observations || "—"}
-                  </p>
-                </div>
-                <div className="flex justify-end gap-2 pt-1">
-                  <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>
-                    Fechar
-                  </Button>
-                </div>
-              </div>
-            )}
           </DialogContent>
         </Dialog>
       </div>
@@ -1246,32 +1627,57 @@ Observações: ${report.observations || ""}`;
                   <SelectValue placeholder="Selecione o mês" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="1">Janeiro</SelectItem>
-                  <SelectItem value="2">Fevereiro</SelectItem>
-                  <SelectItem value="3">Março</SelectItem>
-                  <SelectItem value="4">Abril</SelectItem>
-                  <SelectItem value="5">Maio</SelectItem>
-                  <SelectItem value="6">Junho</SelectItem>
-                  <SelectItem value="7">Julho</SelectItem>
-                  <SelectItem value="8">Agosto</SelectItem>
-                  <SelectItem value="9">Setembro</SelectItem>
-                  <SelectItem value="10">Outubro</SelectItem>
-                  <SelectItem value="11">Novembro</SelectItem>
-                  <SelectItem value="12">Dezembro</SelectItem>
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((month) => {
+                    // Não permitir mês futuro se o ano for o atual
+                    const isCurrentYear = selectedYear === currentDate.getFullYear();
+                    const isFutureMonth = isCurrentYear && month > currentDate.getMonth() + 1;
+                    return (
+                      <SelectItem 
+                        key={month} 
+                        value={month.toString()}
+                        disabled={isFutureMonth}
+                      >
+                        {month === 1 && 'Janeiro'}
+                        {month === 2 && 'Fevereiro'}
+                        {month === 3 && 'Março'}
+                        {month === 4 && 'Abril'}
+                        {month === 5 && 'Maio'}
+                        {month === 6 && 'Junho'}
+                        {month === 7 && 'Julho'}
+                        {month === 8 && 'Agosto'}
+                        {month === 9 && 'Setembro'}
+                        {month === 10 && 'Outubro'}
+                        {month === 11 && 'Novembro'}
+                        {month === 12 && 'Dezembro'}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>
             <div className="flex-1">
               <Label htmlFor="year">Ano</Label>
-              <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
+              <Select value={selectedYear.toString()} onValueChange={(value) => {
+                const newYear = parseInt(value);
+                setSelectedYear(newYear);
+                // Se selecionar o ano atual, ajustar o mês se necessário
+                if (newYear === currentDate.getFullYear() && selectedMonth > currentDate.getMonth() + 1) {
+                  setSelectedMonth(currentDate.getMonth() + 1);
+                }
+              }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione o ano" />
                 </SelectTrigger>
                 <SelectContent>
                   {Array.from({ length: 5 }, (_, i) => {
                     const year = currentDate.getFullYear() - 2 + i;
+                    const isFutureYear = year > currentDate.getFullYear();
                     return (
-                      <SelectItem key={year} value={year.toString()}>
+                      <SelectItem 
+                        key={year} 
+                        value={year.toString()}
+                        disabled={isFutureYear}
+                      >
                         {year}
                       </SelectItem>
                     );
@@ -1346,7 +1752,6 @@ Observações: ${report.observations || ""}`;
               <TableHeader>
                 <TableRow>
                   <TableHead className="min-w-[140px]">Data do Culto</TableHead>
-                  <TableHead className="min-w-[130px]">Status</TableHead>
                   <TableHead className="min-w-[170px]">Data de Envio</TableHead>
                   <TableHead className="min-w-[260px] text-right">Ações</TableHead>
                 </TableRow>
@@ -1358,43 +1763,54 @@ Observações: ${report.observations || ""}`;
                       {report.serviceDate.toLocaleDateString("pt-BR")}
                     </TableCell>
                     <TableCell>
-                      <StatusBadge status={report.status} />
-                    </TableCell>
-                    <TableCell>
                       <div className="flex items-center gap-1 text-sm">
                         <Calendar className="w-3 h-3" />
                         {report.submittedAt.toLocaleDateString("pt-BR")}
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex flex-wrap items-center justify-end gap-2">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => openViewReport(report)}
-                          aria-label="Visualizar relatório"
-                          title="Visualizar"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => openEditReport(report)}
-                          aria-label="Editar relatório"
-                          title="Editar"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => handleDeleteReport(report.id)}
-                          aria-label="Excluir relatório"
-                          title="Excluir"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                          <div className="flex flex-wrap items-center justify-end gap-2">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => openEditReport(report)}
+                              aria-label="Editar relatório"
+                              title="Editar"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => setDeleteReportId(report.id)}
+                              aria-label="Excluir relatório"
+                              title="Excluir"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Tem certeza que deseja excluir o relatório de {report.serviceDate.toLocaleDateString("pt-BR")}? Esta ação não pode ser desfeita.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel onClick={() => setDeleteReportId(null)}>
+                                Cancelar
+                              </AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={handleDeleteReport}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Excluir
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                         <Button
                           size="icon"
                           variant="ghost"

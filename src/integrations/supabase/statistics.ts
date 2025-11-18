@@ -71,25 +71,25 @@ export interface LeaderData {
 
 export const statisticsService = {
   // Buscar estatísticas gerais
-  async getGeneralStatistics(user: User): Promise<StatisticsData> {
+  async getGeneralStatistics(user: User, isKidsMode?: boolean): Promise<StatisticsData> {
     const now = new Date();
     const yearStart = new Date(now.getFullYear(), 0, 1);
     const yearEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
 
     // Dados básicos por papel
-    const basicData = await this.getBasicData(user);
+    const basicData = await this.getBasicData(user, isKidsMode);
     
     // Dados de presença
-    const presenceData = await this.getPresenceData(user, yearStart, yearEnd);
+    const presenceData = await this.getPresenceData(user, yearStart, yearEnd, isKidsMode);
     
     // Dados mensais
-    const monthlyData = await this.getMonthlyData(user, yearStart, yearEnd);
+    const monthlyData = await this.getMonthlyData(user, yearStart, yearEnd, isKidsMode);
     
     // Dados semanais
-    const weeklyData = await this.getWeeklyData(user, yearStart, yearEnd);
+    const weeklyData = await this.getWeeklyData(user, yearStart, yearEnd, isKidsMode);
     
     // Dados de rede (se aplicável)
-    const networkData = await this.getNetworkData(user);
+    const networkData = await this.getNetworkData(user, isKidsMode);
 
     return {
       ...basicData,
@@ -101,18 +101,51 @@ export const statisticsService = {
   },
 
   // Dados básicos por papel do usuário
-  async getBasicData(user: User) {
+  async getBasicData(user: User, isKidsMode?: boolean) {
     if (user.role === 'pastor') {
+      let discipuladoresQuery = supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'discipulador');
+      let leadersQuery = supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'lider');
+      
+      if (isKidsMode) {
+        discipuladoresQuery = discipuladoresQuery.eq('is_kids', true);
+        leadersQuery = leadersQuery.eq('is_kids', true);
+      } else {
+        discipuladoresQuery = discipuladoresQuery.or('is_kids.is.null,is_kids.eq.false');
+        leadersQuery = leadersQuery.or('is_kids.is.null,is_kids.eq.false');
+      }
+      
+      // Buscar IDs dos líderes para filtrar membros
+      let leadersDataQuery = supabase.from('profiles').select('id').eq('role', 'lider');
+      if (isKidsMode) {
+        leadersDataQuery = leadersDataQuery.eq('is_kids', true);
+      } else {
+        leadersDataQuery = leadersDataQuery.or('is_kids.is.null,is_kids.eq.false');
+      }
+      const { data: leadersData } = await leadersDataQuery;
+      const leaderIds = (leadersData || []).map(l => l.id);
+      
+      // Filtrar membros e frequentadores por líderes do modo correto
+      let membersQuery = supabase.from('members').select('id', { count: 'exact', head: true }).eq('active', true).eq('type', 'member');
+      let frequentadoresQuery = supabase.from('members').select('id', { count: 'exact', head: true }).eq('active', true).eq('type', 'frequentador');
+      
+      if (leaderIds.length > 0) {
+        membersQuery = membersQuery.in('lider_id', leaderIds);
+        frequentadoresQuery = frequentadoresQuery.in('lider_id', leaderIds);
+      } else {
+        membersQuery = membersQuery.eq('lider_id', ''); // Retorna vazio se não houver líderes
+        frequentadoresQuery = frequentadoresQuery.eq('lider_id', ''); // Retorna vazio se não houver líderes
+      }
+      
       const [
         { count: discipuladores },
         { count: leaders },
         { count: members },
         { count: frequentadores }
       ] = await Promise.all([
-        supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'discipulador'),
-        supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'lider'),
-        supabase.from('members').select('id', { count: 'exact', head: true }).eq('active', true).eq('type', 'member'),
-        supabase.from('members').select('id', { count: 'exact', head: true }).eq('active', true).eq('type', 'frequentador'),
+        discipuladoresQuery,
+        leadersQuery,
+        membersQuery,
+        frequentadoresQuery,
       ]);
 
       return {
@@ -124,12 +157,23 @@ export const statisticsService = {
     }
 
     if (user.role === 'discipulador') {
+      let leadersCountQuery = supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'lider').eq('discipulador_uuid', user.id);
+      let leadersDataQuery = supabase.from('profiles').select('id').eq('role', 'lider').eq('discipulador_uuid', user.id);
+      
+      if (isKidsMode) {
+        leadersCountQuery = leadersCountQuery.eq('is_kids', true);
+        leadersDataQuery = leadersDataQuery.eq('is_kids', true);
+      } else {
+        leadersCountQuery = leadersCountQuery.or('is_kids.is.null,is_kids.eq.false');
+        leadersDataQuery = leadersDataQuery.or('is_kids.is.null,is_kids.eq.false');
+      }
+      
       const [
         { count: leaders },
         { data: leaderData }
       ] = await Promise.all([
-        supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'lider').eq('discipulador_uuid', user.id),
-        supabase.from('profiles').select('id').eq('role', 'lider').eq('discipulador_uuid', user.id)
+        leadersCountQuery,
+        leadersDataQuery
       ]);
 
       const leaderIds = (leaderData || []).map(l => l.id);
@@ -180,8 +224,8 @@ export const statisticsService = {
   },
 
   // Dados de presença baseados nos relatórios
-  async getPresenceData(user: User, startDate: Date, endDate: Date) {
-    const reports = await this.getReportsForUser(user, startDate, endDate);
+  async getPresenceData(user: User, startDate: Date, endDate: Date, isKidsMode?: boolean) {
+    const reports = await this.getReportsForUser(user, startDate, endDate, isKidsMode);
     
     const totalPresence = reports.reduce((sum, r) => {
       const members = Array.isArray(r.members_present) ? r.members_present.length : 0;
@@ -196,7 +240,7 @@ export const statisticsService = {
     const prevStartDate = new Date(startDate.getTime() - periodLength);
     const prevEndDate = new Date(startDate.getTime() - 1);
     
-    const prevReports = await this.getReportsForUser(user, prevStartDate, prevEndDate);
+    const prevReports = await this.getReportsForUser(user, prevStartDate, prevEndDate, isKidsMode);
     const prevTotalPresence = prevReports.reduce((sum, r) => {
       const members = Array.isArray(r.members_present) ? r.members_present.length : 0;
       const visitors = Array.isArray(r.visitors_present) ? r.visitors_present.length : 0;
@@ -215,8 +259,8 @@ export const statisticsService = {
   },
 
   // Dados mensais agregados
-  async getMonthlyData(user: User, startDate: Date, endDate: Date): Promise<MonthlyData[]> {
-    const reports = await this.getReportsForUser(user, startDate, endDate);
+  async getMonthlyData(user: User, startDate: Date, endDate: Date, isKidsMode?: boolean): Promise<MonthlyData[]> {
+    const reports = await this.getReportsForUser(user, startDate, endDate, isKidsMode);
     
     const monthlyMap = new Map<string, {
       members: number;
@@ -263,8 +307,8 @@ export const statisticsService = {
   },
 
   // Dados semanais
-  async getWeeklyData(user: User, startDate: Date, endDate: Date): Promise<WeeklyData[]> {
-    const reports = await this.getReportsForUser(user, startDate, endDate);
+  async getWeeklyData(user: User, startDate: Date, endDate: Date, isKidsMode?: boolean): Promise<WeeklyData[]> {
+    const reports = await this.getReportsForUser(user, startDate, endDate, isKidsMode);
     
     return reports.map(r => {
       const weekStart = new Date(r.week_start);
@@ -286,20 +330,28 @@ export const statisticsService = {
   },
 
   // Dados de rede (para discipuladores e pastores)
-  async getNetworkData(user: User): Promise<NetworkData | undefined> {
+  async getNetworkData(user: User, isKidsMode?: boolean): Promise<NetworkData | undefined> {
     if (user.role === 'lider') return undefined;
 
     let discipuladores: DiscipuladorData[] = [];
 
     if (user.role === 'pastor') {
-      const { data: discipuladorData } = await supabase
+      let discipuladorQuery = supabase
         .from('profiles')
         .select('id, name')
         .eq('role', 'discipulador');
+      
+      if (isKidsMode) {
+        discipuladorQuery = discipuladorQuery.eq('is_kids', true);
+      } else {
+        discipuladorQuery = discipuladorQuery.or('is_kids.is.null,is_kids.eq.false');
+      }
+      
+      const { data: discipuladorData } = await discipuladorQuery;
 
       discipuladores = await Promise.all(
         (discipuladorData || []).map(async (d) => {
-          const leaders = await this.getLeadersForDiscipulador(d.id);
+          const leaders = await this.getLeadersForDiscipulador(d.id, isKidsMode);
           const totalMembers = leaders.reduce((sum, l) => sum + l.members + l.frequentadores, 0);
           const averagePresence = leaders.length > 0 
             ? leaders.reduce((sum, l) => sum + l.averagePresence, 0) / leaders.length 
@@ -316,7 +368,7 @@ export const statisticsService = {
         })
       );
     } else if (user.role === 'discipulador') {
-      const leaders = await this.getLeadersForDiscipulador(user.id);
+      const leaders = await this.getLeadersForDiscipulador(user.id, isKidsMode);
       const totalMembers = leaders.reduce((sum, l) => sum + l.members + l.frequentadores, 0);
       const averagePresence = leaders.length > 0 
         ? leaders.reduce((sum, l) => sum + l.averagePresence, 0) / leaders.length 
@@ -349,12 +401,20 @@ export const statisticsService = {
   },
 
   // Buscar líderes de um discipulador
-  async getLeadersForDiscipulador(discipuladorId: string): Promise<LeaderData[]> {
-    const { data: leaders } = await supabase
+  async getLeadersForDiscipulador(discipuladorId: string, isKidsMode?: boolean): Promise<LeaderData[]> {
+    let leadersQuery = supabase
       .from('profiles')
       .select('id, name, celula')
       .eq('role', 'lider')
       .eq('discipulador_uuid', discipuladorId);
+    
+    if (isKidsMode) {
+      leadersQuery = leadersQuery.eq('is_kids', true);
+    } else {
+      leadersQuery = leadersQuery.or('is_kids.is.null,is_kids.eq.false');
+    }
+    
+    const { data: leaders } = await leadersQuery;
 
     if (!leaders) return [];
 
@@ -396,7 +456,7 @@ export const statisticsService = {
   },
 
   // Buscar relatórios para um usuário
-  async getReportsForUser(user: User, startDate: Date, endDate: Date) {
+  async getReportsForUser(user: User, startDate: Date, endDate: Date, isKidsMode?: boolean) {
     let query = supabase
       .from('cell_reports')
       .select('*')
@@ -406,16 +466,35 @@ export const statisticsService = {
     if (user.role === 'lider') {
       query = query.eq('lider_id', user.id);
     } else if (user.role === 'discipulador') {
-      const { data: leaderIds } = await supabase
+      let leaderQuery = supabase
         .from('profiles')
         .select('id')
         .eq('role', 'lider')
         .eq('discipulador_uuid', user.id);
       
+      if (isKidsMode) {
+        leaderQuery = leaderQuery.eq('is_kids', true);
+      } else {
+        leaderQuery = leaderQuery.or('is_kids.is.null,is_kids.eq.false');
+      }
+      
+      const { data: leaderIds } = await leaderQuery;
+      const ids = (leaderIds || []).map(l => l.id);
+      query = ids.length > 0 ? query.in('lider_id', ids) : query.eq('lider_id', '');
+    } else if (user.role === 'pastor' && isKidsMode) {
+      // Para pastores no modo Kids, filtrar apenas líderes kids
+      let leaderQuery = supabase
+        .from('profiles')
+        .select('id')
+        .eq('role', 'lider')
+        .eq('pastor_uuid', user.id)
+        .eq('is_kids', true);
+      
+      const { data: leaderIds } = await leaderQuery;
       const ids = (leaderIds || []).map(l => l.id);
       query = ids.length > 0 ? query.in('lider_id', ids) : query.eq('lider_id', '');
     }
-    // Para pastores, busca todos os relatórios
+    // Para pastores no modo normal, busca todos os relatórios
 
     const { data } = await query;
     return data || [];

@@ -1,4 +1,6 @@
 import logoVideira from "@/assets/logo-videira.png";
+import logoKids from "@/assets/logo-kids.jpg";
+import { useProfileMode } from "@/contexts/ProfileModeContext";
 
 type Props = {
   message?: string;
@@ -9,6 +11,8 @@ export default function FancyLoader({
   message = "Carregando…",
   tips = [],
 }: Props) {
+  const { mode } = useProfileMode();
+  const isKidsMode = mode === 'kids';
   const tip =
     tips.length > 0 ? tips[Math.floor(Date.now() / 3000) % tips.length] : "";
 
@@ -22,7 +26,11 @@ export default function FancyLoader({
             <div className="absolute inset-2 animate-spin rounded-full border-2 border-primary/40 border-b-transparent" />
             <div className="absolute inset-4 animate-bounce">
               <div className="w-16 h-16 rounded-2xl bg-white grid place-items-center shadow-lg">
-                <img src={logoVideira} alt="Videira Logo" className="w-12 h-12" />
+                <img 
+                  src={isKidsMode ? logoKids : logoVideira} 
+                  alt={isKidsMode ? "Videira Kids Logo" : "Videira Logo"} 
+                  className={`w-12 h-12 ${isKidsMode ? 'rounded-full' : ''}`}
+                />
               </div>
             </div>
           </div>

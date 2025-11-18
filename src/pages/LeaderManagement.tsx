@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useProfileMode } from '@/contexts/ProfileModeContext';
 import { supabase } from '@/integrations/supabase/client';
 import { supabaseAdmin } from '@/integrations/supabase/admin';
 import { useToast } from '@/hooks/use-toast';
@@ -17,7 +18,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 
 export function LeaderManagement() {
   const { user } = useAuth();
+  const { mode } = useProfileMode();
   const { toast } = useToast();
+  const isKidsMode = mode === 'kids';
   const [leaders, setLeaders] = useState<Leader[]>([]);
   const [discipuladores, setDiscipuladores] = useState<Discipulador[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,12 +38,20 @@ export function LeaderManagement() {
   const loadDiscipuladores = useCallback(async () => {
     if (!user || user.role !== 'pastor') return;
     
-    const { data } = await supabase
+    let query = supabase
       .from('profiles')
-      .select('id, name, email, phone, created_at')
+      .select('id, name, email, phone, created_at, is_kids')
       .eq('pastor_uuid', user.id)
-      .eq('role', 'discipulador')
-      .order('created_at', { ascending: false });
+      .eq('role', 'discipulador');
+    
+    // No modo Kids, mostrar apenas os do modo Kids. No modo normal, mostrar apenas os do modo normal
+    if (isKidsMode) {
+      query = query.eq('is_kids', true);
+    } else {
+      query = query.or('is_kids.is.null,is_kids.eq.false');
+    }
+    
+    const { data } = await query.order('created_at', { ascending: false });
 
     const formatted: Discipulador[] = (data || []).map((d) => ({
       id: d.id,
@@ -62,8 +73,15 @@ export function LeaderManagement() {
     setLoading(true);
     let query = supabase
       .from('profiles')
-      .select('id, name, email, phone, created_at, pastor_uuid, discipulador_uuid')
+      .select('id, name, email, phone, created_at, pastor_uuid, discipulador_uuid, is_kids')
       .eq('role', 'lider');
+
+    // No modo Kids, mostrar apenas os do modo Kids. No modo normal, mostrar apenas os do modo normal
+    if (isKidsMode) {
+      query = query.eq('is_kids', true);
+    } else {
+      query = query.or('is_kids.is.null,is_kids.eq.false');
+    }
 
     if (user.role === 'discipulador') {
       query = query.eq('discipulador_uuid', user.id);
@@ -101,7 +119,7 @@ export function LeaderManagement() {
     } else {
       setLoading(false);
     }
-  }, [user, loadLeaders, loadDiscipuladores]);
+  }, [user, mode, loadLeaders, loadDiscipuladores]);
 
   if (!user || (user.role !== 'discipulador' && user.role !== 'pastor')) {
     return (
@@ -163,6 +181,7 @@ export function LeaderManagement() {
       discipulador_uuid: discipuladorId,
       pastor_uuid: user.role === 'pastor' ? user.id : (user.pastorId || null),
       role: 'lider' as const,
+      is_kids: isKidsMode,
     };
 
     let profileId: string | null = null;
@@ -253,6 +272,7 @@ export function LeaderManagement() {
         email: editingLeader.email,
         phone: editingLeader.phone || null,
         discipulador_uuid: editingLeader.discipuladorId,
+        is_kids: isKidsMode,
         updated_at: new Date().toISOString(),
       })
       .eq('id', editingLeader.id);
@@ -319,25 +339,31 @@ export function LeaderManagement() {
   return (
     <div className="space-y-8 animate-fade-in pb-12">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl md:text-3xl font-bold text-foreground">Líderes</h1>
+        <h1 className="text-2xl md:text-3xl font-bold text-foreground">
+          {isKidsMode ? 'Líderes Kids' : 'Líderes'}
+        </h1>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
             <Button className="gradient-primary">
               <Plus className="w-4 h-4 mr-2" />
-              Novo Líder
+              {isKidsMode ? 'Novo Líder Kids' : 'Novo Líder'}
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-lg">
             <DialogHeader>
-              <DialogTitle>Adicionar Líder</DialogTitle>
+              <DialogTitle>
+                {isKidsMode ? 'Adicionar Líder Kids' : 'Adicionar Líder'}
+              </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               {user.role === 'pastor' && (
                 <div className="space-y-2">
-                  <Label htmlFor="discipulador">Discipulador</Label>
+                  <Label htmlFor="discipulador">
+                    {isKidsMode ? 'Discipuladora' : 'Discipulador'}
+                  </Label>
                   <Select value={newLeader.discipuladorId} onValueChange={(value) => setNewLeader({ ...newLeader, discipuladorId: value })}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Selecione um discipulador" />
+                      <SelectValue placeholder={isKidsMode ? 'Selecione uma discipuladora' : 'Selecione um discipulador'} />
                     </SelectTrigger>
                     <SelectContent>
                       {discipuladores.map((d) => (
@@ -377,7 +403,7 @@ export function LeaderManagement() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="w-5 h-5 text-primary" />
-            Lista de Líderes
+            {isKidsMode ? 'Lista de Líderes Kids' : 'Lista de Líderes'}
           </CardTitle>
         </CardHeader>
         <CardContent className="overflow-x-auto">
@@ -458,13 +484,17 @@ export function LeaderManagement() {
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Editar Líder</DialogTitle>
+            <DialogTitle>
+              {isKidsMode ? 'Editar Líder Kids' : 'Editar Líder'}
+            </DialogTitle>
           </DialogHeader>
           {editingLeader && (
             <div className="space-y-4">
               {user.role === 'pastor' && (
                 <div className="space-y-2">
-                  <Label htmlFor="edit-discipulador">Discipulador</Label>
+                  <Label htmlFor="edit-discipulador">
+                    {isKidsMode ? 'Discipuladora' : 'Discipulador'}
+                  </Label>
                   <Select
                     value={editingLeader.discipuladorId}
                     onValueChange={(value) =>
@@ -472,7 +502,7 @@ export function LeaderManagement() {
                     }
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Selecione um discipulador" />
+                      <SelectValue placeholder={isKidsMode ? 'Selecione uma discipuladora' : 'Selecione um discipulador'} />
                     </SelectTrigger>
                     <SelectContent>
                       {discipuladores.map((d) => (

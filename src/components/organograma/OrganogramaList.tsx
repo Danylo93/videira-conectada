@@ -1,6 +1,7 @@
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { useProfileMode } from '@/contexts/ProfileModeContext';
 import { Users, UserCheck, Calendar, Target, TrendingUp, AlertCircle } from 'lucide-react';
 import type { PersonNode } from '@/pages/ChurchManagementNew';
 
@@ -10,7 +11,19 @@ interface OrganogramaListProps {
 }
 
 export function OrganogramaList({ data, onNodeClick }: OrganogramaListProps) {
+  const { mode } = useProfileMode();
+  const isKidsMode = mode === 'kids';
+
   const getRoleColor = (role: string) => {
+    if (isKidsMode) {
+      switch (role) {
+        case 'pastor': return 'bg-pink-100 text-pink-800 border-pink-200';
+        case 'obreiro': return 'bg-purple-100 text-purple-800 border-purple-200';
+        case 'discipulador': return 'bg-pink-200 text-pink-900 border-pink-300';
+        case 'lider': return 'bg-purple-200 text-purple-900 border-purple-300';
+        default: return 'bg-gray-100 text-gray-800 border-gray-200';
+      }
+    }
     switch (role) {
       case 'pastor': return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'obreiro': return 'bg-blue-100 text-blue-800 border-blue-200';
@@ -21,6 +34,15 @@ export function OrganogramaList({ data, onNodeClick }: OrganogramaListProps) {
   };
 
   const getRoleLabel = (role: string) => {
+    if (isKidsMode) {
+      switch (role) {
+        case 'pastor': return 'Pastora';
+        case 'obreiro': return 'Obreiro';
+        case 'discipulador': return 'Discipuladora';
+        case 'lider': return 'Líder Kids';
+        default: return role;
+      }
+    }
     switch (role) {
       case 'pastor': return 'Pastor';
       case 'obreiro': return 'Obreiro';
@@ -45,7 +67,7 @@ export function OrganogramaList({ data, onNodeClick }: OrganogramaListProps) {
     return (
       <div key={node.name} className="space-y-2" style={{ marginLeft: `${marginLeft}px` }}>
         <Card 
-          className={`hover:shadow-md transition-shadow cursor-pointer ${getRoleColor(node.role)}`}
+          className={`hover:shadow-md transition-shadow cursor-pointer ${getRoleColor(node.role)} ${isKidsMode ? 'hover:shadow-pink-200' : ''}`}
           onClick={() => onNodeClick?.(node)}
         >
           <CardContent className="p-4">
@@ -70,23 +92,29 @@ export function OrganogramaList({ data, onNodeClick }: OrganogramaListProps) {
                 <div className="flex items-center gap-4 text-sm">
                   <div className="text-center">
                     <div className="flex items-center gap-1">
-                      <Users className="w-4 h-4 text-purple-600" />
-                      <span className="text-muted-foreground">Membros:</span>
+                      <Users className={`w-4 h-4 ${isKidsMode ? 'text-pink-600' : 'text-purple-600'}`} />
+                      <span className="text-muted-foreground">{isKidsMode ? 'Crianças:' : 'Membros:'}</span>
                     </div>
-                    <span className="font-semibold text-purple-600">{node.members || 0}</span>
+                    <span className={`font-semibold ${isKidsMode ? 'text-pink-600' : 'text-purple-600'}`}>
+                      {node.members || 0}
+                    </span>
                   </div>
                   
                   <div className="text-center">
                     <div className="flex items-center gap-1">
-                      <Calendar className="w-4 h-4 text-orange-600" />
-                      <span className="text-muted-foreground">Frequentadores:</span>
+                      <Calendar className={`w-4 h-4 ${isKidsMode ? 'text-purple-600' : 'text-orange-600'}`} />
+                      <span className="text-muted-foreground">{isKidsMode ? 'Visitantes:' : 'Frequentadores:'}</span>
                     </div>
-                    <span className="font-semibold text-orange-600">{node.frequentadores || 0}</span>
+                    <span className={`font-semibold ${isKidsMode ? 'text-purple-600' : 'text-orange-600'}`}>
+                      {node.frequentadores || 0}
+                    </span>
                   </div>
                   
                   <div className="text-center">
                     <div className="text-muted-foreground">Total:</div>
-                    <span className="font-bold text-primary">{node.total || 0}</span>
+                    <span className={`font-bold ${isKidsMode ? 'text-pink-600' : 'text-primary'}`}>
+                      {node.total || 0}
+                    </span>
                   </div>
                 </div>
 
@@ -100,7 +128,10 @@ export function OrganogramaList({ data, onNodeClick }: OrganogramaListProps) {
                     <div className="text-xs text-muted-foreground">Presença</div>
                   </div>
                   <div className="w-16">
-                    <Progress value={node.averagePresence || 0} className="h-2" />
+                    <Progress 
+                      value={node.averagePresence || 0} 
+                      className={`h-2 ${isKidsMode ? '[&>div]:bg-gradient-to-r [&>div]:from-pink-400 [&>div]:to-pink-600' : ''}`} 
+                    />
                   </div>
                 </div>
 

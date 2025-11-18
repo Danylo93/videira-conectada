@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import Tree from 'react-d3-tree';
+import { useAuth } from '@/contexts/AuthContext';
+import { useProfileMode } from '@/contexts/ProfileModeContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -30,6 +32,7 @@ interface Member {
 }
 
 interface PersonNode {
+  id?: string;
   name: string;
   role: string;
   celula?: string;
@@ -50,7 +53,7 @@ interface ChurchStats {
   growthRate: number;
 }
 
-function buildTree(profiles: Profile[], membersData: Record<string, Member[]>, reportsData: Record<string, any>): PersonNode[] {
+function buildTree(profiles: Profile[], membersData: Record<string, Member[]>, reportsData: Record<string, any>): (PersonNode & { id?: string })[] {
   const nodes: Record<string, PersonNode & { id: string }> = {};
   const roots: (PersonNode & { id: string })[] = [];
 
@@ -110,38 +113,61 @@ function buildTree(profiles: Profile[], membersData: Record<string, Member[]>, r
     }
   };
   roots.forEach(clean);
+  // Retornar preservando o id
   return roots;
 }
 
 export function ChurchManagementNew() {
-  const [treeData, setTreeData] = useState<PersonNode[]>([]);
+  const { user } = useAuth();
+  const { mode } = useProfileMode();
+  const isKidsMode = mode === 'kids';
+  const [treeData, setTreeData] = useState<(PersonNode & { id?: string })[]>([]);
   const [churchStats, setChurchStats] = useState<ChurchStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'tree' | 'list'>('tree');
 
   useEffect(() => {
     loadChurchData();
-  }, []);
+  }, [isKidsMode]);
 
   const loadChurchData = async () => {
     try {
       setLoading(true);
 
       // Carregar perfis
-      const { data: profiles, error: profilesError } = await supabase
+      let profilesQuery = supabase
         .from('profiles')
-        .select('id, name, role, discipulador_uuid, pastor_uuid, celula')
+        .select('id, name, role, discipulador_uuid, pastor_uuid, celula, is_kids')
         .in('role', ['pastor', 'obreiro', 'discipulador', 'lider']);
+      
+      // No modo Kids, mostrar apenas perfis do modo Kids
+      // No modo normal, mostrar apenas perfis do modo normal
+      if (isKidsMode) {
+        profilesQuery = profilesQuery.eq('is_kids', true);
+      } else {
+        profilesQuery = profilesQuery.or('is_kids.is.null,is_kids.eq.false');
+      }
+      
+      const { data: profiles, error: profilesError } = await profilesQuery;
 
       if (profilesError) {
         console.error('Error loading profiles:', profilesError);
         return;
       }
 
-      // Carregar membros de todos os líderes
-      const { data: members, error: membersError } = await supabase
+      // Carregar membros de todos os líderes (filtrar por líderes do modo correto)
+      const leaderIds = (profiles || []).filter(p => p.role === 'lider').map(p => p.id);
+      let membersQuery = supabase
         .from('members')
         .select('id, name, type, phone, email, active, join_date, lider_id');
+      
+      if (leaderIds.length > 0) {
+        membersQuery = membersQuery.in('lider_id', leaderIds);
+      } else {
+        membersQuery = membersQuery.eq('lider_id', ''); // Retorna vazio se não houver líderes
+      }
+      
+      const { data: members, error: membersError } = await membersQuery;
 
       if (membersError) {
         console.error('Error loading members:', membersError);
@@ -157,11 +183,19 @@ export function ChurchManagementNew() {
         membersData[member.lider_id].push(member);
       });
 
-      // Carregar relatórios de todos os líderes
-      const { data: reports, error: reportsError } = await supabase
+      // Carregar relatórios de todos os líderes (filtrar por líderes do modo correto)
+      let reportsQuery = supabase
         .from('cell_reports')
         .select('lider_id, members_present, visitors_present, week_start')
         .order('week_start', { ascending: false });
+      
+      if (leaderIds.length > 0) {
+        reportsQuery = reportsQuery.in('lider_id', leaderIds);
+      } else {
+        reportsQuery = reportsQuery.eq('lider_id', ''); // Retorna vazio se não houver líderes
+      }
+      
+      const { data: reports, error: reportsError } = await reportsQuery;
 
       if (reportsError) {
         console.error('Error loading reports:', reportsError);
@@ -178,7 +212,30 @@ export function ChurchManagementNew() {
       });
 
       // Construir árvore
-      const tree = buildTree((profiles as Profile[]) || [], membersData, reportsData);
+      let tree = buildTree((profiles as Profile[]) || [], membersData, reportsData);
+      
+      // No modo Kids, adaptar o nome do pastor para "Tainá"
+      if (isKidsMode && user?.role === 'pastor') {
+        const adaptNodeForKids = (node: PersonNode & { id?: string }): PersonNode & { id?: string } => {
+          // Verificar se é o nó do pastor atual (comparar por role e id)
+          // No modo Kids, o pastor raiz deve ser "Tainá"
+          const isCurrentPastor = node.role === 'pastor' && (node.id === user.id || !node.id);
+          
+          const adaptedNode: PersonNode & { id?: string } = {
+            ...node,
+            name: isCurrentPastor ? 'Tainá' : node.name,
+          };
+          
+          // Adaptar filhos recursivamente
+          if (node.children && node.children.length > 0) {
+            adaptedNode.children = node.children.map(adaptNodeForKids);
+          }
+          
+          return adaptedNode;
+        };
+        tree = tree.map(adaptNodeForKids);
+      }
+      
       setTreeData(tree);
 
       // Calcular estatísticas gerais
@@ -219,11 +276,11 @@ export function ChurchManagementNew() {
     }
   };
 
-  const handleRefresh = () => {
-    loadChurchData();
+  const handleRefresh = async () => {
+    await loadChurchData();
     toast({
       title: 'Atualizado',
-      description: 'Dados da igreja atualizados com sucesso!',
+      description: isKidsMode ? 'Dados do ministério kids atualizados com sucesso!' : 'Dados da igreja atualizados com sucesso!',
     });
   };
 
@@ -235,6 +292,15 @@ export function ChurchManagementNew() {
   };
 
   const getRoleColor = (role: string) => {
+    if (isKidsMode) {
+      switch (role) {
+        case 'pastor': return 'bg-pink-100 text-pink-800';
+        case 'obreiro': return 'bg-purple-100 text-purple-800';
+        case 'discipulador': return 'bg-pink-200 text-pink-900';
+        case 'lider': return 'bg-purple-200 text-purple-900';
+        default: return 'bg-gray-100 text-gray-800';
+      }
+    }
     switch (role) {
       case 'pastor': return 'bg-purple-100 text-purple-800';
       case 'obreiro': return 'bg-blue-100 text-blue-800';
@@ -245,6 +311,15 @@ export function ChurchManagementNew() {
   };
 
   const getRoleLabel = (role: string) => {
+    if (isKidsMode) {
+      switch (role) {
+        case 'pastor': return 'Pastora';
+        case 'obreiro': return 'Obreiro';
+        case 'discipulador': return 'Discipuladora';
+        case 'lider': return 'Líder Kids';
+        default: return role;
+      }
+    }
     switch (role) {
       case 'pastor': return 'Pastor';
       case 'obreiro': return 'Obreiro';
@@ -279,9 +354,14 @@ export function ChurchManagementNew() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Gerenciar Igreja</h1>
-          <p className="text-muted-foreground">
-            Organograma completo com membros e frequentadores de cada líder
+          <h1 className={`text-3xl font-bold ${isKidsMode ? 'text-pink-700' : ''}`}>
+            {isKidsMode ? 'Gerenciar Ministério Kids' : 'Gerenciar Igreja'}
+          </h1>
+          <p className={isKidsMode ? 'text-pink-600/70' : 'text-muted-foreground'}>
+            {isKidsMode 
+              ? 'Organograma completo com crianças e visitantes de cada líder kids'
+              : 'Organograma completo com membros e frequentadores de cada líder'
+            }
           </p>
         </div>
         <div className="flex gap-2">
@@ -299,50 +379,66 @@ export function ChurchManagementNew() {
       {/* Estatísticas Gerais */}
       {churchStats && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card>
+          <Card className={isKidsMode ? 'border-pink-200 shadow-lg shadow-pink-100' : ''}>
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Total de Membros</p>
-                  <p className="text-2xl font-bold text-primary">{churchStats.totalMembers}</p>
+                  <p className={`text-sm font-medium ${isKidsMode ? 'text-pink-600/70' : 'text-muted-foreground'}`}>
+                    {isKidsMode ? 'Total de Crianças' : 'Total de Membros'}
+                  </p>
+                  <p className={`text-2xl font-bold ${isKidsMode ? 'text-pink-600' : 'text-primary'}`}>
+                    {churchStats.totalMembers}
+                  </p>
                 </div>
-                <Users className="w-8 h-8 text-primary/20" />
+                <Users className={`w-8 h-8 ${isKidsMode ? 'text-pink-500/20' : 'text-primary/20'}`} />
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className={isKidsMode ? 'border-pink-200 shadow-lg shadow-pink-100' : ''}>
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Frequentadores</p>
-                  <p className="text-2xl font-bold text-orange-600">{churchStats.totalFrequentadores}</p>
+                  <p className={`text-sm font-medium ${isKidsMode ? 'text-pink-600/70' : 'text-muted-foreground'}`}>
+                    {isKidsMode ? 'Visitantes' : 'Frequentadores'}
+                  </p>
+                  <p className={`text-2xl font-bold ${isKidsMode ? 'text-purple-600' : 'text-orange-600'}`}>
+                    {churchStats.totalFrequentadores}
+                  </p>
                 </div>
-                <Calendar className="w-8 h-8 text-orange-600/20" />
+                <Calendar className={`w-8 h-8 ${isKidsMode ? 'text-purple-600/20' : 'text-orange-600/20'}`} />
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className={isKidsMode ? 'border-pink-200 shadow-lg shadow-pink-100' : ''}>
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Líderes</p>
-                  <p className="text-2xl font-bold text-green-600">{churchStats.totalLeaders}</p>
+                  <p className={`text-sm font-medium ${isKidsMode ? 'text-pink-600/70' : 'text-muted-foreground'}`}>
+                    {isKidsMode ? 'Líderes Kids' : 'Líderes'}
+                  </p>
+                  <p className={`text-2xl font-bold ${isKidsMode ? 'text-purple-600' : 'text-green-600'}`}>
+                    {churchStats.totalLeaders}
+                  </p>
                 </div>
-                <Target className="w-8 h-8 text-green-600/20" />
+                <Target className={`w-8 h-8 ${isKidsMode ? 'text-purple-600/20' : 'text-green-600/20'}`} />
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className={isKidsMode ? 'border-pink-200 shadow-lg shadow-pink-100' : ''}>
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Presença Média</p>
-                  <p className="text-2xl font-bold text-blue-600">{churchStats.averagePresence}%</p>
+                  <p className={`text-sm font-medium ${isKidsMode ? 'text-pink-600/70' : 'text-muted-foreground'}`}>
+                    Presença Média
+                  </p>
+                  <p className={`text-2xl font-bold ${isKidsMode ? 'text-pink-600' : 'text-blue-600'}`}>
+                    {churchStats.averagePresence}%
+                  </p>
                 </div>
-                <UserCheck className="w-8 h-8 text-blue-600/20" />
+                <UserCheck className={`w-8 h-8 ${isKidsMode ? 'text-pink-600/20' : 'text-blue-600/20'}`} />
               </div>
             </CardContent>
           </Card>
@@ -357,15 +453,20 @@ export function ChurchManagementNew() {
         </TabsList>
 
         <TabsContent value="tree">
-          <Card>
+          <Card className={isKidsMode ? 'border-pink-200 shadow-lg shadow-pink-100' : ''}>
             <CardHeader>
-              <CardTitle>Estrutura Organizacional</CardTitle>
-              <CardDescription>
-                Hierarquia completa com dados de membros e frequentadores
+              <CardTitle className={isKidsMode ? 'text-pink-700' : ''}>
+                {isKidsMode ? 'Estrutura do Ministério Kids' : 'Estrutura Organizacional'}
+              </CardTitle>
+              <CardDescription className={isKidsMode ? 'text-pink-600/70' : ''}>
+                {isKidsMode 
+                  ? 'Hierarquia completa com dados de crianças e visitantes'
+                  : 'Hierarquia completa com dados de membros e frequentadores'
+                }
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="w-full h-[600px] border rounded-md">
+              <div className={`w-full h-[600px] ${isKidsMode ? 'border-pink-200' : 'border'} rounded-md`}>
                 {treeData.length > 0 ? (
                   <Tree 
                     data={treeData} 
@@ -384,7 +485,11 @@ export function ChurchManagementNew() {
                             x="-90"
                             y="-40"
                             fill="white"
-                            stroke={nodeDatum.role === 'pastor' ? '#7c3aed' : nodeDatum.role === 'discipulador' ? '#10b981' : '#f59e0b'}
+                            stroke={
+                              isKidsMode
+                                ? (nodeDatum.role === 'pastor' ? '#ec4899' : nodeDatum.role === 'discipulador' ? '#f472b6' : '#a855f7')
+                                : (nodeDatum.role === 'pastor' ? '#7c3aed' : nodeDatum.role === 'discipulador' ? '#10b981' : '#f59e0b')
+                            }
                             strokeWidth="2"
                             rx="8"
                           />
@@ -394,7 +499,7 @@ export function ChurchManagementNew() {
                             textAnchor="middle"
                             fontSize="12"
                             fontWeight="bold"
-                            fill="#1f2937"
+                            fill={isKidsMode ? '#a855f7' : '#1f2937'}
                           >
                             {nodeDatum.name}
                           </text>
@@ -403,7 +508,7 @@ export function ChurchManagementNew() {
                             y="-5"
                             textAnchor="middle"
                             fontSize="10"
-                            fill="#6b7280"
+                            fill={isKidsMode ? '#ec4899' : '#6b7280'}
                           >
                             {getRoleLabel(nodeDatum.role)}
                           </text>
@@ -442,7 +547,9 @@ export function ChurchManagementNew() {
                   />
                 ) : (
                   <div className="flex items-center justify-center h-full">
-                    <p className="text-muted-foreground">Carregando organograma...</p>
+                    <p className={isKidsMode ? 'text-pink-600' : 'text-muted-foreground'}>
+                      {isKidsMode ? 'Carregando organograma do ministério kids...' : 'Carregando organograma...'}
+                    </p>
                   </div>
                 )}
               </div>
@@ -451,11 +558,14 @@ export function ChurchManagementNew() {
         </TabsContent>
 
         <TabsContent value="list">
-          <Card>
+          <Card className={isKidsMode ? 'border-pink-200 shadow-lg shadow-pink-100' : ''}>
             <CardHeader>
-              <CardTitle>Lista Detalhada</CardTitle>
-              <CardDescription>
-                Informações detalhadas de cada líder e seus membros
+              <CardTitle className={isKidsMode ? 'text-pink-700' : ''}>Lista Detalhada</CardTitle>
+              <CardDescription className={isKidsMode ? 'text-pink-600/70' : ''}>
+                {isKidsMode 
+                  ? 'Informações detalhadas de cada líder kids e suas crianças'
+                  : 'Informações detalhadas de cada líder e seus membros'
+                }
               </CardDescription>
             </CardHeader>
             <CardContent>

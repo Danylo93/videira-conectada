@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useProfileMode } from '@/contexts/ProfileModeContext';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
@@ -7,10 +8,12 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuTrigger
+  DropdownMenuTrigger,
+  DropdownMenuLabel
 } from '@/components/ui/dropdown-menu';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { LogOut, User, Settings } from 'lucide-react';
+import { LogOut, User, Settings, Sparkles, Users } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 const roleNames = {
   pastor: 'Pastor',
@@ -21,11 +24,17 @@ const roleNames = {
 
 export function Header() {
   const { user, logout } = useAuth();
+  const { mode, toggleMode } = useProfileMode();
   const navigate = useNavigate();
 
   if (!user) return null;
 
-  const initials = user.name
+  const isKidsMode = mode === 'kids';
+  const systemName = isKidsMode ? 'Videira Kids' : 'Sistema Videira São Miguel';
+  const displayName = isKidsMode && user.role === 'pastor' ? 'Tainá' : user.name;
+  const displayRole = isKidsMode && user.role === 'pastor' ? 'Pastora' : roleNames[user.role];
+  
+  const initials = displayName
     .split(' ')
     .map(n => n[0])
     .join('')
@@ -36,11 +45,19 @@ export function Header() {
       <div className="flex items-center gap-3 sm:gap-4">
         <SidebarTrigger />
         <div>
-          <h1 className="text-base sm:text-lg font-semibold text-foreground">
-            Sistema Videira São Miguel
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-base sm:text-lg font-semibold text-foreground">
+              {systemName}
+            </h1>
+            {isKidsMode && (
+              <Badge variant="secondary" className="bg-accent text-accent-foreground">
+                <Sparkles className="w-3 h-3 mr-1" />
+                Kids
+              </Badge>
+            )}
+          </div>
           <p className="text-xs sm:text-sm text-muted-foreground">
-            {roleNames[user.role]} - {user.name}
+            {displayRole} - {displayName}
           </p>
         </div>
       </div>
@@ -59,13 +76,37 @@ export function Header() {
           <DropdownMenuContent className="w-56" align="end">
             <div className="flex items-center justify-start gap-2 p-2">
               <div className="flex flex-col space-y-1 leading-none">
-                <p className="font-medium">{user.name}</p>
+                <p className="font-medium">{displayName}</p>
                 <p className="text-xs text-muted-foreground">
                   {user.email}
                 </p>
               </div>
             </div>
             <DropdownMenuSeparator />
+            {user.role === 'pastor' && (
+              <>
+                <DropdownMenuLabel>Modo de Perfil</DropdownMenuLabel>
+                <DropdownMenuItem
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    toggleMode();
+                  }}
+                >
+                  {isKidsMode ? (
+                    <>
+                      <Users className="mr-2 h-4 w-4" />
+                      Modo Normal
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Modo Kids
+                    </>
+                  )}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
             <DropdownMenuItem
               onSelect={(event) => {
                 event.preventDefault();

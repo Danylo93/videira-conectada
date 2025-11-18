@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useProfileMode } from "@/contexts/ProfileModeContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   Select,
   SelectContent,
@@ -34,12 +46,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   FileText,
   Plus,
-  Send,
   Calendar,
   Edit,
   Trash2,
   Download,
-  Eye, // <-- NOVO
+  Eye,
 } from "lucide-react";
 import {
   LineChart,
@@ -58,7 +69,9 @@ import FancyLoader from "@/components/FancyLoader";
 
 export function CellReports() {
   const { user } = useAuth();
+  const { mode } = useProfileMode();
   const { toast } = useToast();
+  const isKidsMode = mode === 'kids';
 
   // ---- state ---------------------------------------------------------------
   const [reports, setReports] = useState<CellReportType[]>([]);
@@ -66,8 +79,9 @@ export function CellReports() {
   const [selectedLeaderId, setSelectedLeaderId] = useState<string>("");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false); // <-- NOVO
-  const [viewingReport, setViewingReport] = useState<CellReportType | null>(null); // <-- NOVO
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [viewingReport, setViewingReport] = useState<CellReportType | null>(null);
+  const [deleteReportId, setDeleteReportId] = useState<string | null>(null);
   const [selectedWeek, setSelectedWeek] = useState("");
   const [multiplicationDate, setMultiplicationDate] = useState("");
   const [observations, setObservations] = useState("");
@@ -75,6 +89,7 @@ export function CellReports() {
   const [allMembers, setAllMembers] = useState<Member[]>([]);
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
   const [selectedVisitorIds, setSelectedVisitorIds] = useState<string[]>([]);
+  const [lostMembers, setLostMembers] = useState<Array<{id: string; reason: 'critico' | 'regular' | 'amarelo'}>>([]);
   const [editingReport, setEditingReport] = useState<CellReportType | null>(
     null
   );
@@ -93,12 +108,20 @@ export function CellReports() {
   const loadLeaders = useCallback(async () => {
     if (!user || user.role !== "pastor") return;
 
-    const { data, error } = await supabase
+    let query = supabase
       .from("profiles")
-      .select("id, name, email, celula")
+      .select("id, name, email, celula, is_kids")
       .eq("role", "lider")
-      .eq("pastor_uuid", user.id)
-      .order("name");
+      .eq("pastor_uuid", user.id);
+    
+    // No modo Kids, mostrar apenas os do modo Kids. No modo normal, mostrar apenas os do modo normal
+    if (isKidsMode) {
+      query = query.eq('is_kids', true);
+    } else {
+      query = query.or('is_kids.is.null,is_kids.eq.false');
+    }
+    
+    const { data, error } = await query.order("name");
 
     if (error) {
       console.error("Error loading leaders:", error);
@@ -113,7 +136,7 @@ export function CellReports() {
       createdAt: new Date(),
     }));
     setLeaders(formatted);
-  }, [user]);
+  }, [user, isKidsMode]);
 
   // ---- data load -----------------------------------------------------------
   useEffect(() => {
@@ -133,7 +156,7 @@ export function CellReports() {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, mode]);
 
   // Recarregar membros quando líder selecionado mudar (para pastor)
   useEffect(() => {
@@ -144,7 +167,7 @@ export function CellReports() {
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedLeaderId]);
+  }, [selectedLeaderId, mode]);
 
   // Recarregar relatórios quando mês ou ano mudarem
   useEffect(() => {
@@ -153,7 +176,7 @@ export function CellReports() {
       loadReports();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMonth, selectedYear]);
+  }, [selectedMonth, selectedYear, mode]);
 
   const loadMembers = async (): Promise<Member[]> => {
     if (!user) return [];
@@ -227,31 +250,46 @@ export function CellReports() {
       return;
     }
 
-    const formattedReports: CellReportType[] = (data || []).map((report) => ({
-      id: report.id,
-      liderId: report.lider_id,
-      weekStart: new Date(report.week_start),
-      members: membersList.filter((m) => report.members_present?.includes(m.id)),
-      frequentadores: membersList.filter((m) =>
-        report.visitors_present?.includes(m.id)
-      ),
-      phase:
-        (report.phase as
-          | "Comunhão"
-          | "Edificação"
-          | "Evangelismo"
-          | "Multiplicação") || "Comunhão",
-      multiplicationDate: report.multiplication_date
-        ? new Date(report.multiplication_date)
-        : undefined,
-      observations: report.observations,
-      status: report.status as
-        | "draft"
-        | "submitted"
-        | "approved"
-        | "needs_correction",
-      submittedAt: new Date(report.submitted_at),
-    }));
+    const formattedReports: CellReportType[] = (data || []).map((report) => {
+      // Parse lost_members from JSONB
+      let lostMembers: Array<{id: string; reason: 'critico' | 'regular' | 'amarelo'}> = [];
+      if (report.lost_members) {
+        try {
+          lostMembers = Array.isArray(report.lost_members) 
+            ? report.lost_members 
+            : JSON.parse(report.lost_members as string);
+        } catch (e) {
+          console.error("Error parsing lost_members:", e);
+        }
+      }
+      
+      return {
+        id: report.id,
+        liderId: report.lider_id,
+        weekStart: new Date(report.week_start),
+        members: membersList.filter((m) => report.members_present?.includes(m.id)),
+        frequentadores: membersList.filter((m) =>
+          report.visitors_present?.includes(m.id)
+        ),
+        lostMembers: lostMembers,
+        phase:
+          (report.phase as
+            | "Comunhão"
+            | "Edificação"
+            | "Evangelismo"
+            | "Multiplicação") || "Comunhão",
+        multiplicationDate: report.multiplication_date
+          ? new Date(report.multiplication_date)
+          : undefined,
+        observations: report.observations,
+        status: report.status as
+          | "draft"
+          | "submitted"
+          | "approved"
+          | "needs_correction",
+        submittedAt: new Date(report.submitted_at),
+      };
+    });
 
     setReports(formattedReports);
     setLoading(false);
@@ -271,8 +309,13 @@ export function CellReports() {
           weeks: 0,
         };
       }
-      acc[key].mSum += r.members.length;
-      acc[key].fSum += r.frequentadores.length;
+      // Filtrar perdidos: não incluir membros/frequentadores que estão na lista de perdidos
+      const lostIds = (r.lostMembers || []).map(l => l.id);
+      const membersCount = r.members.filter(m => !lostIds.includes(m.id)).length;
+      const frequentadoresCount = r.frequentadores.filter(f => !lostIds.includes(f.id)).length;
+      
+      acc[key].mSum += membersCount;
+      acc[key].fSum += frequentadoresCount;
       acc[key].weeks += 1;
       return acc;
     }, {} as Record<string, { monthKey: string; mSum: number; fSum: number; weeks: number }>);
@@ -320,8 +363,13 @@ export function CellReports() {
           count: 0,
         };
       }
-      acc[key].mSum += r.members.length;
-      acc[key].fSum += r.frequentadores.length;
+      // Filtrar perdidos: não incluir membros/frequentadores que estão na lista de perdidos
+      const lostIds = (r.lostMembers || []).map(l => l.id);
+      const membersCount = r.members.filter(m => !lostIds.includes(m.id)).length;
+      const frequentadoresCount = r.frequentadores.filter(f => !lostIds.includes(f.id)).length;
+      
+      acc[key].mSum += membersCount;
+      acc[key].fSum += frequentadoresCount;
       acc[key].count += 1;
       return acc;
     }, {} as Record<string, { start: Date; mSum: number; fSum: number; count: number }>);
@@ -344,25 +392,6 @@ export function CellReports() {
     setIsViewDialogOpen(true);
   };
 
-  const StatusBadge = ({ status }: { status: CellReportType["status"] }) => (
-    <Badge
-      variant={
-        status === "approved"
-          ? "default"
-          : status === "needs_correction"
-          ? "destructive"
-          : "secondary"
-      }
-    >
-      {status === "draft"
-        ? "Rascunho"
-        : status === "submitted"
-        ? "Enviado"
-        : status === "needs_correction"
-        ? "Correção"
-        : "Aprovado"}
-    </Badge>
-  );
 
   // ---- returns condicionais ------------------------------------------------
   if (!user || (user.role !== "lider" && user.role !== "pastor")) {
@@ -407,10 +436,10 @@ export function CellReports() {
         week_start: selectedWeek,
         multiplication_date: multiplicationDate || null,
         observations: observations || null,
-        status: "draft",
         members_present: selectedMemberIds,
         visitors_present: selectedVisitorIds,
         phase: phase || null,
+        lost_members: lostMembers.length > 0 ? lostMembers : null,
       },
     ]);
 
@@ -431,6 +460,7 @@ export function CellReports() {
     setPhase("");
     setSelectedMemberIds([]);
     setSelectedVisitorIds([]);
+    setLostMembers([]);
 
     toast({ title: "Sucesso", description: "Relatório criado com sucesso!" });
   };
@@ -447,6 +477,7 @@ export function CellReports() {
     setPhase(report.phase);
     setSelectedMemberIds(report.members.map((m) => m.id));
     setSelectedVisitorIds(report.frequentadores.map((f) => f.id));
+    setLostMembers(report.lostMembers || []);
     setIsEditDialogOpen(true);
   };
 
@@ -462,6 +493,7 @@ export function CellReports() {
         members_present: selectedMemberIds,
         visitors_present: selectedVisitorIds,
         phase: phase || null,
+        lost_members: lostMembers.length > 0 ? lostMembers : null,
       })
       .eq("id", editingReport.id);
 
@@ -484,23 +516,28 @@ export function CellReports() {
     setPhase(_);
     setSelectedMemberIds([]);
     setSelectedVisitorIds([]);
+    setLostMembers([]);
 
     toast({ title: "Sucesso", description: "Relatório atualizado com sucesso!" });
   };
 
-  const handleDeleteReport = async (id: string) => {
-    const { error } = await supabase.from("cell_reports").delete().eq("id", id);
+  const handleDeleteReport = async () => {
+    if (!deleteReportId) return;
+    
+    const { error } = await supabase.from("cell_reports").delete().eq("id", deleteReportId);
     if (error) {
       toast({
         title: "Erro",
         description: "Não foi possível excluir o relatório.",
         variant: "destructive",
       });
+      setDeleteReportId(null);
       return;
     }
 
     await loadReports();
     toast({ title: "Sucesso", description: "Relatório excluído com sucesso!" });
+    setDeleteReportId(null);
   };
 
   const handleExportReport = (report: CellReportType) => {
@@ -532,19 +569,6 @@ Observações: ${report.observations || ""}`;
       message
     )}`;
     window.open(url, "_blank");
-    if (report.status === "draft") {
-      supabase
-        .from("cell_reports")
-        .update({ status: "submitted" })
-        .eq("id", report.id)
-        .then(() => {
-          setReports((prev) =>
-            prev.map((r) =>
-              r.id === report.id ? { ...r, status: "submitted" } : r
-            )
-          );
-        });
-    }
   };
 
   // ---- UI ------------------------------------------------------------------
@@ -663,6 +687,157 @@ Observações: ${report.observations || ""}`;
                       </label>
                     </div>
                   ))}
+                </div>
+              </div>
+              <div>
+                <Label>Perdidos</Label>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Selecione membros ou frequentadores que estão perdidos e o motivo
+                </p>
+                <div className="border rounded p-3 space-y-3">
+                  {/* Membros Perdidos */}
+                  <div>
+                    <p className="text-sm font-medium mb-2">Membros</p>
+                    <div className="space-y-2">
+                      {memberOptions.map((m) => {
+                        const isLost = lostMembers.find(l => l.id === m.id);
+                        return (
+                          <div key={m.id} className="flex items-center gap-2">
+                            <Checkbox
+                              id={`lost-member-${m.id}`}
+                              checked={!!isLost}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setLostMembers([...lostMembers, { id: m.id, reason: 'amarelo' }]);
+                                } else {
+                                  setLostMembers(lostMembers.filter(l => l.id !== m.id));
+                                }
+                              }}
+                            />
+                            <label htmlFor={`lost-member-${m.id}`} className="text-sm flex-1">
+                              {m.name}
+                            </label>
+                            {isLost && (
+                              <Select
+                                value={isLost.reason}
+                                onValueChange={(value: 'critico' | 'regular' | 'amarelo') => {
+                                  setLostMembers(lostMembers.map(l => 
+                                    l.id === m.id ? { ...l, reason: value } : l
+                                  ));
+                                }}
+                              >
+                                <SelectTrigger className="w-32">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="critico">
+                                    <span className="flex items-center gap-2">
+                                      <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                                      Crítico
+                                    </span>
+                                  </SelectItem>
+                                  <SelectItem value="regular">
+                                    <span className="flex items-center gap-2">
+                                      <span className="w-2 h-2 rounded-full bg-orange-500"></span>
+                                      Regular
+                                    </span>
+                                  </SelectItem>
+                                  <SelectItem value="amarelo">
+                                    <span className="flex items-center gap-2">
+                                      <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
+                                      Amarelo
+                                    </span>
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  
+                  {/* Frequentadores Perdidos */}
+                  <div>
+                    <p className="text-sm font-medium mb-2">Frequentadores</p>
+                    <div className="space-y-2">
+                      {visitorOptions.map((v) => {
+                        const isLost = lostMembers.find(l => l.id === v.id);
+                        return (
+                          <div key={v.id} className="flex items-center gap-2">
+                            <Checkbox
+                              id={`lost-visitor-${v.id}`}
+                              checked={!!isLost}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setLostMembers([...lostMembers, { id: v.id, reason: 'amarelo' }]);
+                                } else {
+                                  setLostMembers(lostMembers.filter(l => l.id !== v.id));
+                                }
+                              }}
+                            />
+                            <label htmlFor={`lost-visitor-${v.id}`} className="text-sm flex-1">
+                              {v.name}
+                            </label>
+                            {isLost && (
+                              <Select
+                                value={isLost.reason}
+                                onValueChange={(value: 'critico' | 'regular' | 'amarelo') => {
+                                  setLostMembers(lostMembers.map(l => 
+                                    l.id === v.id ? { ...l, reason: value } : l
+                                  ));
+                                }}
+                              >
+                                <SelectTrigger className="w-32">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="critico">
+                                    <span className="flex items-center gap-2">
+                                      <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                                      Crítico
+                                    </span>
+                                  </SelectItem>
+                                  <SelectItem value="regular">
+                                    <span className="flex items-center gap-2">
+                                      <span className="w-2 h-2 rounded-full bg-orange-500"></span>
+                                      Regular
+                                    </span>
+                                  </SelectItem>
+                                  <SelectItem value="amarelo">
+                                    <span className="flex items-center gap-2">
+                                      <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
+                                      Amarelo
+                                    </span>
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  
+                  {lostMembers.length > 0 && (
+                    <div className="mt-3 pt-3 border-t">
+                      <p className="text-xs font-medium mb-2">Legenda:</p>
+                      <div className="space-y-1 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="w-3 h-3 rounded-full bg-red-500"></span>
+                          <span>Crítico - Sem possibilidade de voltar</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="w-3 h-3 rounded-full bg-orange-500"></span>
+                          <span>Regular - Deu migué (pode voltar)</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="w-3 h-3 rounded-full bg-yellow-500"></span>
+                          <span>Amarelo - Só parou de vir (ir atrás)</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
               <div>
@@ -829,10 +1004,6 @@ Observações: ${report.observations || ""}`;
                     <p className="font-medium">{viewingReport.weekStart.toLocaleDateString("pt-BR")}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">Status</p>
-                    <div className="mt-1"><StatusBadge status={viewingReport.status} /></div>
-                  </div>
-                  <div>
                     <p className="text-xs text-muted-foreground">Fase</p>
                     <p className="font-medium">{viewingReport.phase}</p>
                   </div>
@@ -842,12 +1013,6 @@ Observações: ${report.observations || ""}`;
                       {viewingReport.multiplicationDate
                         ? viewingReport.multiplicationDate.toLocaleDateString("pt-BR")
                         : "-"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Enviado em</p>
-                    <p className="font-medium">
-                      {viewingReport.submittedAt.toLocaleDateString("pt-BR")}
                     </p>
                   </div>
                 </div>
@@ -871,6 +1036,34 @@ Observações: ${report.observations || ""}`;
                     <p className="text-sm text-muted-foreground">Nenhum frequentador presente.</p>
                   )}
                 </div>
+                {viewingReport.lostMembers && viewingReport.lostMembers.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">Perdidos ({viewingReport.lostMembers.length})</p>
+                    <div className="space-y-2">
+                      {viewingReport.lostMembers.map((lost) => {
+                        const member = [...viewingReport.members, ...viewingReport.frequentadores].find(m => m.id === lost.id);
+                        if (!member) return null;
+                        const reasonColors = {
+                          critico: 'bg-red-500',
+                          regular: 'bg-orange-500',
+                          amarelo: 'bg-yellow-500'
+                        };
+                        const reasonLabels = {
+                          critico: 'Crítico - Sem possibilidade de voltar',
+                          regular: 'Regular - Deu migué (pode voltar)',
+                          amarelo: 'Amarelo - Só parou de vir (ir atrás)'
+                        };
+                        return (
+                          <div key={lost.id} className="flex items-center gap-2 p-2 bg-muted rounded">
+                            <span className={`w-3 h-3 rounded-full ${reasonColors[lost.reason]}`}></span>
+                            <span className="text-sm font-medium flex-1">{member.name}</span>
+                            <span className="text-xs text-muted-foreground">{reasonLabels[lost.reason]}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">Observações</p>
                   <p className="text-sm leading-relaxed whitespace-pre-wrap">
@@ -1027,10 +1220,8 @@ Observações: ${report.observations || ""}`;
                   <TableHeader>
                     <TableRow>
                       <TableHead className="min-w-[140px]">Semana</TableHead>
-                      <TableHead className="min-w-[130px]">Status</TableHead>
                       <TableHead className="min-w-[140px]">Fase</TableHead>
                       <TableHead className="min-w-[200px]">Data de Multiplicação</TableHead>
-                      <TableHead className="min-w-[170px]">Data de Envio</TableHead>
                       <TableHead className="min-w-[260px] text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -1039,9 +1230,6 @@ Observações: ${report.observations || ""}`;
                       <TableRow key={report.id}>
                         <TableCell className="font-medium">
                           {report.weekStart.toLocaleDateString("pt-BR")}
-                        </TableCell>
-                        <TableCell>
-                          <StatusBadge status={report.status} />
                         </TableCell>
                         <TableCell>{report.phase}</TableCell>
                         <TableCell>
@@ -1053,12 +1241,6 @@ Observações: ${report.observations || ""}`;
                           ) : (
                             <span className="text-muted-foreground">-</span>
                           )}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1 text-sm">
-                            <Calendar className="w-3 h-3" />
-                            {report.submittedAt.toLocaleDateString("pt-BR")}
-                          </div>
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex flex-wrap items-center justify-end gap-2">
@@ -1080,15 +1262,38 @@ Observações: ${report.observations || ""}`;
                             >
                               <Edit className="w-4 h-4" />
                             </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => handleDeleteReport(report.id)}
-                              aria-label="Excluir relatório"
-                              title="Excluir"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                            <AlertDialog open={deleteReportId === report.id} onOpenChange={(open) => !open && setDeleteReportId(null)}>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => setDeleteReportId(report.id)}
+                                  aria-label="Excluir relatório"
+                                  title="Excluir"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Tem certeza que deseja excluir o relatório da semana de {report.weekStart.toLocaleDateString("pt-BR")}? Esta ação não pode ser desfeita.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel onClick={() => setDeleteReportId(null)}>
+                                    Cancelar
+                                  </AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={handleDeleteReport}
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  >
+                                    Excluir
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                             <Button
                               size="icon"
                               variant="ghost"
@@ -1097,15 +1302,6 @@ Observações: ${report.observations || ""}`;
                               title="Exportar"
                             >
                               <Download className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => handleShareReport(report)}
-                              aria-label="Compartilhar relatório"
-                              title="Compartilhar"
-                            >
-                              <Send className="w-4 h-4" />
                             </Button>
                           </div>
                         </TableCell>
@@ -1249,10 +1445,6 @@ Observações: ${report.observations || ""}`;
                       <p className="font-medium">{viewingReport.weekStart.toLocaleDateString("pt-BR")}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground">Status</p>
-                      <div className="mt-1"><StatusBadge status={viewingReport.status} /></div>
-                    </div>
-                    <div>
                       <p className="text-xs text-muted-foreground">Fase</p>
                       <p className="font-medium">{viewingReport.phase}</p>
                     </div>
@@ -1262,12 +1454,6 @@ Observações: ${report.observations || ""}`;
                         {viewingReport.multiplicationDate
                           ? viewingReport.multiplicationDate.toLocaleDateString("pt-BR")
                           : "-"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Enviado em</p>
-                      <p className="font-medium">
-                        {viewingReport.submittedAt.toLocaleDateString("pt-BR")}
                       </p>
                     </div>
                   </div>
@@ -1514,6 +1700,158 @@ Observações: ${report.observations || ""}`;
               </div>
 
               <div>
+                <Label>Perdidos</Label>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Selecione membros ou frequentadores que estão perdidos e o motivo
+                </p>
+                <div className="border rounded p-3 space-y-3">
+                  {/* Membros Perdidos */}
+                  <div>
+                    <p className="text-sm font-medium mb-2">Membros</p>
+                    <div className="space-y-2">
+                      {memberOptions.map((m) => {
+                        const isLost = lostMembers.find(l => l.id === m.id);
+                        return (
+                          <div key={m.id} className="flex items-center gap-2">
+                            <Checkbox
+                              id={`edit-lost-member-${m.id}`}
+                              checked={!!isLost}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setLostMembers([...lostMembers, { id: m.id, reason: 'amarelo' }]);
+                                } else {
+                                  setLostMembers(lostMembers.filter(l => l.id !== m.id));
+                                }
+                              }}
+                            />
+                            <label htmlFor={`edit-lost-member-${m.id}`} className="text-sm flex-1">
+                              {m.name}
+                            </label>
+                            {isLost && (
+                              <Select
+                                value={isLost.reason}
+                                onValueChange={(value: 'critico' | 'regular' | 'amarelo') => {
+                                  setLostMembers(lostMembers.map(l => 
+                                    l.id === m.id ? { ...l, reason: value } : l
+                                  ));
+                                }}
+                              >
+                                <SelectTrigger className="w-32">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="critico">
+                                    <span className="flex items-center gap-2">
+                                      <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                                      Crítico
+                                    </span>
+                                  </SelectItem>
+                                  <SelectItem value="regular">
+                                    <span className="flex items-center gap-2">
+                                      <span className="w-2 h-2 rounded-full bg-orange-500"></span>
+                                      Regular
+                                    </span>
+                                  </SelectItem>
+                                  <SelectItem value="amarelo">
+                                    <span className="flex items-center gap-2">
+                                      <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
+                                      Amarelo
+                                    </span>
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  
+                  {/* Frequentadores Perdidos */}
+                  <div>
+                    <p className="text-sm font-medium mb-2">Frequentadores</p>
+                    <div className="space-y-2">
+                      {visitorOptions.map((v) => {
+                        const isLost = lostMembers.find(l => l.id === v.id);
+                        return (
+                          <div key={v.id} className="flex items-center gap-2">
+                            <Checkbox
+                              id={`edit-lost-visitor-${v.id}`}
+                              checked={!!isLost}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setLostMembers([...lostMembers, { id: v.id, reason: 'amarelo' }]);
+                                } else {
+                                  setLostMembers(lostMembers.filter(l => l.id !== v.id));
+                                }
+                              }}
+                            />
+                            <label htmlFor={`edit-lost-visitor-${v.id}`} className="text-sm flex-1">
+                              {v.name}
+                            </label>
+                            {isLost && (
+                              <Select
+                                value={isLost.reason}
+                                onValueChange={(value: 'critico' | 'regular' | 'amarelo') => {
+                                  setLostMembers(lostMembers.map(l => 
+                                    l.id === v.id ? { ...l, reason: value } : l
+                                  ));
+                                }}
+                              >
+                                <SelectTrigger className="w-32">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="critico">
+                                    <span className="flex items-center gap-2">
+                                      <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                                      Crítico
+                                    </span>
+                                  </SelectItem>
+                                  <SelectItem value="regular">
+                                    <span className="flex items-center gap-2">
+                                      <span className="w-2 h-2 rounded-full bg-orange-500"></span>
+                                      Regular
+                                    </span>
+                                  </SelectItem>
+                                  <SelectItem value="amarelo">
+                                    <span className="flex items-center gap-2">
+                                      <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
+                                      Amarelo
+                                    </span>
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  
+                  {lostMembers.length > 0 && (
+                    <div className="mt-3 pt-3 border-t">
+                      <p className="text-xs font-medium mb-2">Legenda:</p>
+                      <div className="space-y-1 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="w-3 h-3 rounded-full bg-red-500"></span>
+                          <span>Crítico - Sem possibilidade de voltar</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="w-3 h-3 rounded-full bg-orange-500"></span>
+                          <span>Regular - Deu migué (pode voltar)</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="w-3 h-3 rounded-full bg-yellow-500"></span>
+                          <span>Amarelo - Só parou de vir (ir atrás)</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
                 <Label>Fase da Célula</Label>
                 <Select value={phase} onValueChange={setPhase}>
                   <SelectTrigger>
@@ -1677,10 +2015,8 @@ Observações: ${report.observations || ""}`;
               <TableHeader>
                 <TableRow>
                   <TableHead className="min-w-[140px]">Semana</TableHead>
-                  <TableHead className="min-w-[130px]">Status</TableHead>
                   <TableHead className="min-w-[140px]">Fase</TableHead>
                   <TableHead className="min-w-[200px]">Data de Multiplicação</TableHead>
-                  <TableHead className="min-w-[170px]">Data de Envio</TableHead>
                   <TableHead className="min-w-[260px] text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -1689,9 +2025,6 @@ Observações: ${report.observations || ""}`;
                   <TableRow key={report.id}>
                     <TableCell className="font-medium">
                       {report.weekStart.toLocaleDateString("pt-BR")}
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge status={report.status} />
                     </TableCell>
                     <TableCell>{report.phase}</TableCell>
                     <TableCell>
@@ -1703,12 +2036,6 @@ Observações: ${report.observations || ""}`;
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1 text-sm">
-                        <Calendar className="w-3 h-3" />
-                        {report.submittedAt.toLocaleDateString("pt-BR")}
-                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex flex-wrap items-center justify-end gap-2">
@@ -1732,15 +2059,38 @@ Observações: ${report.observations || ""}`;
                         >
                           <Edit className="w-4 h-4" />
                         </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => handleDeleteReport(report.id)}
-                          aria-label="Excluir relatório"
-                          title="Excluir"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        <AlertDialog open={deleteReportId === report.id} onOpenChange={(open) => !open && setDeleteReportId(null)}>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => setDeleteReportId(report.id)}
+                              aria-label="Excluir relatório"
+                              title="Excluir"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Tem certeza que deseja excluir o relatório da semana de {report.weekStart.toLocaleDateString("pt-BR")}? Esta ação não pode ser desfeita.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel onClick={() => setDeleteReportId(null)}>
+                                Cancelar
+                              </AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={handleDeleteReport}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Excluir
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                         <Button
                           size="icon"
                           variant="ghost"
@@ -1749,15 +2099,6 @@ Observações: ${report.observations || ""}`;
                           title="Exportar"
                         >
                           <Download className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => handleShareReport(report)}
-                          aria-label="Compartilhar relatório"
-                          title="Compartilhar"
-                        >
-                          <Send className="w-4 h-4" />
                         </Button>
                       </div>
                     </TableCell>
@@ -1790,10 +2131,6 @@ Observações: ${report.observations || ""}`;
                   <p className="font-medium">{viewingReport.weekStart.toLocaleDateString("pt-BR")}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Status</p>
-                  <div className="mt-1"><StatusBadge status={viewingReport.status} /></div>
-                </div>
-                <div>
                   <p className="text-xs text-muted-foreground">Fase</p>
                   <p className="font-medium">{viewingReport.phase}</p>
                 </div>
@@ -1803,12 +2140,6 @@ Observações: ${report.observations || ""}`;
                     {viewingReport.multiplicationDate
                       ? viewingReport.multiplicationDate.toLocaleDateString("pt-BR")
                       : "-"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Enviado em</p>
-                  <p className="font-medium">
-                    {viewingReport.submittedAt.toLocaleDateString("pt-BR")}
                   </p>
                 </div>
               </div>

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useProfileMode } from '@/contexts/ProfileModeContext';
 import { supabase } from '@/integrations/supabase/client';
 import { supabaseAdmin } from '@/integrations/supabase/admin';
 import { useToast } from '@/hooks/use-toast';
@@ -16,7 +17,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 
 export function DiscipuladorManagement() {
   const { user } = useAuth();
+  const { mode } = useProfileMode();
   const { toast } = useToast();
+  const isKidsMode = mode === 'kids';
   const [discipuladores, setDiscipuladores] = useState<Discipulador[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -35,12 +38,20 @@ export function DiscipuladorManagement() {
       return;
     }
     setLoading(true);
-    const { data, error } = await supabase
+    let query = supabase
       .from('profiles')
-      .select('id, name, email, phone, created_at')
+      .select('id, name, email, phone, created_at, is_kids')
       .eq('pastor_uuid', user.id)
-      .eq('role', 'discipulador')
-      .order('created_at', { ascending: false });
+      .eq('role', 'discipulador');
+    
+    // No modo Kids, mostrar apenas os do modo Kids. No modo normal, mostrar apenas os do modo normal
+    if (isKidsMode) {
+      query = query.eq('is_kids', true);
+    } else {
+      query = query.or('is_kids.is.null,is_kids.eq.false');
+    }
+    
+    const { data, error } = await query.order('created_at', { ascending: false });
 
     if (error) {
       console.error('Error loading discipuladores:', error);
@@ -66,7 +77,7 @@ export function DiscipuladorManagement() {
     } else {
       setLoading(false);
     }
-  }, [user, loadDiscipuladores]);
+  }, [user, mode, loadDiscipuladores]);
 
   if (!user || user.role !== 'pastor') {
     return (
@@ -117,6 +128,7 @@ export function DiscipuladorManagement() {
       discipulador_uuid: null,
       pastor_uuid: user.id,
       role: 'discipulador' as const,
+      is_kids: isKidsMode,
     };
 
     let profileId: string | null = null;
@@ -205,6 +217,7 @@ export function DiscipuladorManagement() {
         name: editingDiscipulador.name,
         email: editingDiscipulador.email,
         phone: editingDiscipulador.phone || null,
+        is_kids: isKidsMode,
         updated_at: new Date().toISOString(),
       })
       .eq('id', editingDiscipulador.id);
@@ -271,17 +284,21 @@ export function DiscipuladorManagement() {
   return (
     <div className="space-y-8 animate-fade-in pb-12">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl md:text-3xl font-bold text-foreground">Discipuladores</h1>
+        <h1 className="text-2xl md:text-3xl font-bold text-foreground">
+          {isKidsMode ? 'Discipuladoras Kids' : 'Discipuladores'}
+        </h1>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
             <Button className="gradient-primary">
               <Plus className="w-4 h-4 mr-2" />
-              Novo Discipulador
+              {isKidsMode ? 'Nova Discipuladora' : 'Novo Discipulador'}
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-lg">
             <DialogHeader>
-              <DialogTitle>Adicionar Discipulador</DialogTitle>
+              <DialogTitle>
+                {isKidsMode ? 'Adicionar Discipuladora Kids' : 'Adicionar Discipulador'}
+              </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
@@ -330,7 +347,7 @@ export function DiscipuladorManagement() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="w-5 h-5 text-primary" />
-            Lista de Discipuladores
+            {isKidsMode ? 'Lista de Discipuladoras Kids' : 'Lista de Discipuladores'}
           </CardTitle>
         </CardHeader>
         <CardContent className="overflow-x-auto">
@@ -407,7 +424,9 @@ export function DiscipuladorManagement() {
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Editar Discipulador</DialogTitle>
+            <DialogTitle>
+              {isKidsMode ? 'Editar Discipuladora Kids' : 'Editar Discipulador'}
+            </DialogTitle>
           </DialogHeader>
           {editingDiscipulador && (
             <div className="space-y-4">

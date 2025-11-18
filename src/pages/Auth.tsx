@@ -58,7 +58,7 @@ export function Auth() {
     return () => clearTimeout(t);
   }, []);
 
-  const showLoader = useDelayedLoading(!isLoading && bootReady, 3500);
+  const showLoader = useDelayedLoading(!isLoading && bootReady, 1000);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,15 +66,17 @@ export function Auth() {
     setIsLoading(true);
     try {
       await login(email, password);
-      navigate('/');
+      // Aguardar um pouco para garantir que o estado foi atualizado
+      setTimeout(() => {
+        navigate('/');
+      }, 100);
     } catch (error) {
+      setIsLoading(false);
       toast({
         title: 'Erro no login',
         description: error instanceof Error ? error.message : 'Erro desconhecido',
         variant: 'destructive',
       });
-    } finally {
-      setIsLoading(false);
     }
   };
 

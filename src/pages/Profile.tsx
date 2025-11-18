@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useProfileMode } from "@/contexts/ProfileModeContext";
 import type { UserRole } from "@/types/auth";
 import {
   Card,
@@ -60,17 +61,22 @@ function InfoItem({ icon: Icon, label, value }: InfoItemProps) {
 
 export function Profile() {
   const { user } = useAuth();
+  const { mode } = useProfileMode();
   const navigate = useNavigate();
+  const isKidsMode = mode === 'kids';
+  
+  const displayName = isKidsMode && user?.role === 'pastor' ? 'Tainá' : user?.name;
+  const displayRole = isKidsMode && user?.role === 'pastor' ? 'Pastora' : (user?.role ? roleLabels[user.role] : '');
 
   const initials = useMemo(() => {
-    if (!user?.name) return "US";
-    return user.name
+    if (!displayName) return "US";
+    return displayName
       .split(" ")
       .filter(Boolean)
       .map((n) => n[0]?.toUpperCase())
       .slice(0, 2)
       .join("");
-  }, [user?.name]);
+  }, [displayName]);
 
   const formattedCreatedAt = useMemo(() => {
     if (!user?.createdAt) return "-";
@@ -97,11 +103,14 @@ export function Profile() {
             </Avatar>
             <div>
               <div className="flex flex-wrap items-center gap-3">
-                <CardTitle className="text-2xl font-semibold">{user.name}</CardTitle>
-                <Badge className="shadow-sm">{roleLabels[user.role]}</Badge>
+                <CardTitle className="text-2xl font-semibold">{displayName}</CardTitle>
+                <Badge className="shadow-sm">{displayRole}</Badge>
               </div>
               <CardDescription className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                {roleDescriptions[user.role] ?? "Perfil ministerial cadastrado."}
+                {isKidsMode && user?.role === 'pastor' 
+                  ? "Responsável pelo ministério infantil e gestão das crianças da Videira."
+                  : (roleDescriptions[user.role] ?? "Perfil ministerial cadastrado.")
+                }
               </CardDescription>
             </div>
           </div>

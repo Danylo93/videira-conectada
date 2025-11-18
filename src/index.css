@@ -118,6 +118,108 @@ All colors MUST be HSL.
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
+
+  /* Kids Mode Theme - Vibrant and Fun Colors */
+  .kids-mode {
+    /* Bright and playful colors */
+    --background: 0 0% 100%;
+    --foreground: 280 80% 20%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 280 80% 20%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 280 80% 20%;
+
+    /* Primary - Bright Purple/Pink */
+    --primary: 320 80% 50%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 320 90% 60%;
+
+    /* Secondary - Soft Pink */
+    --secondary: 340 80% 90%;
+    --secondary-foreground: 320 80% 50%;
+
+    --muted: 340 50% 95%;
+    --muted-foreground: 280 40% 50%;
+
+    /* Accent - Bright Yellow/Orange */
+    --accent: 45 100% 60%;
+    --accent-foreground: 280 80% 20%;
+
+    --destructive: 0 90% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 320 60% 85%;
+    --input: 340 50% 95%;
+    --ring: 320 80% 50%;
+
+    /* Success - Bright Green */
+    --success: 142 90% 50%;
+    --success-foreground: 0 0% 100%;
+
+    /* Gradients - More vibrant */
+    --gradient-primary: linear-gradient(135deg, hsl(320 80% 50%), hsl(320 90% 60%));
+    --gradient-accent: linear-gradient(135deg, hsl(45 100% 60%), hsl(30 100% 55%));
+    --gradient-subtle: linear-gradient(180deg, hsl(0 0% 100%), hsl(340 50% 95%));
+
+    /* Shadows - Softer and more colorful */
+    --shadow-elegant: 0 10px 30px -10px hsl(320 80% 50% / 0.3);
+    --shadow-glow: 0 0 40px hsl(320 90% 60% / 0.4);
+
+    --sidebar-background: 340 50% 98%;
+    --sidebar-foreground: 280 80% 20%;
+    --sidebar-primary: 320 80% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 340 80% 95%;
+    --sidebar-accent-foreground: 320 80% 50%;
+    --sidebar-border: 320 60% 90%;
+    --sidebar-ring: 320 80% 50%;
+  }
+
+  .kids-mode.dark {
+    /* Dark mode for Kids - Still vibrant but darker */
+    --background: 280 40% 10%;
+    --foreground: 0 0% 95%;
+
+    --card: 280 35% 15%;
+    --card-foreground: 0 0% 95%;
+
+    --popover: 280 35% 15%;
+    --popover-foreground: 0 0% 95%;
+
+    --primary: 320 90% 70%;
+    --primary-foreground: 280 40% 10%;
+    --primary-glow: 320 100% 80%;
+
+    --secondary: 280 30% 20%;
+    --secondary-foreground: 0 0% 95%;
+
+    --muted: 280 25% 18%;
+    --muted-foreground: 320 40% 70%;
+
+    --accent: 45 100% 65%;
+    --accent-foreground: 280 40% 10%;
+
+    --destructive: 0 80% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 280 30% 25%;
+    --input: 280 25% 18%;
+    --ring: 320 90% 70%;
+
+    --success: 142 90% 55%;
+    --success-foreground: 0 0% 100%;
+
+    --sidebar-background: 280 35% 12%;
+    --sidebar-foreground: 0 0% 95%;
+    --sidebar-primary: 320 90% 70%;
+    --sidebar-primary-foreground: 280 40% 10%;
+    --sidebar-accent: 280 30% 18%;
+    --sidebar-accent-foreground: 0 0% 95%;
+    --sidebar-border: 280 30% 20%;
+    --sidebar-ring: 320 90% 70%;
+  }
 }
 
 @layer base {
@@ -128,6 +230,30 @@ All colors MUST be HSL.
   body {
     @apply bg-background text-foreground font-inter;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Kids Mode Typography - More rounded and playful */
+  .kids-mode body {
+    font-family: 'Comic Sans MS', 'Chalkboard SE', 'Comic Neue', 'Inter', sans-serif;
+    letter-spacing: 0.01em;
+  }
+
+  .kids-mode h1,
+  .kids-mode h2,
+  .kids-mode h3,
+  .kids-mode h4,
+  .kids-mode h5,
+  .kids-mode h6 {
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+
+  .kids-mode .font-bold {
+    font-weight: 800;
+  }
+
+  .kids-mode .font-semibold {
+    font-weight: 700;
   }
 
   html {

@@ -29,12 +29,20 @@ export interface Member {
   active: boolean;
 }
 
+export type LostReason = 'critico' | 'regular' | 'amarelo';
+
+export interface LostMember {
+  id: string;
+  reason: LostReason;
+}
+
 export interface CellReport {
   id: string;
   liderId: string;
   weekStart: Date;
   members: Member[];
   frequentadores: Member[];
+  lostMembers?: LostMember[];
   phase: 'Comunhão' | 'Edificação' | 'Evangelismo' | 'Multiplicação';
   multiplicationDate?: Date;
   observations?: string;
@@ -51,6 +59,7 @@ export interface ServiceAttendanceReport {
   observations?: string;
   submittedAt: Date;
   status: 'draft' | 'submitted' | 'approved' | 'needs_correction';
+  totalAttendance?: number;
 }
 
 export interface Course {

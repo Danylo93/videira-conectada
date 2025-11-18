@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useProfileMode } from "@/contexts/ProfileModeContext";
 import { supabase } from "@/integrations/supabase/client";
+import { eventsService } from "@/integrations/supabase/events";
 import FancyLoader from "@/components/FancyLoader";
 import { useStatistics } from "@/hooks/useStatistics";
+import type { Event } from "@/types/event";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -74,8 +77,118 @@ const labelMonth = (key: string) => {
 
 type EventItem = { id: string; title: string; date: string };
 
+// Componente de Calendário Mensal
+const MonthCalendar = ({ events }: { events: Event[] }) => {
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+  const firstDay = new Date(currentYear, currentMonth, 1);
+  const lastDay = new Date(currentYear, currentMonth + 1, 0);
+  const daysInMonth = lastDay.getDate();
+  const startingDayOfWeek = firstDay.getDay(); // 0 = Domingo, 1 = Segunda, etc.
+
+  // Criar array de dias do mês
+  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
+  // Mapear eventos por dia
+  const eventsByDay = new Map<number, Event[]>();
+  events.forEach((event) => {
+    const eventDate = new Date(event.event_date);
+    if (eventDate.getMonth() === currentMonth && eventDate.getFullYear() === currentYear) {
+      const day = eventDate.getDate();
+      if (!eventsByDay.has(day)) {
+        eventsByDay.set(day, []);
+      }
+      eventsByDay.get(day)!.push(event);
+    }
+  });
+
+  const weekDays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+  return (
+    <div className="w-full">
+      <div className="grid grid-cols-7 gap-1 mb-2">
+        {weekDays.map((day) => (
+          <div key={day} className="text-center text-sm font-medium text-muted-foreground py-2">
+            {day}
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {/* Espaços vazios antes do primeiro dia */}
+        {Array.from({ length: startingDayOfWeek }).map((_, i) => (
+          <div key={`empty-${i}`} className="aspect-square" />
+        ))}
+        {/* Dias do mês */}
+        {days.map((day) => {
+          const dayEvents = eventsByDay.get(day) || [];
+          const isToday = day === now.getDate() && currentMonth === now.getMonth() && currentYear === now.getFullYear();
+          
+          return (
+            <div
+              key={day}
+              className={`aspect-square border rounded-lg p-1 flex flex-col items-center justify-start ${
+                isToday
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-muted/50 hover:bg-muted border-border'
+              } transition-colors`}
+            >
+              <span className={`text-xs font-medium ${isToday ? 'text-primary-foreground' : 'text-foreground'}`}>
+                {day}
+              </span>
+              {dayEvents.length > 0 && (
+                <div className="flex flex-wrap gap-0.5 mt-0.5 justify-center">
+                  {dayEvents.slice(0, 2).map((event, idx) => (
+                    <div
+                      key={event.id}
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        isToday ? 'bg-primary-foreground' : 'bg-primary'
+                      }`}
+                      title={event.name}
+                    />
+                  ))}
+                  {dayEvents.length > 2 && (
+                    <span className={`text-[8px] ${isToday ? 'text-primary-foreground' : 'text-muted-foreground'}`}>
+                      +{dayEvents.length - 2}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {events.length > 0 && (
+        <div className="mt-4 space-y-2">
+          <p className="text-sm font-medium">Eventos do Mês:</p>
+          <div className="space-y-1">
+            {events.slice(0, 5).map((event) => {
+              const eventDate = new Date(event.event_date);
+              return (
+                <div key={event.id} className="flex items-center gap-2 text-sm p-2 bg-muted rounded">
+                  <div className="w-2 h-2 rounded-full bg-primary" />
+                  <span className="font-medium">{event.name}</span>
+                  <span className="text-muted-foreground ml-auto">
+                    {eventDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                  </span>
+                </div>
+              );
+            })}
+            {events.length > 5 && (
+              <p className="text-xs text-muted-foreground text-center">
+                +{events.length - 5} evento(s) adicional(is)
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export function Dashboard() {
   const { user } = useAuth();
+  const { mode } = useProfileMode();
   const navigate = useNavigate();
   const { data: statistics, loading: statsLoading } = useStatistics();
 
@@ -84,6 +197,25 @@ export function Dashboard() {
   // pendências / eventos
   const [pendingReports, setPendingReports] = useState(0);
   const [events, setEvents] = useState<EventItem[]>([]);
+  
+  // Novos dados para dashboard melhorado (modo normal)
+  const [serviceReportsData, setServiceReportsData] = useState<{
+    total: number;
+    thisMonth: number;
+    lastMonth: number;
+    averageAttendance: number;
+    recentReports: Array<{ date: string; attendance: number }>;
+  } | null>(null);
+  
+  const [cellReportsData, setCellReportsData] = useState<{
+    total: number;
+    thisMonth: number;
+    submitted: number;
+    pending: number;
+    recentReports: Array<{ weekStart: string; status: string }>;
+  } | null>(null);
+  
+  const [monthEvents, setMonthEvents] = useState<Event[]>([]);
 
   // gráfico (apenas mensal)
   const [monthlyRows, setMonthlyRows] = useState<
@@ -138,11 +270,20 @@ export function Dashboard() {
             .select("id", { count: "exact", head: true })
             .eq("status", "submitted");
           if (isDiscipulador) {
-            const { data: leaderIds } = await supabase
+            const isKidsMode = mode === 'kids';
+            let leaderQuery = supabase
               .from("profiles")
               .select("id")
               .eq("role", "lider")
               .eq("discipulador_uuid", user.id);
+            
+            if (isKidsMode) {
+              leaderQuery = leaderQuery.eq('is_kids', true);
+            } else {
+              leaderQuery = leaderQuery.or('is_kids.is.null,is_kids.eq.false');
+            }
+            
+            const { data: leaderIds } = await leaderQuery;
             const ids = (leaderIds ?? []).map((l: { id: string }) => l.id);
             query = ids.length ? query.in("lider_id", ids) : query.eq("lider_id", "");
           }
@@ -226,7 +367,112 @@ export function Dashboard() {
           ? Math.round((statistics.averagePresence / statistics.totalMembers) * 100)
           : 0;
         
-        const reportCompliance = isLeader ? 85 : isDiscipulador ? 90 : 95; // Placeholder baseado no cargo
+        // Calcular compliance real baseado em relatórios
+        let reportCompliance = 0;
+        if (isPastor) {
+          const isKidsMode = mode === 'kids';
+          // Buscar líderes do modo correto
+          let leadersQuery = supabase
+            .from("profiles")
+            .select("id", { count: "exact", head: true })
+            .eq("role", "lider");
+          
+          if (isKidsMode) {
+            leadersQuery = leadersQuery.eq('is_kids', true);
+          } else {
+            leadersQuery = leadersQuery.or('is_kids.is.null,is_kids.eq.false');
+          }
+          
+          const { count: totalLeaders } = await leadersQuery;
+          
+          if (totalLeaders && totalLeaders > 0) {
+            // Calcular semanas do ano até agora
+            const now = new Date();
+            const yearStart = new Date(now.getFullYear(), 0, 1);
+            const weeksElapsed = Math.ceil((now.getTime() - yearStart.getTime()) / (7 * 24 * 60 * 60 * 1000));
+            const expectedReports = totalLeaders * weeksElapsed;
+            
+            // Contar relatórios enviados/aprovados do modo correto
+            const { data: leaderIdsData } = await (isKidsMode 
+              ? supabase.from("profiles").select("id").eq("role", "lider").eq('is_kids', true)
+              : supabase.from("profiles").select("id").eq("role", "lider").or('is_kids.is.null,is_kids.eq.false'));
+            
+            const leaderIds = (leaderIdsData ?? []).map((l: { id: string }) => l.id);
+            
+            const { count: submittedReports } = await (leaderIds.length > 0
+              ? supabase
+                  .from("cell_reports")
+                  .select("id", { count: "exact", head: true })
+                  .in("lider_id", leaderIds)
+                  .gte("week_start", yearStart.toISOString())
+                  .in("status", ["submitted", "approved"])
+              : { count: 0 });
+            
+            reportCompliance = expectedReports > 0 
+              ? Math.round(((submittedReports ?? 0) / expectedReports) * 100)
+              : 100;
+          } else {
+            reportCompliance = 100; // Sem líderes = 100% de compliance
+          }
+        } else if (isDiscipulador) {
+          const isKidsMode = mode === 'kids';
+          // Buscar líderes do discipulador do modo correto
+          let leaderQuery = supabase
+            .from("profiles")
+            .select("id")
+            .eq("role", "lider")
+            .eq("discipulador_uuid", user.id);
+          
+          if (isKidsMode) {
+            leaderQuery = leaderQuery.eq('is_kids', true);
+          } else {
+            leaderQuery = leaderQuery.or('is_kids.is.null,is_kids.eq.false');
+          }
+          
+          const { data: leaderIdsData } = await leaderQuery;
+          const leaderIds = (leaderIdsData ?? []).map((l: { id: string }) => l.id);
+          
+          if (leaderIds.length > 0) {
+            const now = new Date();
+            const yearStart = new Date(now.getFullYear(), 0, 1);
+            const weeksElapsed = Math.ceil((now.getTime() - yearStart.getTime()) / (7 * 24 * 60 * 60 * 1000));
+            const expectedReports = leaderIds.length * weeksElapsed;
+            
+            const { count: submittedReports } = await supabase
+              .from("cell_reports")
+              .select("id", { count: "exact", head: true })
+              .in("lider_id", leaderIds)
+              .gte("week_start", yearStart.toISOString())
+              .in("status", ["submitted", "approved"]);
+            
+            reportCompliance = expectedReports > 0 
+              ? Math.round(((submittedReports ?? 0) / expectedReports) * 100)
+              : 100;
+          } else {
+            reportCompliance = 100;
+          }
+        } else if (isLeader) {
+          const now = new Date();
+          const yearStart = new Date(now.getFullYear(), 0, 1);
+          const weeksElapsed = Math.ceil((now.getTime() - yearStart.getTime()) / (7 * 24 * 60 * 60 * 1000));
+          const expectedReports = weeksElapsed;
+          
+          const { count: submittedReports } = await supabase
+            .from("cell_reports")
+            .select("id", { count: "exact", head: true })
+            .eq("lider_id", user.id)
+            .gte("week_start", yearStart.toISOString())
+            .in("status", ["submitted", "approved"]);
+          
+          reportCompliance = expectedReports > 0 
+            ? Math.round(((submittedReports ?? 0) / expectedReports) * 100)
+            : 100;
+        } else {
+          reportCompliance = 100;
+        }
+        
+        // Limitar entre 0 e 100
+        reportCompliance = Math.max(0, Math.min(100, reportCompliance));
         
         setPerformanceMetrics({
           attendanceRate,
@@ -283,11 +529,20 @@ export function Dashboard() {
       if (isLeader) {
         reportsQuery = reportsQuery.eq("lider_id", user.id);
       } else if (isDiscipulador) {
-        const { data: leaderIds } = await supabase
+        const isKidsMode = mode === 'kids';
+        let leaderQuery = supabase
           .from("profiles")
           .select("id")
           .eq("role", "lider")
           .eq("discipulador_uuid", user.id);
+        
+        if (isKidsMode) {
+          leaderQuery = leaderQuery.eq('is_kids', true);
+        } else {
+          leaderQuery = leaderQuery.or('is_kids.is.null,is_kids.eq.false');
+        }
+        
+        const { data: leaderIds } = await leaderQuery;
         const ids = (leaderIds ?? []).map((l: { id: string }) => l.id);
         reportsQuery = ids.length ? reportsQuery.in("lider_id", ids) : reportsQuery.eq("lider_id", "");
       }
@@ -322,11 +577,116 @@ export function Dashboard() {
         .map(([key, v]) => ({ name: labelMonth(key), ...v }));
       setMonthlyRows(rows);
 
+      /* ---- DADOS PARA DASHBOARD MELHORADO (MODO NORMAL - PASTOR) ---- */
+      if (isPastor && !isKidsMode) {
+        const now = new Date();
+        const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+        const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+
+        // Carregar dados de Service Reports (Cultos)
+        const { data: allServiceReports } = await (supabase as any)
+          .from("service_attendance_reports")
+          .select("service_date, total_attendance, members_present, visitors_present")
+          .order("service_date", { ascending: false });
+
+        if (allServiceReports) {
+          const total = allServiceReports.length;
+          const thisMonth = allServiceReports.filter((r: any) => {
+            const date = new Date(r.service_date);
+            return date >= currentMonthStart && date <= currentMonthEnd;
+          }).length;
+          const lastMonth = allServiceReports.filter((r: any) => {
+            const date = new Date(r.service_date);
+            return date >= lastMonthStart && date <= lastMonthEnd;
+          }).length;
+
+          // Calcular média de presença
+          const attendances = allServiceReports.map((r: any) => {
+            if (r.total_attendance) return r.total_attendance;
+            const members = Array.isArray(r.members_present) ? r.members_present.length : 0;
+            const visitors = Array.isArray(r.visitors_present) ? r.visitors_present.length : 0;
+            return members + visitors;
+          });
+          const averageAttendance = attendances.length > 0
+            ? Math.round(attendances.reduce((a: number, b: number) => a + b, 0) / attendances.length)
+            : 0;
+
+          // Últimos 5 relatórios
+          const recentReports = allServiceReports.slice(0, 5).map((r: any) => {
+            const attendance = r.total_attendance || 
+              ((Array.isArray(r.members_present) ? r.members_present.length : 0) +
+               (Array.isArray(r.visitors_present) ? r.visitors_present.length : 0));
+            return {
+              date: r.service_date,
+              attendance
+            };
+          });
+
+          setServiceReportsData({
+            total,
+            thisMonth,
+            lastMonth,
+            averageAttendance,
+            recentReports
+          });
+        }
+
+        // Carregar dados de Cell Reports (sem status, apenas contagem)
+        const { data: allCellReports } = await supabase
+          .from("cell_reports")
+          .select("week_start")
+          .order("week_start", { ascending: false });
+
+        if (allCellReports) {
+          const total = allCellReports.length;
+          const thisMonth = allCellReports.filter((r: any) => {
+            const date = new Date(r.week_start);
+            return date >= currentMonthStart && date <= currentMonthEnd;
+          }).length;
+
+          const recentReports = allCellReports.slice(0, 5).map((r: any) => ({
+            weekStart: r.week_start,
+            status: 'completed' // Status genérico, não usamos mais draft/submitted
+          }));
+
+          setCellReportsData({
+            total,
+            thisMonth,
+            submitted: total, // Todos os relatórios são considerados enviados
+            pending: 0, // Não há mais pendentes
+            recentReports
+          });
+        }
+
+        // Carregar eventos do mês atual
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+        
+        try {
+          const allEvents = await eventsService.getEvents();
+          const currentMonthEvents = allEvents.filter((event) => {
+            const eventDate = new Date(event.event_date);
+            return eventDate >= monthStart && eventDate <= monthEnd;
+          });
+          setMonthEvents(currentMonthEvents);
+        } catch (error) {
+          console.error("Erro ao carregar eventos:", error);
+        }
+      }
+
       setLoading(false);
     })();
-  }, [user, isLeader, isDiscipulador, isPastor, statistics]);
+  }, [user, mode, isLeader, isDiscipulador, isPastor, statistics]);
 
-  const greeting = roleGreetings[user?.role as keyof typeof roleGreetings] ?? "Usuário";
+  const isKidsMode = mode === 'kids';
+  const greeting = isKidsMode && user?.role === 'pastor' 
+    ? 'Pastora' 
+    : (roleGreetings[user?.role as keyof typeof roleGreetings] ?? "Usuário");
+  const displayName = isKidsMode && user?.role === 'pastor' 
+    ? 'Tainá' 
+    : (user?.name.split(" ")[0] ?? "");
 
   // grid: todos os cards na MESMA LINHA no desktop; empilha no mobile
   const gridColsDesktop = isPastor ? "xl:grid-cols-5" : "xl:grid-cols-4";
@@ -347,20 +707,20 @@ export function Dashboard() {
     trend?: { value: number; label: string };
     color?: "primary" | "success" | "warning" | "destructive";
   }) => (
-    <Card className="hover:grape-glow transition-smooth">
+    <Card className={`${isKidsMode ? 'hover:shadow-lg hover:shadow-pink-100 border-pink-200' : 'hover:grape-glow'} transition-smooth`}>
       <CardHeader className="pb-1 flex flex-row items-center justify-between">
-        <CardTitle className="text-xs font-medium">{title}</CardTitle>
-        <Icon className={`h-4 w-4 text-${color === 'primary' ? 'primary' : color === 'success' ? 'green-500' : color === 'warning' ? 'yellow-500' : 'red-500'}`} />
+        <CardTitle className={`text-xs font-medium ${isKidsMode ? 'text-pink-700' : ''}`}>{title}</CardTitle>
+        <Icon className={`h-4 w-4 ${isKidsMode ? 'text-pink-500' : `text-${color === 'primary' ? 'primary' : color === 'success' ? 'green-500' : color === 'warning' ? 'yellow-500' : 'red-500'}`}`} />
       </CardHeader>
       <CardContent className="pt-0">
-        <div className={`text-xl font-semibold ${loading ? "text-muted-foreground" : `text-${color === 'primary' ? 'primary' : color === 'success' ? 'green-600' : color === 'warning' ? 'yellow-600' : 'red-600'}`}`}>
+        <div className={`text-xl font-semibold ${loading ? "text-muted-foreground" : isKidsMode ? 'text-pink-600' : `text-${color === 'primary' ? 'primary' : color === 'success' ? 'green-600' : color === 'warning' ? 'yellow-600' : 'red-600'}`}`}>
           {loading ? "…" : value}
         </div>
-        {subtitle && <p className="text-[11px] text-muted-foreground mt-0.5">{subtitle}</p>}
+        {subtitle && <p className={`text-[11px] ${isKidsMode ? 'text-pink-600/70' : 'text-muted-foreground'} mt-0.5`}>{subtitle}</p>}
         {trend && (
           <div className="flex items-center gap-1 mt-1">
-            <TrendingUp className={`h-3 w-3 ${trend.value >= 0 ? 'text-green-500' : 'text-red-500'}`} />
-            <span className={`text-[10px] ${trend.value >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            <TrendingUp className={`h-3 w-3 ${trend.value >= 0 ? (isKidsMode ? 'text-pink-500' : 'text-green-500') : 'text-red-500'}`} />
+            <span className={`text-[10px] ${trend.value >= 0 ? (isKidsMode ? 'text-pink-600' : 'text-green-600') : 'text-red-600'}`}>
               {trend.value >= 0 ? '+' : ''}{trend.value}% {trend.label}
             </span>
           </div>
@@ -386,20 +746,20 @@ export function Dashboard() {
     const percentage = target > 0 ? Math.min((value / target) * 100, 100) : 0;
     
     return (
-      <Card className="hover:grape-glow transition-smooth">
+      <Card className={`${isKidsMode ? 'hover:shadow-lg hover:shadow-pink-100 border-pink-200' : 'hover:grape-glow'} transition-smooth`}>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <Icon className="h-4 w-4 text-primary" />
+          <CardTitle className={`text-sm font-medium flex items-center gap-2 ${isKidsMode ? 'text-pink-700' : ''}`}>
+            <Icon className={`h-4 w-4 ${isKidsMode ? 'text-pink-500' : 'text-primary'}`} />
             {title}
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-2xl font-bold text-primary">{value}</span>
-            <span className="text-sm text-muted-foreground">/ {target}</span>
+            <span className={`text-2xl font-bold ${isKidsMode ? 'text-pink-600' : 'text-primary'}`}>{value}</span>
+            <span className={`text-sm ${isKidsMode ? 'text-pink-600/70' : 'text-muted-foreground'}`}>/ {target}</span>
           </div>
-          <Progress value={percentage} className="h-2" />
-          <p className="text-xs text-muted-foreground mt-1">
+          <Progress value={percentage} className={`h-2 ${isKidsMode ? '[&>div]:bg-gradient-to-r [&>div]:from-pink-400 [&>div]:to-pink-600' : ''}`} />
+          <p className={`text-xs ${isKidsMode ? 'text-pink-600/70' : 'text-muted-foreground'} mt-1`}>
             {percentage.toFixed(0)}% da meta 
           </p>
         </CardContent>
@@ -425,22 +785,26 @@ export function Dashboard() {
   return (
     <div className="space-y-6 animate-fade-in pb-12">
       {/* Saudação */}
-      <div className="gradient-primary rounded-xl p-6 md:p-8 text-white relative overflow-hidden">
+      <div className={`${isKidsMode ? 'bg-gradient-to-br from-pink-400 via-pink-500 to-purple-500' : 'gradient-primary'} rounded-xl p-6 md:p-8 text-white relative overflow-hidden ${isKidsMode ? 'shadow-lg shadow-pink-200' : ''}`}>
         <div className="relative z-10">
           <div className="flex items-center gap-3 md:gap-4 mb-2 md:mb-4">
-            <div className="w-14 h-14 md:w-16 md:h-16 bg-white rounded-full flex items-center justify-center shadow-lg">
+            <div className={`w-14 h-14 md:w-16 md:h-16 bg-white ${isKidsMode ? 'rounded-full shadow-xl' : 'rounded-full'} flex items-center justify-center ${isKidsMode ? 'shadow-pink-300' : 'shadow-lg'}`}>
               <img src={logoVideira} alt="Videira Logo" className="w-10 h-10 md:w-12 md:h-12" />
             </div>
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold">
-                Bem-vindo, {greeting} {user.name.split(" ")[0]}!
+              <h1 className={`text-2xl md:text-3xl font-bold ${isKidsMode ? 'drop-shadow-md' : ''}`}>
+                Bem-vindo, {greeting} {displayName}!
               </h1>
               <p className="text-white/80 text-sm md:text-base">{formatBRLong(new Date())}</p>
             </div>
           </div>
         </div>
-        <div className="absolute top-3 right-3 md:top-4 md:right-4 opacity-20">
-          <Church className="w-16 h-16 md:w-24 md:h-24" />
+        <div className={`absolute top-3 right-3 md:top-4 md:right-4 ${isKidsMode ? 'opacity-30' : 'opacity-20'}`}>
+          {isKidsMode ? (
+            <Grape className="w-16 h-16 md:w-24 md:h-24 text-white" />
+          ) : (
+            <Church className="w-16 h-16 md:w-24 md:h-24" />
+          )}
         </div>
       </div>
 
@@ -481,17 +845,17 @@ export function Dashboard() {
         {isPastor ? (
           <>
             <KpiCard 
-              title="Discipuladores" 
+              title={isKidsMode ? "Discipuladoras" : "Discipuladores"} 
               value={statistics?.totalDiscipuladores || 0} 
               icon={Users} 
-              subtitle="Total na igreja"
+              subtitle={isKidsMode ? "Total no ministério kids" : "Total na igreja"}
               trend={statistics?.networkData ? { value: 12, label: "vs mês anterior" } : undefined}
             />
             <KpiCard 
-              title="Líderes" 
+              title={isKidsMode ? "Líderes Kids" : "Líderes"} 
               value={statistics?.totalLeaders || 0} 
               icon={Users} 
-              subtitle="Total na igreja"
+              subtitle={isKidsMode ? "Total no ministério kids" : "Total na igreja"}
               trend={statistics?.networkData ? { value: 8, label: "vs mês anterior" } : undefined}
             />
             <KpiCard 
@@ -618,10 +982,10 @@ export function Dashboard() {
       {/* Gráficos e Visualizações */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Gráfico de Presenças Mensais */}
-        <Card className="hover:grape-glow transition-smooth">
+        <Card className={`${isKidsMode ? 'hover:shadow-lg hover:shadow-pink-100 border-pink-200' : 'hover:grape-glow'} transition-smooth`}>
           <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-primary" />
+            <CardTitle className={`flex items-center gap-2 ${isKidsMode ? 'text-pink-700' : ''}`}>
+              <TrendingUp className={`w-5 h-5 ${isKidsMode ? 'text-pink-500' : 'text-primary'}`} />
               Presenças Mensais
             </CardTitle>
           </CardHeader>
@@ -639,9 +1003,9 @@ export function Dashboard() {
                   total: month.averageTotal,
                 }))}>
                   <defs>
-                    <linearGradient id="gradTotal" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.4} />
-                      <stop offset="100%" stopColor="var(--primary)" stopOpacity={0.06} />
+                    <linearGradient id={isKidsMode ? "gradTotalKids" : "gradTotal"} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={isKidsMode ? "#ec4899" : "var(--primary)"} stopOpacity={0.4} />
+                      <stop offset="100%" stopColor={isKidsMode ? "#ec4899" : "var(--primary)"} stopOpacity={0.06} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -653,8 +1017,8 @@ export function Dashboard() {
                     type="monotone"
                     dataKey="total"
                     name="Total (média)"
-                    fill="url(#gradTotal)"
-                    stroke="var(--primary)"
+                    fill={`url(#${isKidsMode ? "gradTotalKids" : "gradTotal"})`}
+                    stroke={isKidsMode ? "#ec4899" : "var(--primary)"}
                     strokeWidth={2}
                     isAnimationActive
                   />
@@ -662,7 +1026,7 @@ export function Dashboard() {
                     type="monotone"
                     dataKey="members"
                     name="Membros (média)"
-                    stroke="#7c3aed"
+                    stroke={isKidsMode ? "#a855f7" : "#7c3aed"}
                     strokeWidth={2}
                     dot
                     isAnimationActive
@@ -671,7 +1035,7 @@ export function Dashboard() {
                     type="monotone"
                     dataKey="frequentadores"
                     name="Frequentadores (média)"
-                    stroke="#f59e0b"
+                    stroke={isKidsMode ? "#f472b6" : "#f59e0b"}
                     strokeWidth={2}
                     dot
                     isAnimationActive
@@ -683,10 +1047,10 @@ export function Dashboard() {
         </Card>
 
         {/* Gráfico de Distribuição */}
-        <Card className="hover:grape-glow transition-smooth">
+        <Card className={`${isKidsMode ? 'hover:shadow-lg hover:shadow-pink-100 border-pink-200' : 'hover:grape-glow'} transition-smooth`}>
           <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2">
-              <Users className="w-5 h-5 text-primary" />
+            <CardTitle className={`flex items-center gap-2 ${isKidsMode ? 'text-pink-700' : ''}`}>
+              <Users className={`w-5 h-5 ${isKidsMode ? 'text-pink-500' : 'text-primary'}`} />
               Distribuição por Tipo
             </CardTitle>
           </CardHeader>
@@ -700,8 +1064,8 @@ export function Dashboard() {
                 <PieChart>
                   <Pie
                     data={[
-                      { name: 'Membros', value: statistics.totalMembers, color: '#7c3aed' },
-                      { name: 'Frequentadores', value: statistics.totalFrequentadores, color: '#f59e0b' },
+                      { name: 'Membros', value: statistics.totalMembers, color: isKidsMode ? '#a855f7' : '#7c3aed' },
+                      { name: 'Frequentadores', value: statistics.totalFrequentadores, color: isKidsMode ? '#f472b6' : '#f59e0b' },
                     ]}
                     cx="50%"
                     cy="50%"
@@ -709,8 +1073,8 @@ export function Dashboard() {
                     dataKey="value"
                     label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
                   >
-                    {[{ name: 'Membros', value: statistics.totalMembers, color: '#7c3aed' },
-                      { name: 'Frequentadores', value: statistics.totalFrequentadores, color: '#f59e0b' }].map((entry, index) => (
+                    {[{ name: 'Membros', value: statistics.totalMembers, color: isKidsMode ? '#a855f7' : '#7c3aed' },
+                      { name: 'Frequentadores', value: statistics.totalFrequentadores, color: isKidsMode ? '#f472b6' : '#f59e0b' }].map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
@@ -721,6 +1085,170 @@ export function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Seções Especiais para Modo Normal (Pastor) */}
+      {isPastor && !isKidsMode && (
+        <div className="space-y-6">
+          {/* Seção de Cultos */}
+          {serviceReportsData && (
+            <Card className="hover:grape-glow transition-smooth">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Church className="w-5 h-5 text-primary" />
+                    Relatórios de Culto
+                  </CardTitle>
+                  <Button variant="outline" size="sm" onClick={() => navigate("/relatorios-culto")}>
+                    Ver Todos
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                  <div className="p-4 bg-primary/5 rounded-lg">
+                    <p className="text-sm text-muted-foreground">Total de Cultos</p>
+                    <p className="text-2xl font-bold text-primary">{serviceReportsData.total}</p>
+                  </div>
+                  <div className="p-4 bg-primary/5 rounded-lg">
+                    <p className="text-sm text-muted-foreground">Este Mês</p>
+                    <p className="text-2xl font-bold text-primary">{serviceReportsData.thisMonth}</p>
+                    {serviceReportsData.lastMonth > 0 && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {serviceReportsData.thisMonth > serviceReportsData.lastMonth ? '+' : ''}
+                        {serviceReportsData.thisMonth - serviceReportsData.lastMonth} vs mês anterior
+                      </p>
+                    )}
+                  </div>
+                  <div className="p-4 bg-primary/5 rounded-lg">
+                    <p className="text-sm text-muted-foreground">Média de Presença</p>
+                    <p className="text-2xl font-bold text-primary">{serviceReportsData.averageAttendance}</p>
+                    <p className="text-xs text-muted-foreground mt-1">pessoas por culto</p>
+                  </div>
+                  <div className="p-4 bg-primary/5 rounded-lg">
+                    <p className="text-sm text-muted-foreground">Últimos 5 Cultos</p>
+                    <div className="mt-2 space-y-1">
+                      {serviceReportsData.recentReports.slice(0, 3).map((report, idx) => (
+                        <div key={idx} className="flex justify-between text-xs">
+                          <span className="text-muted-foreground">
+                            {new Date(report.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                          </span>
+                          <span className="font-medium">{report.attendance} pessoas</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                {serviceReportsData.recentReports.length > 0 && (
+                  <div className="h-[200px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={serviceReportsData.recentReports.slice(0, 10).reverse()}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis 
+                          dataKey="date" 
+                          tickFormatter={(value) => new Date(value).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                          tick={{ fontSize: 12 }}
+                        />
+                        <YAxis />
+                        <Tooltip 
+                          formatter={(value: number) => [`${value} pessoas`, 'Presença']}
+                          labelFormatter={(value) => new Date(value).toLocaleDateString('pt-BR')}
+                        />
+                        <Bar dataKey="attendance" fill="var(--primary)" radius={[8, 8, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Seção de Relatórios de Célula */}
+          {cellReportsData && (
+            <Card className="hover:grape-glow transition-smooth">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-primary" />
+                    Relatórios de Célula
+                  </CardTitle>
+                  <Button variant="outline" size="sm" onClick={() => navigate("/relatorios")}>
+                    Ver Todos
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  <div className="p-4 bg-primary/5 rounded-lg">
+                    <p className="text-sm text-muted-foreground">Total de Relatórios</p>
+                    <p className="text-2xl font-bold text-primary">{cellReportsData.total}</p>
+                  </div>
+                  <div className="p-4 bg-primary/5 rounded-lg">
+                    <p className="text-sm text-muted-foreground">Este Mês</p>
+                    <p className="text-2xl font-bold text-primary">{cellReportsData.thisMonth}</p>
+                    {cellReportsData.total > 0 && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {Math.round((cellReportsData.thisMonth / cellReportsData.total) * 100)}% do total
+                      </p>
+                    )}
+                  </div>
+                  <div className="p-4 bg-primary/5 rounded-lg">
+                    <p className="text-sm text-muted-foreground">Última Atualização</p>
+                    {cellReportsData.recentReports.length > 0 && (
+                      <p className="text-sm font-medium">
+                        {new Date(cellReportsData.recentReports[0].weekStart).toLocaleDateString('pt-BR', { 
+                          day: '2-digit', 
+                          month: 'long',
+                          year: 'numeric'
+                        })}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm font-medium mb-2">Últimos Relatórios</p>
+                  {cellReportsData.recentReports.slice(0, 5).map((report, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-3 bg-muted rounded-lg hover:bg-muted/80 transition-colors">
+                      <div>
+                        <p className="font-medium text-sm">
+                          Semana de {new Date(report.weekStart).toLocaleDateString('pt-BR')}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(report.weekStart).toLocaleDateString('pt-BR', { weekday: 'long' })}
+                        </p>
+                      </div>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => navigate("/relatorios")}
+                      >
+                        Ver Detalhes
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Calendário Mensal com Eventos */}
+          <Card className="hover:grape-glow transition-smooth">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-primary" />
+                  Calendário - {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                </CardTitle>
+                <Button variant="outline" size="sm" onClick={() => navigate("/eventos")}>
+                  Ver Agenda
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <MonthCalendar events={monthEvents} />
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Atividade Recente e Ações */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

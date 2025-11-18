@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { ProfileModeProvider } from "@/contexts/ProfileModeContext";
 import type { AuthTransition } from "@/types/auth";
 
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -40,6 +41,9 @@ import EncounterEvents from "./pages/encounters/EncounterEvents"; // <-- Eventos
 
 // DÍZIMOS E OFERTAS
 import { TithesOfferings } from "./pages/TithesOfferings"; // <-- Dízimos e Ofertas (Pastor/Obreiro)
+
+// FINANCEIRO
+import { Financial } from "./pages/Financial"; // <-- Financeiro (Pastor/Obreiro)
 
 const queryClient = new QueryClient();
 
@@ -183,6 +187,7 @@ function AppContent() {
         <Route path="/encounters" element={<Encounters />} />     {/* <- Encontro com Deus (Pastor/Discipulador) */}
         <Route path="/encounters/events" element={<EncounterEvents />} /> {/* <- Eventos de Encontro (Pastor/Discipulador) */}
         <Route path="/dizimos-ofertas" element={<TithesOfferings />} /> {/* <- Dízimos e Ofertas (Pastor/Obreiro) */}
+        <Route path="/financeiro" element={<Financial />} /> {/* <- Financeiro (Pastor/Obreiro) */}
         <Route path="/estatisticas" element={<Statistics />} />
         <Route path="/gerenciar" element={<ChurchManagement />} />
         <Route path="/perfil" element={<Profile />} />
@@ -198,13 +203,15 @@ function AppContent() {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <AppContent />
-        </BrowserRouter>
-      </TooltipProvider>
+      <ProfileModeProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <AppContent />
+          </BrowserRouter>
+        </TooltipProvider>
+      </ProfileModeProvider>
     </AuthProvider>
   </QueryClientProvider>
 );

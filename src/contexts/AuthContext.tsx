@@ -51,13 +51,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
      
 
       if (currentSession?.user) {
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('*')
+          .select('id, name, email, role, phone, discipulador_uuid, pastor_uuid, celula, created_at')
           .eq('user_id', currentSession.user.id)
           .single();
 
-        if (profile) {
+        if (profileError) {
+          console.error('Error loading profile:', profileError);
+          setUser(null);
+        } else if (profile) {
           const userData: User = {
             id: profile.id,
             name: profile.name,
@@ -70,6 +73,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             createdAt: new Date(profile.created_at),
           };
           setUser(userData);
+        } else {
+          setUser(null);
         }
       } else {
         setUser(null);
@@ -100,9 +105,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string) => {
+    setAuthTransition('login');
     setLoading(true);
     
-   const { error } = await supabase.auth.signInWithPassword({
+    const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -113,8 +119,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error(error.message);
     }
     
-    setLoading(false);
-    // The onAuthStateChange callback will handle setting the user
+    // O onAuthStateChange callback irá processar a sessão automaticamente
+    // Não setar loading como false aqui, deixar o handleSession fazer isso
   };
 
   const logout = async () => {

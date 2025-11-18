@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useProfileMode } from '@/contexts/ProfileModeContext';
 import { statisticsService, type StatisticsData } from '@/integrations/supabase/statistics';
 import { toast } from '@/hooks/use-toast';
 
 export function useStatistics() {
   const { user } = useAuth();
+  const { mode } = useProfileMode();
   const [data, setData] = useState<StatisticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -15,7 +17,8 @@ export function useStatistics() {
     try {
       setLoading(true);
       setError(null);
-      const statistics = await statisticsService.getGeneralStatistics(user);
+      const isKidsMode = mode === 'kids';
+      const statistics = await statisticsService.getGeneralStatistics(user, isKidsMode);
       setData(statistics);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar estatísticas';
@@ -32,7 +35,7 @@ export function useStatistics() {
 
   useEffect(() => {
     loadStatistics();
-  }, [user]);
+  }, [user, mode]);
 
   return {
     data,
@@ -44,6 +47,7 @@ export function useStatistics() {
 
 export function useNetworkStatistics() {
   const { user } = useAuth();
+  const { mode } = useProfileMode();
   const [networkData, setNetworkData] = useState<StatisticsData['networkData'] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +58,8 @@ export function useNetworkStatistics() {
     try {
       setLoading(true);
       setError(null);
-      const statistics = await statisticsService.getGeneralStatistics(user);
+      const isKidsMode = mode === 'kids';
+      const statistics = await statisticsService.getGeneralStatistics(user, isKidsMode);
       setNetworkData(statistics.networkData || null);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar dados da rede';
@@ -71,7 +76,7 @@ export function useNetworkStatistics() {
 
   useEffect(() => {
     loadNetworkData();
-  }, [user]);
+  }, [user, mode]);
 
   return {
     networkData,

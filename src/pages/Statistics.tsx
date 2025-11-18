@@ -42,6 +42,7 @@ function linearRegressionForecast(values: number[]): number | null {
 
 export function Statistics() {
   const { user } = useAuth();
+  const { mode } = useProfileMode();
   const [discipuladores, setDiscipuladores] = useState<SimpleUser[]>([]);
   const [leaders, setLeaders] = useState<SimpleUser[]>([]);
   const [filterType, setFilterType] = useState<'geral' | 'discipulador' | 'lider'>('geral');
@@ -65,34 +66,57 @@ export function Statistics() {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, mode]);
 
   const loadUsers = async () => {
     if (!user) return;
 
+    const isKidsMode = mode === 'kids';
+    
     if (user.role === 'pastor' || user.role === 'obreiro') {
-      const { data: discipulos } = await supabase
+      let discipulosQuery = supabase
         .from('profiles')
         .select('id, name')
         .eq('role', 'discipulador')
-        .eq('pastor_uuid', user.id)
-        .order('name');
+        .eq('pastor_uuid', user.id);
+      
+      if (isKidsMode) {
+        discipulosQuery = discipulosQuery.eq('is_kids', true);
+      } else {
+        discipulosQuery = discipulosQuery.or('is_kids.is.null,is_kids.eq.false');
+      }
+      
+      const { data: discipulos } = await discipulosQuery.order('name');
       setDiscipuladores((discipulos || []).map((d) => ({ id: d.id, name: d.name })));
 
-      const { data: lData } = await supabase
+      let leadersQuery = supabase
         .from('profiles')
         .select('id, name')
         .eq('role', 'lider')
-        .eq('pastor_uuid', user.id)
-        .order('name');
+        .eq('pastor_uuid', user.id);
+      
+      if (isKidsMode) {
+        leadersQuery = leadersQuery.eq('is_kids', true);
+      } else {
+        leadersQuery = leadersQuery.or('is_kids.is.null,is_kids.eq.false');
+      }
+      
+      const { data: lData } = await leadersQuery.order('name');
       setLeaders((lData || []).map((l) => ({ id: l.id, name: l.name })));
     } else if (user.role === 'discipulador') {
-      const { data: lData } = await supabase
+      let leadersQuery = supabase
         .from('profiles')
         .select('id, name')
         .eq('role', 'lider')
-        .eq('discipulador_uuid', user.id)
-        .order('name');
+        .eq('discipulador_uuid', user.id);
+      
+      if (isKidsMode) {
+        leadersQuery = leadersQuery.eq('is_kids', true);
+      } else {
+        leadersQuery = leadersQuery.or('is_kids.is.null,is_kids.eq.false');
+      }
+      
+      const { data: lData } = await leadersQuery.order('name');
       setLeaders((lData || []).map((l) => ({ id: l.id, name: l.name })));
     }
 
