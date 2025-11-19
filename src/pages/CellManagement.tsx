@@ -290,8 +290,8 @@ export function CellManagement() {
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-foreground">
             {isKidsMode 
-              ? (user.role === 'pastor' ? 'Gerenciar Células Kids' : 'Minha Célula Kids')
-              : (user.role === 'pastor' ? 'Gerenciar Células' : 'Minha Célula')
+              ? (user.role === 'pastor' ? 'Gerenciar Células Kids' : 'Minhas Células Kids')
+              : (user.role === 'pastor' ? 'Gerenciar Células' : 'Minhas Células')
             }
           </h1>
           {user.role === 'pastor' ? (

@@ -46,7 +46,7 @@ const navigationItems: NavigationItem[] = [
     roles: ['pastor', 'obreiro', 'discipulador', 'lider'],
   },
   {
-    title: 'Minha Célula',
+    title: 'Minhas Células',
     url: '/celula',
     icon: Users,
     roles: ['lider', 'pastor'],

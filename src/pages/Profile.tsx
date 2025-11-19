@@ -133,43 +133,45 @@ export function Profile() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Vínculos ministeriais</CardTitle>
-            <CardDescription>
-              Relações hierárquicas e célula associada ao seu perfil.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <InfoItem icon={Users} label="Célula" value={user.celula ?? "Não vinculado"} />
-            <InfoItem
-              icon={UserCheck}
-              label="Discipulador responsável"
-              value={user.discipuladorId ?? "Não vinculado"}
-            />
-            <InfoItem
-              icon={Church}
-              label="Pastor responsável"
-              value={user.pastorId ?? "Não vinculado"}
-            />
-          </CardContent>
-        </Card>
+      {user?.role !== 'pastor' && (
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Vínculos ministeriais</CardTitle>
+              <CardDescription>
+                Relações hierárquicas e célula associada ao seu perfil.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <InfoItem icon={Users} label="Célula" value={user.celula ?? "Não vinculado"} />
+              <InfoItem
+                icon={UserCheck}
+                label="Discipulador responsável"
+                value={user.discipuladorId ?? "Não vinculado"}
+              />
+              <InfoItem
+                icon={Church}
+                label="Pastor responsável"
+                value={user.pastorId ?? "Não vinculado"}
+              />
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Credenciais de acesso</CardTitle>
-            <CardDescription>
-              Informações utilizadas para autenticação e auditoria do sistema.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <InfoItem icon={ShieldCheck} label="Identificador interno" value={user.id} />
-            <InfoItem icon={Mail} label="Login de acesso" value={user.email} />
-            <InfoItem icon={Calendar} label="Cadastro criado em" value={formattedCreatedAt} />
-          </CardContent>
-        </Card>
-      </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Credenciais de acesso</CardTitle>
+              <CardDescription>
+                Informações utilizadas para autenticação e auditoria do sistema.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <InfoItem icon={ShieldCheck} label="Identificador interno" value={user.id} />
+              <InfoItem icon={Mail} label="Login de acesso" value={user.email} />
+              <InfoItem icon={Calendar} label="Cadastro criado em" value={formattedCreatedAt} />
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
