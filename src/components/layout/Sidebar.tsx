@@ -64,8 +64,14 @@ const navigationItems: NavigationItem[] = [
     roles: ['pastor'],
   },
   {
-    title: 'Relatórios de Célula',
+    title: 'Relatório de Célula Mensal',
     url: '/relatorios',
+    icon: FileText,
+    roles: ['pastor', 'obreiro', 'discipulador', 'lider'],
+  },
+  {
+    title: 'Relatório de Célula Semanal',
+    url: '/relatorios-semanal',
     icon: FileText,
     roles: ['pastor', 'obreiro', 'discipulador', 'lider'],
   },

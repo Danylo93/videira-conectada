@@ -3,6 +3,9 @@
  * Resolve problemas de timezone ao exibir datas do banco de dados
  */
 
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+
 /**
  * Formata uma data para exibição no formato brasileiro (dd/mm/yyyy)
  * Usa métodos UTC para evitar problemas de timezone
@@ -52,10 +55,6 @@ export function formatDateCustom(
   formatStr: string,
   options?: { locale?: any }
 ): string {
-  // Dynamic import para evitar problemas de tipo
-  const dateFns = require('date-fns');
-  const dateFnsLocale = require('date-fns/locale');
-  
   const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
   
   // Usa métodos UTC para extrair o dia, mês e ano corretos
@@ -66,8 +65,8 @@ export function formatDateCustom(
   // Cria uma data local usando os valores UTC (sem conversão de timezone)
   const localDate = new Date(year, month, day);
   
-  return dateFns.format(localDate, formatStr, {
-    locale: options?.locale || dateFnsLocale.ptBR,
+  return format(localDate, formatStr, {
+    locale: options?.locale || ptBR,
     ...options,
   });
 }
