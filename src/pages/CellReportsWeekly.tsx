@@ -41,11 +41,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Edit, Trash2, Calendar } from "lucide-react";
+import { Plus, Edit, Trash2, Calendar, CheckCircle2, Clock, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Leader } from "@/types/church";
 import FancyLoader from "@/components/FancyLoader";
 import { formatDateBR } from "@/lib/dateUtils";
+import { getCurrentWeekLeadersStatus, getLeadersWeeklyReportStatus, type LeaderWeeklyReportStatus } from "@/integrations/supabase/weekly-reports";
+import { useSearchParams } from "react-router-dom";
 
 interface WeeklyReport {
   id: string;
@@ -76,11 +78,37 @@ export function CellReportsWeekly() {
   const [observations, setObservations] = useState("");
   const [editingReport, setEditingReport] = useState<WeeklyReport | null>(null);
   const [loading, setLoading] = useState(true);
+  const [leadersStatus, setLeadersStatus] = useState<LeaderWeeklyReportStatus[]>([]);
+  const [showStatusView, setShowStatusView] = useState(false);
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // Filtros de mês e ano
   const currentDate = new Date();
   const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
+  
+  // Verificar se há parâmetros de URL para selecionar líder e data
+  useEffect(() => {
+    const liderParam = searchParams.get('lider');
+    const dateParam = searchParams.get('date');
+    
+    if (dateParam) {
+      setReportDate(dateParam);
+      
+      // Se for pastor e tiver parâmetro de líder, selecionar o líder
+      if (liderParam && user?.role === 'pastor') {
+        setSelectedLeaderId(liderParam);
+      }
+      
+      // Se for líder e tiver data, abrir o dialog de criação automaticamente
+      if (user?.role === 'lider' && !isCreateDialogOpen) {
+        setIsCreateDialogOpen(true);
+      }
+    } else if (liderParam && user?.role === 'pastor') {
+      setSelectedLeaderId(liderParam);
+    }
+  }, [searchParams, user, isCreateDialogOpen]);
 
   // Load leaders for pastor
   const loadLeaders = useCallback(async () => {
@@ -151,8 +179,12 @@ export function CellReportsWeekly() {
   }, [selectedMonth, selectedYear, mode]);
 
   const loadReports = async () => {
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
+    setLoading(true);
     const liderId = user.role === "pastor" ? selectedLeaderId : user.id;
     
     if (user.role === "pastor" && !selectedLeaderId) {
@@ -163,14 +195,20 @@ export function CellReportsWeekly() {
 
     // Criar filtro de data baseado no mês e ano selecionados
     const startDate = new Date(selectedYear, selectedMonth - 1, 1);
+    startDate.setHours(0, 0, 0, 0);
     const endDate = new Date(selectedYear, selectedMonth, 0); // Último dia do mês
+    endDate.setHours(23, 59, 59, 999);
+
+    // Formatar datas para YYYY-MM-DD (formato do banco)
+    const startDateStr = startDate.toISOString().split('T')[0];
+    const endDateStr = endDate.toISOString().split('T')[0];
 
     const { data, error } = await supabase
       .from("cell_reports_weekly")
       .select("*")
       .eq("lider_id", liderId)
-      .gte("report_date", startDate.toISOString())
-      .lte("report_date", endDate.toISOString())
+      .gte("report_date", startDateStr)
+      .lte("report_date", endDateStr)
       .order("report_date", { ascending: false });
 
     if (error) {
@@ -219,6 +257,53 @@ export function CellReportsWeekly() {
       return;
     }
 
+    // Verificar se já existe um relatório para esta data e líder
+    const { data: existingReport } = await supabase
+      .from("cell_reports_weekly")
+      .select("id")
+      .eq("lider_id", liderId)
+      .eq("report_date", reportDate)
+      .single();
+
+    if (existingReport) {
+      // Abrir o relatório existente para edição automaticamente
+      const { data: fullReport } = await supabase
+        .from("cell_reports_weekly")
+        .select("*")
+        .eq("id", existingReport.id)
+        .single();
+
+      if (fullReport) {
+        setEditingReport({
+          id: fullReport.id,
+          liderId: fullReport.lider_id,
+          reportDate: new Date(fullReport.report_date),
+          membersCount: fullReport.members_count || 0,
+          frequentadoresCount: fullReport.frequentadores_count || 0,
+          observations: fullReport.observations || undefined,
+          createdAt: new Date(fullReport.created_at),
+        });
+        setReportDate(fullReport.report_date);
+        setMembersCount(fullReport.members_count || 0);
+        setFrequentadoresCount(fullReport.frequentadores_count || 0);
+        setObservations(fullReport.observations || "");
+        setIsCreateDialogOpen(false);
+        setIsEditDialogOpen(true);
+        
+        toast({
+          title: "Relatório já existe",
+          description: "O relatório para esta data já existe. Abrindo para edição...",
+        });
+      } else {
+        toast({
+          title: "Erro",
+          description: "Já existe um relatório para esta data, mas não foi possível carregá-lo.",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+
     const { error } = await supabase.from("cell_reports_weekly").insert([
       {
         lider_id: liderId,
@@ -230,15 +315,45 @@ export function CellReportsWeekly() {
     ]);
 
     if (error) {
-      toast({
-        title: "Erro",
-        description: "Não foi possível criar o relatório.",
-        variant: "destructive",
-      });
+      // Verificar se é erro de constraint única
+      if (error.code === '23505' || error.message?.includes('unique constraint')) {
+        toast({
+          title: "Relatório já existe",
+          description: "Já existe um relatório para esta data. Por favor, edite o relatório existente.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Erro",
+          description: error.message || "Não foi possível criar o relatório.",
+          variant: "destructive",
+        });
+      }
       return;
     }
 
+    // Atualizar mês/ano selecionados para o mês do relatório criado (se necessário)
+    if (reportDate) {
+      const reportDateObj = new Date(reportDate);
+      const reportMonth = reportDateObj.getMonth() + 1;
+      const reportYear = reportDateObj.getFullYear();
+      
+      if (reportMonth !== selectedMonth || reportYear !== selectedYear) {
+        setSelectedMonth(reportMonth);
+        setSelectedYear(reportYear);
+      }
+    }
+
+    // Aguardar um pouco para garantir que o banco processou
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
     await loadReports();
+    
+    // Se a view de status estiver aberta, recarregar também
+    if (showStatusView) {
+      await loadLeadersStatus();
+    }
+    
     setIsCreateDialogOpen(false);
     setReportDate("");
     setMembersCount(0);
@@ -288,7 +403,28 @@ export function CellReportsWeekly() {
       return;
     }
 
+    // Atualizar mês/ano selecionados para o mês do relatório atualizado (se necessário)
+    if (reportDate) {
+      const reportDateObj = new Date(reportDate);
+      const reportMonth = reportDateObj.getMonth() + 1;
+      const reportYear = reportDateObj.getFullYear();
+      
+      if (reportMonth !== selectedMonth || reportYear !== selectedYear) {
+        setSelectedMonth(reportMonth);
+        setSelectedYear(reportYear);
+      }
+    }
+
+    // Aguardar um pouco para garantir que o banco processou
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
     await loadReports();
+    
+    // Se a view de status estiver aberta, recarregar também
+    if (showStatusView) {
+      await loadLeadersStatus();
+    }
+    
     setIsEditDialogOpen(false);
     setEditingReport(null);
     setReportDate("");
@@ -314,8 +450,115 @@ export function CellReportsWeekly() {
     }
 
     await loadReports();
+    
+    // Se a view de status estiver aberta, recarregar também
+    if (showStatusView) {
+      await loadLeadersStatus();
+    }
+    
     toast({ title: "Sucesso", description: "Relatório excluído com sucesso!" });
     setDeleteReportId(null);
+  };
+
+  // Carregar status dos líderes para a semana atual
+  const loadLeadersStatus = async () => {
+    if (!user || user.role !== "pastor") return;
+    
+    setStatusLoading(true);
+    try {
+      // Calcular início da semana (segunda-feira)
+      const today = new Date();
+      const dayOfWeek = today.getDay();
+      const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      
+      const monday = new Date(today);
+      monday.setDate(today.getDate() - daysToMonday);
+      monday.setHours(0, 0, 0, 0);
+      const weekStartDate = monday.toISOString().split('T')[0];
+
+      // Buscar relatórios de toda a semana (segunda a domingo)
+      // Vamos buscar todos os líderes e verificar se têm relatório em qualquer dia da semana
+      const { data: leadersData } = await supabase
+        .from('profiles')
+        .select('id, name, email, phone, celula, is_kids')
+        .eq('role', 'lider')
+        .eq('pastor_uuid', user.id);
+      
+      if (isKidsMode) {
+        // Filtrar no código se necessário
+      } else {
+        // Filtrar no código se necessário
+      }
+
+      const leaders = (leadersData || []).filter(l => {
+        if (isKidsMode) return l.is_kids === true;
+        return !l.is_kids || l.is_kids === false;
+      });
+
+      if (leaders.length === 0) {
+        setLeadersStatus([]);
+        setStatusLoading(false);
+        return;
+      }
+
+      // Buscar todos os relatórios da semana (segunda a domingo)
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      const weekEndDate = sunday.toISOString().split('T')[0];
+
+      const liderIds = leaders.map(l => l.id);
+      const { data: reports } = await supabase
+        .from('cell_reports_weekly')
+        .select('lider_id, report_date, members_count, frequentadores_count')
+        .in('lider_id', liderIds)
+        .gte('report_date', weekStartDate)
+        .lte('report_date', weekEndDate);
+
+      // Criar mapa de relatórios por líder (qualquer dia da semana conta)
+      const reportsMap = new Map(
+        (reports || []).map(r => [
+          r.lider_id,
+          {
+            reportDate: r.report_date,
+            membersCount: r.members_count,
+            frequentadoresCount: r.frequentadores_count,
+          }
+        ])
+      );
+
+      const baseUrl = window.location.origin;
+      const status: LeaderWeeklyReportStatus[] = leaders.map(leader => {
+        const report = reportsMap.get(leader.id);
+        const hasReport = !!report;
+        const reportDateForLink = report?.reportDate || weekStartDate;
+
+        return {
+          liderId: leader.id,
+          liderName: leader.name,
+          liderEmail: leader.email || '',
+          liderPhone: leader.phone || undefined,
+          celula: leader.celula || undefined,
+          hasReport,
+          reportDate: report?.reportDate,
+          membersCount: report?.membersCount,
+          frequentadoresCount: report?.frequentadoresCount,
+          reportLink: `${baseUrl}/relatorios-semanal?lider=${leader.id}&date=${reportDateForLink}`,
+          fillLink: `${baseUrl}/relatorios-semanal?date=${reportDateForLink}`,
+          isKids: leader.is_kids || false,
+        };
+      });
+
+      setLeadersStatus(status);
+    } catch (error) {
+      console.error("Error loading leaders status:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar o status dos líderes.",
+        variant: "destructive",
+      });
+    } finally {
+      setStatusLoading(false);
+    }
   };
 
   // ---- UI ------------------------------------------------------------------
@@ -347,7 +590,7 @@ export function CellReportsWeekly() {
             <h1 className="text-2xl md:text-3xl font-bold text-foreground">
               Relatório de Célula Semanal
             </h1>
-            <div className="mt-2">
+            <div className="mt-2 flex gap-2">
               <Select value={selectedLeaderId} onValueChange={setSelectedLeaderId}>
                 <SelectTrigger className="w-full sm:w-[300px]">
                   <SelectValue placeholder="Selecione um líder" />
@@ -360,6 +603,17 @@ export function CellReportsWeekly() {
                   ))}
                 </SelectContent>
               </Select>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowStatusView(!showStatusView);
+                  if (!showStatusView) {
+                    loadLeadersStatus();
+                  }
+                }}
+              >
+                {showStatusView ? "Ver Relatórios" : "Ver Status dos Líderes"}
+              </Button>
             </div>
           </div>
 
@@ -425,8 +679,92 @@ export function CellReportsWeekly() {
           </Dialog>
         </div>
 
+        {/* Vista de Status dos Líderes */}
+        {showStatusView && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Status dos Relatórios Semanais</CardTitle>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={loadLeadersStatus}
+                  disabled={statusLoading}
+                >
+                  {statusLoading ? "Carregando..." : "Atualizar"}
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {statusLoading ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">Carregando status...</p>
+                </div>
+              ) : leadersStatus.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">
+                  Nenhum líder encontrado.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Líder</TableHead>
+                        <TableHead>Célula</TableHead>
+                        <TableHead>Membros</TableHead>
+                        <TableHead>Frequentadores</TableHead>
+                        <TableHead>Link</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {leadersStatus.map((status) => (
+                        <TableRow key={status.liderId}>
+                          <TableCell>
+                            {status.hasReport ? (
+                              <CheckCircle2 className="w-5 h-5 text-green-500" />
+                            ) : (
+                              <Clock className="w-5 h-5 text-yellow-500" />
+                            )}
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {status.liderName}
+                          </TableCell>
+                          <TableCell>{status.celula || "-"}</TableCell>
+                          <TableCell>
+                            {status.hasReport ? status.membersCount : "-"}
+                          </TableCell>
+                          <TableCell>
+                            {status.hasReport ? status.frequentadoresCount : "-"}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedLeaderId(status.liderId);
+                                setShowStatusView(false);
+                                if (status.reportDate) {
+                                  setReportDate(status.reportDate);
+                                }
+                              }}
+                            >
+                              <ExternalLink className="w-4 h-4 mr-2" />
+                              Abrir
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Filtros de mês e ano */}
-        {selectedLeaderId && (
+        {selectedLeaderId && !showStatusView && (
           <Card>
             <CardHeader>
               <CardTitle>Filtros</CardTitle>
@@ -479,7 +817,7 @@ export function CellReportsWeekly() {
         )}
 
         {/* Lista de Relatórios */}
-        {selectedLeaderId && (
+        {selectedLeaderId && !showStatusView && (
           <Card>
             <CardHeader>
               <CardTitle>Relatórios de {cellName}</CardTitle>

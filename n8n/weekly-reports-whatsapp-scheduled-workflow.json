@@ -1,0 +1,290 @@
+{
+  "name": "Enviar Relatórios Semanais - Verificação Contínua",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/15 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Verificar a cada 15 minutos",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/functions/v1/weekly-reports-status",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "date",
+              "value": "={{ $now.toFormat('yyyy-MM-dd') }}"
+            },
+            {
+              "name": "pastor_id",
+              "value": "={{ $env.PASTOR_ID }}"
+            },
+            {
+              "name": "is_kids",
+              "value": "false"
+            },
+            {
+              "name": "base_url",
+              "value": "={{ $env.FRONTEND_URL }}"
+            }
+          ]
+        },
+        "options": {
+          "headers": {
+            "headers": [
+              {
+                "name": "apikey",
+                "value": "={{ $env.SUPABASE_ANON_KEY }}"
+              },
+              {
+                "name": "Authorization",
+                "value": "Bearer {{ $env.SUPABASE_ANON_KEY }}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "supabase-request",
+      "name": "Buscar Status dos Líderes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Processar dados e separar pendentes\nconst items = $input.all();\nconst result = [];\nlet totalLeaders = 0;\nlet pendingCount = 0;\nlet completedCount = 0;\n\n// O primeiro item geralmente contém o array de líderes\nconst firstItem = items[0]?.json;\nlet leaders = [];\n\nif (Array.isArray(firstItem)) {\n  leaders = firstItem;\n} else if (firstItem && typeof firstItem === 'object') {\n  // Se for objeto único, tentar encontrar array\n  leaders = Object.values(firstItem).find(v => Array.isArray(v)) || [firstItem];\n}\n\ntotalLeaders = leaders.length;\n\n// Processar cada líder\nfor (const leader of leaders) {\n  if (leader.hasReport) {\n    completedCount++;\n  } else if (leader.liderPhone) {\n    pendingCount++;\n    result.push({\n      json: {\n        ...leader,\n        status: 'pendente',\n        emoji: '⏰'\n      }\n    });\n  }\n}\n\n// Adicionar estatísticas como primeiro item\nconst statsItem = {\n  json: {\n    _stats: {\n      total: totalLeaders,\n      pending: pendingCount,\n      completed: completedCount,\n      allCompleted: pendingCount === 0\n    }\n  }\n};\n\n// Se não há pendentes, retornar apenas estatísticas\nif (result.length === 0) {\n  return [statsItem];\n}\n\n// Se há pendentes, adicionar estatísticas no início\nreturn [statsItem, ...result];"
+      },
+      "id": "process-data",
+      "name": "Processar e Contar Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-pending",
+              "leftValue": "={{ $json._stats ? $json._stats.pending : 0 }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-if-pending",
+      "name": "Verificar se há pendentes",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filtrar apenas itens pendentes (sem _stats)\nconst items = $input.all();\nreturn items.filter(item => item.json.status === 'pendente' && !item.json._stats);"
+      },
+      "id": "filter-pending-only",
+      "name": "Filtrar Apenas Pendentes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1050, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Formatar mensagem individual para cada líder\nconst leader = $input.item.json;\n\n// Calcular data da semana (segunda-feira)\nconst today = new Date();\nconst dayOfWeek = today.getDay();\nconst daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;\nconst monday = new Date(today);\nmonday.setDate(today.getDate() - daysToMonday);\nconst weekStart = monday.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });\n\nconst mensagem = `⏰ *Lembrete: Relatório Semanal*\\n\\nOlá *${leader.liderName}*! 👋\\n\\nVocê ainda não preencheu o relatório semanal da sua célula.\\n\\n📅 *Semana:* ${weekStart}\\n\\nPor favor, preencha o relatório através do link abaixo:\\n\\n🔗 ${leader.fillLink}\\n\\n_Se você já preencheu, pode ignorar esta mensagem._`;\n\nreturn {\n  json: {\n    message: mensagem,\n    phone: leader.liderPhone,\n    liderName: leader.liderName,\n    liderId: leader.liderId,\n    fillLink: leader.fillLink\n  }\n};"
+      },
+      "id": "format-individual-message",
+      "name": "Formatar Mensagem Individual",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 200]
+    },
+    {
+      "parameters": {
+        "instanceName": "={{ $env.EVOLUTION_INSTANCE_NAME }}",
+        "operation": "sendText",
+        "number": "={{ $json.phone }}",
+        "text": "={{ $json.message }}"
+      },
+      "id": "send-whatsapp",
+      "name": "Enviar WhatsApp Individual",
+      "type": "@evolution-api/n8n-nodes-evolution-api",
+      "typeVersion": 1,
+      "position": [1450, 200],
+      "credentials": {
+        "evolutionApi": {
+          "id": "evolution-api",
+          "name": "Evolution API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Resumo do envio\nconst items = $input.all();\nconst total = items.length;\n\nreturn [{\n  json: {\n    success: true,\n    message: `Foram enviadas ${total} mensagens para líderes pendentes. Verificação continuará a cada 15 minutos.`,\n    total: total,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "summary-sent",
+      "name": "Resumo (Enviado)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1650, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Todos preenchidos\nconst items = $input.all();\nconst stats = items.find(item => item.json._stats)?.json._stats || { total: 0, completed: 0, pending: 0 };\n\nreturn [{\n  json: {\n    success: true,\n    message: `✅ Todos os relatórios foram preenchidos! (${stats.completed}/${stats.total})`,\n    allCompleted: true,\n    total: stats.total,\n    completed: stats.completed,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "summary-completed",
+      "name": "Resumo (Todos Preenchidos)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1050, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.WEBHOOK_LOG_URL || 'https://hooks.slack.com/services/YOUR/WEBHOOK/URL' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": \"{{ $json.message }}\",\n  \"timestamp\": \"{{ $json.timestamp }}\"\n}",
+        "options": {}
+      },
+      "id": "log-notification",
+      "name": "Log (Opcional)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1850, 200],
+      "notes": "Opcional: Configure um webhook para receber logs (Slack, Discord, etc.)"
+    }
+  ],
+  "connections": {
+    "Verificar a cada 15 minutos": {
+      "main": [
+        [
+          {
+            "node": "Buscar Status dos Líderes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Status dos Líderes": {
+      "main": [
+        [
+          {
+            "node": "Processar e Contar Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar e Contar Status": {
+      "main": [
+        [
+          {
+            "node": "Verificar se há pendentes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar se há pendentes": {
+      "main": [
+        [
+          {
+            "node": "Filtrar Apenas Pendentes",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Resumo (Todos Preenchidos)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtrar Apenas Pendentes": {
+      "main": [
+        [
+          {
+            "node": "Formatar Mensagem Individual",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar Mensagem Individual": {
+      "main": [
+        [
+          {
+            "node": "Enviar WhatsApp Individual",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar WhatsApp Individual": {
+      "main": [
+        [
+          {
+            "node": "Resumo (Enviado)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resumo (Enviado)": {
+      "main": [
+        [
+          {
+            "node": "Log (Opcional)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-01-20T00:00:00.000Z",
+  "versionId": "1"
+}
+
