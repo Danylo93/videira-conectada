@@ -42,8 +42,9 @@ export function PublicDizimistaRegistration() {
       setLoading(true);
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, name")
+        .select("id, name, is_kids")
         .eq("role", "discipulador")
+        .or("is_kids.is.null,is_kids.eq.false")
         .order("name");
 
       if (error) {

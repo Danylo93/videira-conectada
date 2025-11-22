@@ -83,11 +83,12 @@ export function PublicDizimistasView() {
     try {
       setLoading(true);
 
-      // Carregar discipuladores
+      // Carregar discipuladores (excluindo kids)
       const { data: discipData, error: discipError } = await supabase
         .from("profiles")
         .select("id, name")
         .eq("role", "discipulador")
+        .or("is_kids.is.null,is_kids.eq.false")
         .order("name");
 
       if (discipError) {
