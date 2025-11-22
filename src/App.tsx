@@ -187,10 +187,6 @@ function AppContent() {
         path="/cadastro-dizimista"
         element={<PublicDizimistaRegistration />}
       />
-      <Route
-        path="/dizimistas"
-        element={<PublicDizimistasView />}
-      />
 
       {/* privado */}
       <Route
@@ -212,8 +208,9 @@ function AppContent() {
         <Route path="/eventos" element={<Events />} />            {/* <- agora aponta pro roteador por papel */}
         <Route path="/encounters" element={<Encounters />} />     {/* <- Encontro com Deus (Pastor/Discipulador) */}
         <Route path="/encounters/events" element={<EncounterEvents />} /> {/* <- Eventos de Encontro (Pastor/Discipulador) */}
-        <Route path="/dizimos-ofertas" element={<TithesOfferings />} /> {/* <- Dízimos e Ofertas (Pastor/Obreiro) */}
-        <Route path="/financeiro" element={<Financial />} /> {/* <- Financeiro (Pastor/Obreiro) */}
+        <Route path="/dizimos-ofertas" element={<TithesOfferings />} /> {/* <- Dízimos e Ofertas (Pastor/Obreiro/Tesoureiro) */}
+        <Route path="/financeiro" element={<Financial />} /> {/* <- Financeiro (Pastor/Obreiro/Tesoureiro) */}
+        <Route path="/dizimistas" element={<PublicDizimistasView />} /> {/* <- Dizimistas (Pastor/Obreiro/Tesoureiro) */}
         <Route path="/estatisticas" element={<Statistics />} />
         <Route path="/gerenciar" element={<ChurchManagement />} />
         <Route path="/perfil" element={<Profile />} />

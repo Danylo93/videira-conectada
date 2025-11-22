@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { hasFinancialAccess } from "@/types/auth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -61,10 +63,16 @@ export function PublicDizimistasView() {
   const [selectedDiscipulador, setSelectedDiscipulador] = useState<string>("all");
   const [filterCasado, setFilterCasado] = useState<string>("all");
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showSingleConfirmDialog, setShowSingleConfirmDialog] = useState(false);
   const [labelNames, setLabelNames] = useState<Record<string, string>>({});
+  const [singleLabelName, setSingleLabelName] = useState("");
+  const [selectedDizimistaForPrint, setSelectedDizimistaForPrint] = useState<Dizimista | null>(null);
+  const [selectedDizimistas, setSelectedDizimistas] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    if (user && (user.role === 'pastor' || user.role === 'obreiro')) {
+    console.log("User data:", user);
+    console.log("Has financial access:", user ? hasFinancialAccess(user) : false);
+    if (user && hasFinancialAccess(user)) {
       loadData();
     } else {
       setLoading(false);
@@ -104,13 +112,21 @@ export function PublicDizimistasView() {
 
       if (dizimistasError) {
         console.error("Error loading dizimistas:", dizimistasError);
+        console.error("Error details:", {
+          code: dizimistasError.code,
+          message: dizimistasError.message,
+          details: dizimistasError.details,
+          hint: dizimistasError.hint,
+        });
         toast({
           title: "Erro",
-          description: "Erro ao carregar dizimistas. Tente novamente.",
+          description: dizimistasError.message || "Erro ao carregar dizimistas. Tente novamente.",
           variant: "destructive",
         });
         return;
       }
+
+      console.log("Dizimistas carregados:", dizimistasData?.length || 0, dizimistasData);
 
       // Buscar nomes dos discipuladores
       const discipuladorIds = [...new Set((dizimistasData || []).map((d: any) => d.discipulador_id))];
@@ -210,24 +226,157 @@ export function PublicDizimistasView() {
     return dizimista.nome_completo;
   };
 
-  // Abrir dialog de confirmação
+  // Abrir dialog de confirmação (apenas para selecionados)
   const handlePrintLabels = () => {
-    if (filteredDizimistas.length === 0) {
+    if (selectedDizimistas.size === 0) {
       toast({
         title: "Aviso",
-        description: "Não há dizimistas para gerar etiquetas.",
+        description: "Selecione pelo menos um dizimista para gerar etiquetas.",
         variant: "destructive",
       });
       return;
     }
 
+    // Filtrar apenas os selecionados
+    const selected = filteredDizimistas.filter((d) => selectedDizimistas.has(d.id));
+
     // Gerar nomes formatados iniciais
     const initialNames: Record<string, string> = {};
-    filteredDizimistas.forEach((dizimista) => {
+    selected.forEach((dizimista) => {
       initialNames[dizimista.id] = formatLabelName(dizimista);
     });
     setLabelNames(initialNames);
     setShowConfirmDialog(true);
+  };
+
+  // Abrir dialog de confirmação para etiqueta individual
+  const handlePrintSingleLabel = (dizimista: Dizimista) => {
+    setSelectedDizimistaForPrint(dizimista);
+    setSingleLabelName(formatLabelName(dizimista));
+    setShowSingleConfirmDialog(true);
+  };
+
+  // Confirmar e imprimir etiqueta individual
+  const handleConfirmSinglePrint = async () => {
+    if (!selectedDizimistaForPrint) {
+      return;
+    }
+
+    const nome = singleLabelName || formatLabelName(selectedDizimistaForPrint);
+    
+    // Converter logo para base64
+    let logoBase64 = '';
+    try {
+      const response = await fetch(logoVideira);
+      const blob = await response.blob();
+      const reader = new FileReader();
+      logoBase64 = await new Promise<string>((resolve) => {
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = () => resolve('');
+        reader.readAsDataURL(blob);
+      });
+    } catch (error) {
+      console.error('Error loading logo:', error);
+    }
+
+    const printContent = `
+      <div style="
+        width: 10cm;
+        height: 4cm;
+        border: 1px solid #000;
+        padding: 0.4cm;
+        margin: 0.2cm;
+        display: inline-block;
+        page-break-inside: avoid;
+        font-family: Arial, sans-serif;
+        box-sizing: border-box;
+        position: relative;
+      ">
+        ${logoBase64 ? `
+          <div style="display: flex; align-items: center; gap: 0.3cm; margin-bottom: 0.2cm;">
+            <img src="${logoBase64}" alt="Logo" style="width: 1.2cm; height: 1.2cm; object-fit: contain;" />
+            <div style="font-size: 10pt; font-weight: bold; color: #333;">
+              Videira São Miguel
+            </div>
+          </div>
+        ` : `
+          <div style="font-size: 10pt; font-weight: bold; color: #333; margin-bottom: 0.2cm;">
+            Videira São Miguel
+          </div>
+        `}
+        <div style="font-size: 13pt; font-weight: bold; margin-bottom: 0.25cm; line-height: 1.2;">
+          ${nome}
+        </div>
+        <div style="font-size: 10pt; margin-bottom: 0.15cm; color: #555;">
+          Discipulador: ${selectedDizimistaForPrint.discipulador_name}
+        </div>
+        <div style="font-size: 9pt; color: #666;">
+          ${formatPhone(selectedDizimistaForPrint.telefone)}
+        </div>
+      </div>
+    `;
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Etiqueta de Dízimo</title>
+          <style>
+            @media print {
+              @page {
+                size: A4;
+                margin: 1cm;
+              }
+              body {
+                margin: 0;
+                padding: 0;
+              }
+            }
+            body {
+              font-family: Arial, sans-serif;
+              padding: 1cm;
+            }
+          </style>
+        </head>
+        <body>
+          ${printContent}
+        </body>
+      </html>
+    `;
+
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(htmlContent);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+      }, 250);
+    }
+
+    setShowSingleConfirmDialog(false);
+    setSelectedDizimistaForPrint(null);
+    setSingleLabelName("");
+  };
+
+  // Selecionar/deselecionar todos
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedDizimistas(new Set(filteredDizimistas.map((d) => d.id)));
+    } else {
+      setSelectedDizimistas(new Set());
+    }
+  };
+
+  // Toggle seleção individual
+  const handleToggleSelection = (id: string) => {
+    const newSelected = new Set(selectedDizimistas);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedDizimistas(newSelected);
   };
 
   // Confirmar e gerar impressão
@@ -235,6 +384,9 @@ export function PublicDizimistasView() {
     if (Object.keys(labelNames).length === 0) {
       return;
     }
+
+    // Filtrar apenas os selecionados
+    const selected = filteredDizimistas.filter((d) => selectedDizimistas.has(d.id));
 
     // Converter logo para base64 para impressão
     let logoBase64 = '';
@@ -253,7 +405,7 @@ export function PublicDizimistasView() {
     }
 
     // Criar conteúdo HTML para impressão
-    const printContent = filteredDizimistas.map((dizimista) => {
+    const printContent = selected.map((dizimista) => {
       const nome = labelNames[dizimista.id] || formatLabelName(dizimista);
       
       return `
@@ -336,7 +488,7 @@ export function PublicDizimistasView() {
     setShowConfirmDialog(false);
   };
 
-  if (!user || (user.role !== 'pastor' && user.role !== 'obreiro')) {
+  if (!user || !hasFinancialAccess(user)) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
@@ -345,7 +497,7 @@ export function PublicDizimistasView() {
               <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
               <h2 className="text-xl font-bold mb-2">Acesso Restrito</h2>
               <p className="text-muted-foreground">
-                Esta página é restrita para pastores e obreiros.
+                Esta página é restrita para pastores, obreiros e tesoureiros.
               </p>
             </div>
           </CardContent>
@@ -424,11 +576,12 @@ export function PublicDizimistasView() {
               <CardTitle className="text-base md:text-lg">Filtros</CardTitle>
               <Button
                 onClick={handlePrintLabels}
-                disabled={filteredDizimistas.length === 0}
-                className="w-full sm:w-auto"
+                disabled={selectedDizimistas.size === 0}
+                className="w-full sm:w-auto text-sm"
+                size="sm"
               >
-                <Printer className="w-4 h-4 mr-2" />
-                Gerar Etiquetas para Impressão
+                <Printer className="w-3 h-3 mr-2" />
+                Gerar Etiquetas ({selectedDizimistas.size})
               </Button>
             </div>
           </CardHeader>
@@ -508,17 +661,32 @@ export function PublicDizimistasView() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-12">
+                        <Checkbox
+                          checked={selectedDizimistas.size === filteredDizimistas.length && filteredDizimistas.length > 0}
+                          onCheckedChange={handleSelectAll}
+                          aria-label="Selecionar todos"
+                        />
+                      </TableHead>
                       <TableHead className="text-xs sm:text-sm">Nome Completo</TableHead>
                       <TableHead className="text-xs sm:text-sm">Cônjuge</TableHead>
                       <TableHead className="text-xs sm:text-sm">Discipulador</TableHead>
                       <TableHead className="text-xs sm:text-sm">Telefone</TableHead>
                       <TableHead className="text-xs sm:text-sm">Estado Civil</TableHead>
                       <TableHead className="text-xs sm:text-sm">Data de Cadastro</TableHead>
+                      <TableHead className="text-xs sm:text-sm w-20">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredDizimistas.map((dizimista) => (
                       <TableRow key={dizimista.id}>
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedDizimistas.has(dizimista.id)}
+                            onCheckedChange={() => handleToggleSelection(dizimista.id)}
+                            aria-label={`Selecionar ${dizimista.nome_completo}`}
+                          />
+                        </TableCell>
                         <TableCell className="font-medium text-xs sm:text-sm">
                           {dizimista.nome_completo}
                         </TableCell>
@@ -548,6 +716,17 @@ export function PublicDizimistasView() {
                             {formatDateBR(new Date(dizimista.created_at))}
                           </div>
                         </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            onClick={() => handlePrintSingleLabel(dizimista)}
+                            title="Gerar etiqueta individual"
+                          >
+                            <Printer className="h-3 w-3" />
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -557,7 +736,54 @@ export function PublicDizimistasView() {
           </CardContent>
         </Card>
 
-        {/* Dialog de Confirmação de Nomes */}
+        {/* Dialog de Confirmação de Nome Individual */}
+        <Dialog open={showSingleConfirmDialog} onOpenChange={setShowSingleConfirmDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Confirmar Nome para Impressão</DialogTitle>
+              <DialogDescription>
+                Revise e edite o nome que será impresso na etiqueta.
+              </DialogDescription>
+            </DialogHeader>
+            {selectedDizimistaForPrint && (
+              <div className="space-y-4 py-4">
+                <div className="flex flex-col gap-2">
+                  <Label className="text-xs text-muted-foreground">
+                    {selectedDizimistaForPrint.casado ? "Casado" : "Solteiro"} - {selectedDizimistaForPrint.discipulador_name}
+                  </Label>
+                  <Input
+                    value={singleLabelName}
+                    onChange={(e) => setSingleLabelName(e.target.value)}
+                    className="text-sm sm:text-base"
+                    placeholder="Nome para impressão"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Original: {selectedDizimistaForPrint.nome_completo}
+                    {selectedDizimistaForPrint.conjugue && ` e ${selectedDizimistaForPrint.conjugue}`}
+                  </p>
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowSingleConfirmDialog(false);
+                  setSelectedDizimistaForPrint(null);
+                  setSingleLabelName("");
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button onClick={handleConfirmSinglePrint}>
+                <Printer className="w-4 h-4 mr-2" />
+                Confirmar e Imprimir
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Dialog de Confirmação de Nomes (Múltiplas) */}
         <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
           <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
@@ -567,29 +793,31 @@ export function PublicDizimistasView() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3 py-4">
-              {filteredDizimistas.map((dizimista) => (
-                <div key={dizimista.id} className="flex flex-col sm:flex-row items-start sm:items-center gap-2 p-3 border rounded-lg">
-                  <div className="flex-1 min-w-0">
-                    <Label className="text-xs text-muted-foreground mb-1 block">
-                      {dizimista.casado ? "Casado" : "Solteiro"} - {dizimista.discipulador_name}
-                    </Label>
-                    <Input
-                      value={labelNames[dizimista.id] || formatLabelName(dizimista)}
-                      onChange={(e) => {
-                        setLabelNames((prev) => ({
-                          ...prev,
-                          [dizimista.id]: e.target.value,
-                        }));
-                      }}
-                      className="text-sm sm:text-base"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Original: {dizimista.nome_completo}
-                      {dizimista.conjugue && ` e ${dizimista.conjugue}`}
-                    </p>
+              {filteredDizimistas
+                .filter((d) => selectedDizimistas.has(d.id))
+                .map((dizimista) => (
+                  <div key={dizimista.id} className="flex flex-col sm:flex-row items-start sm:items-center gap-2 p-3 border rounded-lg">
+                    <div className="flex-1 min-w-0">
+                      <Label className="text-xs text-muted-foreground mb-1 block">
+                        {dizimista.casado ? "Casado" : "Solteiro"} - {dizimista.discipulador_name}
+                      </Label>
+                      <Input
+                        value={labelNames[dizimista.id] || formatLabelName(dizimista)}
+                        onChange={(e) => {
+                          setLabelNames((prev) => ({
+                            ...prev,
+                            [dizimista.id]: e.target.value,
+                          }));
+                        }}
+                        className="text-sm sm:text-base"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Original: {dizimista.nome_completo}
+                        {dizimista.conjugue && ` e ${dizimista.conjugue}`}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
             </div>
             <DialogFooter>
               <Button

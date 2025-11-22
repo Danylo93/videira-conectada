@@ -9,7 +9,14 @@ export interface User {
   discipuladorId?: string; // Para Líderes
   pastorId?: string; // Para Discipuladores
   celula?: string; // Para Líderes
+  isTesoureiro?: boolean; // Indica se o usuário tem função de tesoureiro
   createdAt: Date;
+}
+
+// Helper function to check if user has financial access
+export function hasFinancialAccess(user: User | null): boolean {
+  if (!user) return false;
+  return user.role === 'pastor' || user.role === 'obreiro' || user.isTesoureiro === true;
 }
 
 export type AuthTransition = 'initial' | 'login' | 'logout';

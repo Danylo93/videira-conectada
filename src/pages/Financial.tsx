@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { hasFinancialAccess } from '@/types/auth';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -346,7 +347,7 @@ export function Financial() {
     return <FancyLoader message="Carregando relatórios financeiros..." />;
   }
 
-  if (!user || (user.role !== 'pastor' && user.role !== 'obreiro')) {
+  if (!user || !hasFinancialAccess(user)) {
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground">Você não tem permissão para acessar esta página.</p>

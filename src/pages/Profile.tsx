@@ -1,8 +1,9 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfileMode } from "@/contexts/ProfileModeContext";
 import type { UserRole } from "@/types/auth";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Card,
   CardContent,
@@ -64,6 +65,8 @@ export function Profile() {
   const { mode } = useProfileMode();
   const navigate = useNavigate();
   const isKidsMode = mode === 'kids';
+  const [discipuladorName, setDiscipuladorName] = useState<string | null>(null);
+  const [pastorName, setPastorName] = useState<string | null>(null);
   
   const displayName = isKidsMode && user?.role === 'pastor' ? 'Tainá' : user?.name;
   const displayRole = isKidsMode && user?.role === 'pastor' ? 'Pastora' : (user?.role ? roleLabels[user.role] : '');
@@ -86,6 +89,43 @@ export function Profile() {
       year: "numeric",
     });
   }, [user?.createdAt]);
+
+  // Buscar nomes do discipulador e pastor
+  useEffect(() => {
+    const loadNames = async () => {
+      if (!user) return;
+
+      const idsToFetch: string[] = [];
+      if (user.discipuladorId) idsToFetch.push(user.discipuladorId);
+      if (user.pastorId) idsToFetch.push(user.pastorId);
+
+      if (idsToFetch.length === 0) {
+        setDiscipuladorName(null);
+        setPastorName(null);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, name')
+        .in('id', idsToFetch);
+
+      if (error) {
+        console.error('Error loading profile names:', error);
+        return;
+      }
+
+      if (data) {
+        const discipulador = data.find((p) => p.id === user.discipuladorId);
+        const pastor = data.find((p) => p.id === user.pastorId);
+        
+        setDiscipuladorName(discipulador?.name || null);
+        setPastorName(pastor?.name || null);
+      }
+    };
+
+    loadNames();
+  }, [user?.discipuladorId, user?.pastorId]);
 
   if (!user) {
     return null;
@@ -143,16 +183,15 @@ export function Profile() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <InfoItem icon={Users} label="Célula" value={user.celula ?? "Não vinculado"} />
               <InfoItem
                 icon={UserCheck}
                 label="Discipulador responsável"
-                value={user.discipuladorId ?? "Não vinculado"}
+                value={discipuladorName ?? "Não vinculado"}
               />
               <InfoItem
                 icon={Church}
                 label="Pastor responsável"
-                value={user.pastorId ?? "Não vinculado"}
+                value={pastorName ?? "Não vinculado"}
               />
             </CardContent>
           </Card>
@@ -165,7 +204,6 @@ export function Profile() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <InfoItem icon={ShieldCheck} label="Identificador interno" value={user.id} />
               <InfoItem icon={Mail} label="Login de acesso" value={user.email} />
               <InfoItem icon={Calendar} label="Cadastro criado em" value={formattedCreatedAt} />
             </CardContent>

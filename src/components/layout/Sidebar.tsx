@@ -100,7 +100,14 @@ const navigationItems: NavigationItem[] = [
     title: 'Financeiro',
     url: '/financeiro',
     icon: DollarSign,
-    roles: ['pastor', 'obreiro'],
+    roles: ['pastor', 'obreiro', 'lider'], // Líderes com is_tesoureiro também terão acesso
+    kidsMode: false, // Não aparece no modo Kids
+  },
+  {
+    title: 'Dizimistas',
+    url: '/dizimistas',
+    icon: Users,
+    roles: ['pastor', 'obreiro', 'lider'], // Líderes com is_tesoureiro também terão acesso
     kidsMode: false, // Não aparece no modo Kids
   },
   // {
@@ -159,7 +166,13 @@ export function Sidebar() {
 
   const filteredItems = navigationItems.filter(item => {
     // Verifica se o item está disponível para o role do usuário
-    if (!item.roles.includes(user.role)) return false;
+    const hasRoleAccess = item.roles.includes(user.role);
+    
+    // Se for item financeiro (Financeiro ou Dizimistas), verifica também se é tesoureiro
+    const isFinancialItem = item.url === '/financeiro' || item.url === '/dizimistas';
+    const hasTesoureiroAccess = isFinancialItem && user.isTesoureiro === true;
+    
+    if (!hasRoleAccess && !hasTesoureiroAccess) return false;
     
     // Filtra por modo Kids
     if (isKidsMode) {

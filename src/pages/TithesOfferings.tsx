@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { hasFinancialAccess } from '@/types/auth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -246,10 +247,10 @@ export function TithesOfferings() {
   };
 
   // Verificações de acesso
-  if (!user || !['pastor', 'obreiro'].includes(user.role)) {
+  if (!user || !hasFinancialAccess(user)) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">Acesso restrito para pastores e obreiros.</p>
+        <p className="text-muted-foreground">Acesso restrito para pastores, obreiros e tesoureiros.</p>
       </div>
     );
   }

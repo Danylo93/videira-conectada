@@ -53,7 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (currentSession?.user) {
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('id, name, email, role, phone, discipulador_uuid, pastor_uuid, celula, created_at')
+          .select('id, name, email, role, phone, discipulador_uuid, pastor_uuid, celula, is_tesoureiro, created_at')
           .eq('user_id', currentSession.user.id)
           .single();
 
@@ -61,6 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.error('Error loading profile:', profileError);
           setUser(null);
         } else if (profile) {
+          console.log('Profile loaded:', profile);
           const userData: User = {
             id: profile.id,
             name: profile.name,
@@ -70,8 +71,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             discipuladorId: profile.discipulador_uuid,
             pastorId: profile.pastor_uuid,
             celula: profile.celula,
+            isTesoureiro: profile.is_tesoureiro || false,
             createdAt: new Date(profile.created_at),
           };
+          console.log('User data created:', userData);
           setUser(userData);
         } else {
           setUser(null);
