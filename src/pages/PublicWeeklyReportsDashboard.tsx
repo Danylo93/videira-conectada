@@ -483,47 +483,6 @@ export function PublicWeeklyReportsDashboard() {
           </Card>
         )}
 
-        {/* Gráfico de Total por Líder */}
-        {membersFrequentadoresData.length > 0 && (
-          <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base md:text-lg">
-              <TrendingUp className="w-4 h-4 md:w-5 md:h-5" />
-              Total de Participantes por Líder
-            </CardTitle>
-            <CardDescription className="text-xs md:text-sm">
-              Ranking de líderes por total de participantes (membros + frequentadores)
-            </CardDescription>
-          </CardHeader>
-            <CardContent>
-              <div className="w-full overflow-x-auto">
-                <ResponsiveContainer width="100%" height={Math.min(Math.max(300, membersFrequentadoresData.length * 35), 500)} minHeight={250}>
-                  <BarChart data={membersFrequentadoresData} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" tick={{ fontSize: 10 }} />
-                    <YAxis 
-                      dataKey="name" 
-                      type="category" 
-                      tick={{ fontSize: 10 }}
-                      width={60}
-                    />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: "hsl(var(--background))",
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: "6px",
-                        fontSize: "12px"
-                      }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: "12px" }} />
-                    <Bar dataKey="total" fill="#10b981" name="Total de Participantes" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
         {/* Lista de Líderes */}
         <Card>
           <CardHeader>
