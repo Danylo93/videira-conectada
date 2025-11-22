@@ -44,10 +44,20 @@ A função já está criada em `supabase/functions/weekly-reports-status/index.t
 
 ### 1.2 Fazer deploy
 
+**IMPORTANTE**: A função precisa ser deployada no Supabase antes de usar no N8N!
+
 ```bash
-# No diretório do projeto
+# 1. Fazer login no Supabase CLI (se ainda não fez)
+npx supabase login
+
+# 2. Linkar o projeto local ao projeto Supabase
+npx supabase link --project-ref wkdfeizgfdkkkyatevpc
+
+# 3. Fazer deploy da função
 npx supabase functions deploy weekly-reports-status
 ```
+
+**Se você ver o erro "Requested function was not found" no N8N**, significa que a função não foi deployada. Veja o guia completo em: [DEPLOY_EDGE_FUNCTION.md](./DEPLOY_EDGE_FUNCTION.md)
 
 ### 1.3 Configurar variáveis de ambiente
 
@@ -286,9 +296,24 @@ GET https://seu-projeto.supabase.co/functions/v1/weekly-reports-status?date=2025
 - Verifique se a função foi deployada corretamente
 - Confirme o nome da função: `weekly-reports-status`
 
-### Erro: "Unauthorized"
+### Erro: "Unauthorized" ou 401/403
 - Verifique se o `SUPABASE_ANON_KEY` está correto
-- Confirme que a Service Role Key está configurada na função
+- Confirme que os headers estão configurados corretamente:
+  - `apikey`: deve conter o `SUPABASE_ANON_KEY`
+  - `Authorization`: deve ser `Bearer {SUPABASE_ANON_KEY}`
+- **IMPORTANTE**: No nó HTTP Request, configure:
+  - **Authentication**: `None` (não use Basic Auth ou Generic Auth)
+  - **Headers** (nas Options): Adicione `apikey` e `Authorization` manualmente
+
+### Erro: 406 (Not Acceptable)
+- Verifique se a URL está correta: `{SUPABASE_URL}/functions/v1/weekly-reports-status`
+- Confirme que não há espaços extras na URL
+- Verifique se os query parameters estão no formato correto
+
+### Aviso: "Select Credential" (ícone vermelho)
+- **Não é necessário configurar credencial!**
+- Configure **Authentication** como `None`
+- Adicione os headers manualmente nas **Options** > **Headers**
 
 ### Nenhum líder retornado
 - Verifique se há líderes cadastrados no Supabase

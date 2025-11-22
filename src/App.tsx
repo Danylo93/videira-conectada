@@ -17,6 +17,7 @@ import { DiscipuladorManagement } from "@/pages/DiscipuladorManagement";
 import { CellReports } from "@/pages/CellReports";
 import { CellReportsWeekly } from "@/pages/CellReportsWeekly";
 import { PublicWeeklyReport } from "@/pages/PublicWeeklyReport";
+import { PublicWeeklyReportsDashboard } from "@/pages/PublicWeeklyReportsDashboard";
 import { NetworkReports } from "@/pages/NetworkReports";
 import { ServiceReports } from "@/pages/ServiceReports";
 import { StatisticsNew as Statistics } from "@/pages/StatisticsNew";
@@ -171,6 +172,14 @@ function AppContent() {
       <Route
         path="/preencher-relatorio"
         element={<PublicWeeklyReport />}
+      />
+      <Route
+        path="/dashboard-relatorios-semanais/:pastorId"
+        element={<PublicWeeklyReportsDashboard />}
+      />
+      <Route
+        path="/dashboard-relatorios-semanais/:pastorId/:mode"
+        element={<PublicWeeklyReportsDashboard />}
       />
 
       {/* privado */}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfileMode } from "@/contexts/ProfileModeContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -41,13 +41,27 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Edit, Trash2, Calendar, CheckCircle2, Clock, ExternalLink } from "lucide-react";
+import { Plus, Edit, Trash2, Calendar, CheckCircle2, Clock, ExternalLink, BarChart3, TrendingUp, Download, Send, Search, Filter, Users, TrendingDown, Activity } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Leader } from "@/types/church";
 import FancyLoader from "@/components/FancyLoader";
 import { formatDateBR } from "@/lib/dateUtils";
 import { getCurrentWeekLeadersStatus, getLeadersWeeklyReportStatus, type LeaderWeeklyReportStatus } from "@/integrations/supabase/weekly-reports";
 import { useSearchParams } from "react-router-dom";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
+import * as XLSX from "xlsx";
 
 interface WeeklyReport {
   id: string;
@@ -81,12 +95,98 @@ export function CellReportsWeekly() {
   const [leadersStatus, setLeadersStatus] = useState<LeaderWeeklyReportStatus[]>([]);
   const [showStatusView, setShowStatusView] = useState(false);
   const [statusLoading, setStatusLoading] = useState(false);
+  const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortBy, setSortBy] = useState<"date" | "members" | "frequentadores" | "total">("date");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
-  // Filtros de mês e ano
-  const currentDate = new Date();
-  const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1);
-  const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
+  // Filtros de semana
+  const getWeekStart = (date: Date): Date => {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Ajusta para segunda-feira
+    const monday = new Date(d.setDate(diff));
+    monday.setHours(0, 0, 0, 0);
+    return monday;
+  };
+
+  const getWeekRange = (weekStart: Date) => {
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    return { start: weekStart, end: weekEnd };
+  };
+
+  // Gerar semanas por mês (a partir de novembro de 2025, apenas semanas passadas e atual)
+  const generateWeeksByMonth = () => {
+    const today = new Date();
+    const currentWeekStart = getWeekStart(today);
+    const months: Record<string, Array<{ start: Date; end: Date; label: string; key: string; isCurrent: boolean }>> = {};
+    
+    // Começar de novembro de 2025
+    const startDate = new Date(2025, 10, 1); // Novembro 2025 (mês 10, 0-indexed)
+    const startWeek = getWeekStart(startDate);
+    
+    // Gerar semanas até a semana atual (não incluir futuras)
+    let weekStart = new Date(startWeek);
+    
+    while (weekStart <= currentWeekStart) {
+      const range = getWeekRange(weekStart);
+      const monthKey = `${range.start.getFullYear()}-${String(range.start.getMonth() + 1).padStart(2, '0')}`;
+      const monthLabel = range.start.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+      
+      if (!months[monthKey]) {
+        months[monthKey] = [];
+      }
+      
+      const isCurrent = weekStart.getTime() === currentWeekStart.getTime();
+      const label = isCurrent 
+        ? `${formatDateBR(range.start)} - ${formatDateBR(range.end)} (Atual)`
+        : `${formatDateBR(range.start)} - ${formatDateBR(range.end)}`;
+      
+      months[monthKey].push({
+        start: range.start,
+        end: range.end,
+        label,
+        key: range.start.toISOString().split('T')[0],
+        isCurrent,
+      });
+      
+      // Próxima semana
+      weekStart = new Date(weekStart);
+      weekStart.setDate(weekStart.getDate() + 7);
+    }
+    
+    return months;
+  };
+
+  const weeksByMonth = generateWeeksByMonth();
+  const monthKeys = Object.keys(weeksByMonth).sort().reverse(); // Mais recente primeiro
+  
+  const currentWeekStart = getWeekStart(new Date());
+  const [selectedWeekKey, setSelectedWeekKey] = useState(
+    currentWeekStart.toISOString().split('T')[0]
+  );
+  const [selectedMonthKey, setSelectedMonthKey] = useState(() => {
+    const currentMonthKey = `${currentWeekStart.getFullYear()}-${String(currentWeekStart.getMonth() + 1).padStart(2, '0')}`;
+    return monthKeys[0] || currentMonthKey;
+  });
+
+  const selectedWeek = Object.values(weeksByMonth)
+    .flat()
+    .find(w => w.key === selectedWeekKey) || 
+    weeksByMonth[selectedMonthKey]?.[0] || 
+    { start: currentWeekStart, end: getWeekRange(currentWeekStart).end, label: "", key: "" };
+  
+  const currentMonthWeeks = weeksByMonth[selectedMonthKey] || [];
+
+  // Quando o mês muda, selecionar a primeira semana do mês se a semana atual não estiver no mês
+  useEffect(() => {
+    const weekInMonth = currentMonthWeeks.find(w => w.key === selectedWeekKey);
+    if (!weekInMonth && currentMonthWeeks.length > 0) {
+      setSelectedWeekKey(currentMonthWeeks[0].key);
+    }
+  }, [selectedMonthKey, currentMonthWeeks, selectedWeekKey]);
   
   // Verificar se há parâmetros de URL para selecionar líder e data
   useEffect(() => {
@@ -169,14 +269,14 @@ export function CellReportsWeekly() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedLeaderId, mode]);
 
-  // Recarregar relatórios quando mês ou ano mudarem
+  // Recarregar relatórios quando semana selecionada mudar
   useEffect(() => {
     if (user && ((user.role === "lider") || (user.role === "pastor" && selectedLeaderId))) {
       setLoading(true);
       loadReports();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMonth, selectedYear, mode]);
+  }, [selectedWeekKey, mode]);
 
   const loadReports = async () => {
     if (!user) {
@@ -193,44 +293,66 @@ export function CellReportsWeekly() {
       return;
     }
 
-    // Criar filtro de data baseado no mês e ano selecionados
-    const startDate = new Date(selectedYear, selectedMonth - 1, 1);
-    startDate.setHours(0, 0, 0, 0);
-    const endDate = new Date(selectedYear, selectedMonth, 0); // Último dia do mês
-    endDate.setHours(23, 59, 59, 999);
+    // Criar filtro de data baseado na semana selecionada
+    const startDate = selectedWeek.start;
+    const endDate = selectedWeek.end;
 
-    // Formatar datas para YYYY-MM-DD (formato do banco)
-    const startDateStr = startDate.toISOString().split('T')[0];
-    const endDateStr = endDate.toISOString().split('T')[0];
+    // Formatar datas para YYYY-MM-DD (formato do banco DATE)
+    // Usar métodos locais para evitar problemas de fuso horário
+    const startYear = startDate.getFullYear();
+    const startMonth = String(startDate.getMonth() + 1).padStart(2, '0');
+    const startDay = String(startDate.getDate()).padStart(2, '0');
+    const startDateStr = `${startYear}-${startMonth}-${startDay}`;
+    
+    const endYear = endDate.getFullYear();
+    const endMonth = String(endDate.getMonth() + 1).padStart(2, '0');
+    const endDay = String(endDate.getDate()).padStart(2, '0');
+    const endDateStr = `${endYear}-${endMonth}-${endDay}`;
 
-    const { data, error } = await supabase
-      .from("cell_reports_weekly")
-      .select("*")
-      .eq("lider_id", liderId)
-      .gte("report_date", startDateStr)
-      .lte("report_date", endDateStr)
-      .order("report_date", { ascending: false });
+    try {
+      // Validar que as datas estão no formato correto
+      if (!startDateStr || !endDateStr || !/^\d{4}-\d{2}-\d{2}$/.test(startDateStr) || !/^\d{4}-\d{2}-\d{2}$/.test(endDateStr)) {
+        console.error("Invalid date format:", { startDateStr, endDateStr });
+        setReports([]);
+        setLoading(false);
+        return;
+      }
 
-    if (error) {
-      console.error("Error loading reports:", error);
-      // Se não houver relatórios ou erro de permissão, apenas retorna array vazio
+      const { data, error } = await supabase
+        .from("cell_reports_weekly")
+        .select("*")
+        .eq("lider_id", liderId)
+        .gte("report_date", startDateStr)
+        .lte("report_date", endDateStr)
+        .order("report_date", { ascending: false });
+
+      if (error) {
+        console.error("Error loading reports:", error);
+        console.error("Query params:", { liderId, startDateStr, endDateStr });
+        // Se não houver relatórios ou erro de permissão, apenas retorna array vazio
+        setReports([]);
+        setLoading(false);
+        return;
+      }
+
+      const formattedReports: WeeklyReport[] = (data || []).map((report) => ({
+        id: report.id,
+        liderId: report.lider_id,
+        reportDate: new Date(report.report_date),
+        membersCount: report.members_count || 0,
+        frequentadoresCount: report.frequentadores_count || 0,
+        observations: report.observations || undefined,
+        createdAt: new Date(report.created_at),
+      }));
+
+      // Sempre atualizar a lista, mesmo que esteja vazia
+      setReports(formattedReports);
+    } catch (err) {
+      console.error("Unexpected error loading reports:", err);
       setReports([]);
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const formattedReports: WeeklyReport[] = (data || []).map((report) => ({
-      id: report.id,
-      liderId: report.lider_id,
-      reportDate: new Date(report.report_date),
-      membersCount: report.members_count || 0,
-      frequentadoresCount: report.frequentadores_count || 0,
-      observations: report.observations || undefined,
-      createdAt: new Date(report.created_at),
-    }));
-
-    setReports(formattedReports);
-    setLoading(false);
   };
 
   // ---- actions -------------------------------------------------------------
@@ -332,15 +454,14 @@ export function CellReportsWeekly() {
       return;
     }
 
-    // Atualizar mês/ano selecionados para o mês do relatório criado (se necessário)
+    // Atualizar semana selecionada para a semana do relatório criado (se necessário)
     if (reportDate) {
-      const reportDateObj = new Date(reportDate);
-      const reportMonth = reportDateObj.getMonth() + 1;
-      const reportYear = reportDateObj.getFullYear();
+      const reportDateObj = new Date(reportDate + "T00:00:00");
+      const weekStart = getWeekStart(reportDateObj);
+      const weekKey = weekStart.toISOString().split('T')[0];
       
-      if (reportMonth !== selectedMonth || reportYear !== selectedYear) {
-        setSelectedMonth(reportMonth);
-        setSelectedYear(reportYear);
+      if (weekKey !== selectedWeekKey) {
+        setSelectedWeekKey(weekKey);
       }
     }
 
@@ -403,15 +524,14 @@ export function CellReportsWeekly() {
       return;
     }
 
-    // Atualizar mês/ano selecionados para o mês do relatório atualizado (se necessário)
+    // Atualizar semana selecionada para a semana do relatório atualizado (se necessário)
     if (reportDate) {
-      const reportDateObj = new Date(reportDate);
-      const reportMonth = reportDateObj.getMonth() + 1;
-      const reportYear = reportDateObj.getFullYear();
+      const reportDateObj = new Date(reportDate + "T00:00:00");
+      const weekStart = getWeekStart(reportDateObj);
+      const weekKey = weekStart.toISOString().split('T')[0];
       
-      if (reportMonth !== selectedMonth || reportYear !== selectedYear) {
-        setSelectedMonth(reportMonth);
-        setSelectedYear(reportYear);
+      if (weekKey !== selectedWeekKey) {
+        setSelectedWeekKey(weekKey);
       }
     }
 
@@ -438,17 +558,33 @@ export function CellReportsWeekly() {
   const handleDeleteReport = async () => {
     if (!deleteReportId) return;
     
-    const { error } = await supabase.from("cell_reports_weekly").delete().eq("id", deleteReportId);
+    const reportIdToDelete = deleteReportId;
+    setDeleteReportId(null); // Fechar o diálogo imediatamente
+    
+    // Remover o relatório da lista localmente imediatamente para feedback visual
+    setReports(prevReports => prevReports.filter(r => r.id !== reportIdToDelete));
+    
+    const { error } = await supabase
+      .from("cell_reports_weekly")
+      .delete()
+      .eq("id", reportIdToDelete);
+      
     if (error) {
+      // Se houver erro, recarregar a lista para restaurar o estado
+      await loadReports();
       toast({
         title: "Erro",
         description: "Não foi possível excluir o relatório.",
         variant: "destructive",
       });
-      setDeleteReportId(null);
       return;
     }
 
+    // Aguardar um pouco para garantir que o banco processou a exclusão
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Forçar recarregamento completo usando loadReports
+    setLoading(true);
     await loadReports();
     
     // Se a view de status estiver aberta, recarregar também
@@ -457,7 +593,6 @@ export function CellReportsWeekly() {
     }
     
     toast({ title: "Sucesso", description: "Relatório excluído com sucesso!" });
-    setDeleteReportId(null);
   };
 
   // Carregar status dos líderes para a semana atual
@@ -568,6 +703,172 @@ export function CellReportsWeekly() {
       ? `Célula de ${selectedLeader.name}`
       : "Selecione um líder"
     : user?.celula;
+
+  // Função para enviar WhatsApp para líderes pendentes
+  const handleSendWhatsApp = async () => {
+    if (!user || user.role !== "pastor") return;
+
+    setSendingWhatsApp(true);
+    try {
+      const baseUrl = window.location.origin;
+
+      const { data, error } = await supabase.functions.invoke("send-weekly-reports-whatsapp", {
+        body: {
+          pastorId: user.id,
+          isKids: isKidsMode,
+          baseUrl,
+        },
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (data.success) {
+        toast({
+          title: "Sucesso",
+          description: data.message || `Mensagens enviadas para ${data.sent} líder(es)`,
+        });
+        // Recarregar status após envio
+        await loadLeadersStatus();
+      } else {
+        throw new Error(data.error || "Erro ao enviar mensagens");
+      }
+    } catch (error: any) {
+      console.error("Error sending WhatsApp:", error);
+      toast({
+        title: "Erro",
+        description: error.message || "Não foi possível enviar as mensagens via WhatsApp",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingWhatsApp(false);
+    }
+  };
+
+  // Função para exportar relatórios para Excel
+  const handleExportExcel = () => {
+    if (reports.length === 0) {
+      toast({
+        title: "Aviso",
+        description: "Não há relatórios para exportar",
+      });
+      return;
+    }
+
+    const data = reports.map((report) => ({
+      Data: formatDateBR(report.reportDate),
+      Membros: report.membersCount,
+      Frequentadores: report.frequentadoresCount,
+      Total: report.membersCount + report.frequentadoresCount,
+      Observações: report.observations || "",
+      "Data de Criação": formatDateBR(report.createdAt),
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Relatórios Semanais");
+    
+    const weekLabel = selectedWeek.label.replace(/\s*\(Atual\)\s*/g, '').replace(/\s+/g, '-');
+    const fileName = `relatorios-semanais-${weekLabel}${selectedLeaderId ? `-${selectedLeader?.name}` : ""}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+
+    toast({
+      title: "Sucesso",
+      description: "Relatórios exportados com sucesso!",
+    });
+  };
+
+  // Filtrar e ordenar relatórios
+  const filteredAndSortedReports = reports
+    .filter((report) => {
+      if (!searchTerm) return true;
+      const searchLower = searchTerm.toLowerCase();
+      return (
+        formatDateBR(report.reportDate).toLowerCase().includes(searchLower) ||
+        (report.observations || "").toLowerCase().includes(searchLower) ||
+        report.membersCount.toString().includes(searchLower) ||
+        report.frequentadoresCount.toString().includes(searchLower)
+      );
+    })
+    .sort((a, b) => {
+      let comparison = 0;
+      switch (sortBy) {
+        case "date":
+          comparison = a.reportDate.getTime() - b.reportDate.getTime();
+          break;
+        case "members":
+          comparison = a.membersCount - b.membersCount;
+          break;
+        case "frequentadores":
+          comparison = a.frequentadoresCount - b.frequentadoresCount;
+          break;
+        case "total":
+          comparison = (a.membersCount + a.frequentadoresCount) - (b.membersCount + b.frequentadoresCount);
+          break;
+      }
+      return sortOrder === "asc" ? comparison : -comparison;
+    });
+
+  // Preparar dados para os gráficos
+  const chartData = filteredAndSortedReports
+    .slice()
+    .sort((a, b) => a.reportDate.getTime() - b.reportDate.getTime())
+    .map((report) => ({
+      date: formatDateBR(report.reportDate),
+      dateShort: report.reportDate.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
+      membros: report.membersCount,
+      frequentadores: report.frequentadoresCount,
+      total: report.membersCount + report.frequentadoresCount,
+    }));
+
+  // Calcular estatísticas
+  const stats = useMemo(() => {
+    if (reports.length === 0) {
+      return {
+        totalReports: 0,
+        avgMembers: 0,
+        avgFrequentadores: 0,
+        avgTotal: 0,
+        maxMembers: 0,
+        maxFrequentadores: 0,
+        maxTotal: 0,
+        minMembers: 0,
+        minFrequentadores: 0,
+        minTotal: 0,
+        totalMembers: 0,
+        totalFrequentadores: 0,
+        totalParticipants: 0,
+        growthRate: 0,
+      };
+    }
+
+    const members = reports.map((r) => r.membersCount);
+    const frequentadores = reports.map((r) => r.frequentadoresCount);
+    const totals = reports.map((r) => r.membersCount + r.frequentadoresCount);
+
+    const sortedReports = [...reports].sort((a, b) => a.reportDate.getTime() - b.reportDate.getTime());
+    const firstTotal = sortedReports[0].membersCount + sortedReports[0].frequentadoresCount;
+    const lastTotal = sortedReports[sortedReports.length - 1].membersCount + sortedReports[sortedReports.length - 1].frequentadoresCount;
+    const growthRate = firstTotal > 0 ? ((lastTotal - firstTotal) / firstTotal) * 100 : 0;
+
+    return {
+      totalReports: reports.length,
+      avgMembers: Math.round(members.reduce((a, b) => a + b, 0) / members.length),
+      avgFrequentadores: Math.round(frequentadores.reduce((a, b) => a + b, 0) / frequentadores.length),
+      avgTotal: Math.round(totals.reduce((a, b) => a + b, 0) / totals.length),
+      maxMembers: Math.max(...members),
+      maxFrequentadores: Math.max(...frequentadores),
+      maxTotal: Math.max(...totals),
+      minMembers: Math.min(...members),
+      minFrequentadores: Math.min(...frequentadores),
+      minTotal: Math.min(...totals),
+      totalMembers: members.reduce((a, b) => a + b, 0),
+      totalFrequentadores: frequentadores.reduce((a, b) => a + b, 0),
+      totalParticipants: totals.reduce((a, b) => a + b, 0),
+      growthRate: Math.round(growthRate * 100) / 100,
+    };
+  }, [reports]);
 
   if (loading) {
     return (
@@ -683,16 +984,28 @@ export function CellReportsWeekly() {
         {showStatusView && (
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <CardTitle>Status dos Relatórios Semanais</CardTitle>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={loadLeadersStatus}
-                  disabled={statusLoading}
-                >
-                  {statusLoading ? "Carregando..." : "Atualizar"}
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={loadLeadersStatus}
+                    disabled={statusLoading}
+                  >
+                    {statusLoading ? "Carregando..." : "Atualizar"}
+                  </Button>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={handleSendWhatsApp}
+                    disabled={sendingWhatsApp || statusLoading}
+                    className="gradient-primary"
+                  >
+                    <Send className="w-4 h-4 mr-2" />
+                    {sendingWhatsApp ? "Enviando..." : "Enviar WhatsApp"}
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -763,144 +1076,342 @@ export function CellReportsWeekly() {
           </Card>
         )}
 
-        {/* Filtros de mês e ano */}
+        {/* Seleção de Semana por Mês */}
         {selectedLeaderId && !showStatusView && (
           <Card>
             <CardHeader>
-              <CardTitle>Filtros</CardTitle>
+              <CardTitle>Selecionar Semana</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <Label htmlFor="month">Mês</Label>
-                  <Select
-                    value={selectedMonth.toString()}
-                    onValueChange={(value) => setSelectedMonth(parseInt(value))}
-                  >
-                    <SelectTrigger id="month">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => (
-                        <SelectItem key={month} value={month.toString()}>
-                          {new Date(2000, month - 1, 1).toLocaleDateString("pt-BR", {
-                            month: "long",
-                          })}
+            <CardContent className="space-y-4">
+              {/* Seletor de Mês */}
+              <div>
+                <Label htmlFor="month-select">Mês</Label>
+                <Select value={selectedMonthKey} onValueChange={setSelectedMonthKey}>
+                  <SelectTrigger id="month-select" className="w-full sm:w-[300px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {monthKeys.map((monthKey) => {
+                      const firstWeek = weeksByMonth[monthKey]?.[0];
+                      if (!firstWeek) return null;
+                      const monthLabel = firstWeek.start.toLocaleDateString("pt-BR", { 
+                        month: "long", 
+                        year: "numeric" 
+                      });
+                      return (
+                        <SelectItem key={monthKey} value={monthKey}>
+                          {monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1)}
                         </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex-1">
-                  <Label htmlFor="year">Ano</Label>
-                  <Select
-                    value={selectedYear.toString()}
-                    onValueChange={(value) => setSelectedYear(parseInt(value))}
-                  >
-                    <SelectTrigger id="year">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: 5 }, (_, i) => currentDate.getFullYear() - 2 + i).map(
-                        (year) => (
-                          <SelectItem key={year} value={year.toString()}>
-                            {year}
-                          </SelectItem>
-                        )
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
               </div>
-            </CardContent>
-          </Card>
-        )}
 
-        {/* Lista de Relatórios */}
-        {selectedLeaderId && !showStatusView && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Relatórios de {cellName}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {reports.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">
-                  Nenhum relatório encontrado para este período.
-                </p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Data</TableHead>
-                        <TableHead>Membros</TableHead>
-                        <TableHead>Frequentadores</TableHead>
-                        <TableHead>Total</TableHead>
-                        <TableHead>Observações</TableHead>
-                        <TableHead className="text-right">Ações</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {reports.map((report) => (
-                        <TableRow key={report.id}>
-                          <TableCell>{formatDateBR(report.reportDate)}</TableCell>
-                          <TableCell>{report.membersCount}</TableCell>
-                          <TableCell>{report.frequentadoresCount}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline">
-                              {report.membersCount + report.frequentadoresCount}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="max-w-xs truncate">
-                            {report.observations || "-"}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => openEditReport(report)}
-                              >
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setDeleteReportId(report.id)}
-                                  >
-                                    <Trash2 className="w-4 h-4 text-destructive" />
-                                  </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      Tem certeza que deseja excluir este relatório? Esta ação não
-                                      pode ser desfeita.
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel onClick={() => setDeleteReportId(null)}>
-                                      Cancelar
-                                    </AlertDialogCancel>
-                                    <AlertDialogAction onClick={handleDeleteReport}>
-                                      Excluir
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+              {/* Semanas do Mês Selecionado */}
+              {currentMonthWeeks.length > 0 && (
+                <div>
+                  <Label className="mb-2 block">Semanas disponíveis</Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+                    {currentMonthWeeks.map((week) => (
+                      <Button
+                        key={week.key}
+                        variant={selectedWeekKey === week.key ? "default" : "outline"}
+                        onClick={() => setSelectedWeekKey(week.key)}
+                        className={`justify-start text-left h-auto py-2.5 px-3 ${
+                          week.isCurrent && selectedWeekKey !== week.key 
+                            ? "border-2 border-primary" 
+                            : ""
+                        }`}
+                      >
+                        <div className="flex flex-col items-start w-full">
+                          <span className={`text-sm ${week.isCurrent ? "font-semibold" : ""}`}>
+                            {week.label.replace(" (Atual)", "")}
+                          </span>
+                          {week.isCurrent && (
+                            <span className="text-xs text-primary/80 mt-0.5">Semana Atual</span>
+                          )}
+                        </div>
+                      </Button>
+                    ))}
+                  </div>
                 </div>
               )}
             </CardContent>
           </Card>
+        )}
+
+        {/* Gráficos e Lista de Relatórios */}
+        {selectedLeaderId && !showStatusView && (
+          <Tabs defaultValue="graficos" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="graficos" className="flex items-center gap-2">
+                <BarChart3 className="w-4 h-4" />
+                Gráficos
+              </TabsTrigger>
+              <TabsTrigger value="tabela" className="flex items-center gap-2">
+                <Calendar className="w-4 h-4" />
+                Tabela
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="graficos" className="space-y-6">
+              {reports.length === 0 ? (
+                <Card>
+                  <CardContent className="py-8">
+                    <p className="text-center text-muted-foreground">
+                      Nenhum relatório encontrado para este período. Crie relatórios para ver os gráficos.
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <>
+                  {/* Gráfico de Evolução (Linha) */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <TrendingUp className="w-5 h-5" />
+                        Evolução de Membros e Frequentadores
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <LineChart data={chartData}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis 
+                            dataKey="dateShort" 
+                            tick={{ fontSize: 12 }}
+                            angle={-45}
+                            textAnchor="end"
+                            height={80}
+                          />
+                          <YAxis tick={{ fontSize: 12 }} />
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: "hsl(var(--background))",
+                              border: "1px solid hsl(var(--border))",
+                              borderRadius: "6px"
+                            }}
+                          />
+                          <Legend />
+                          <Line 
+                            type="monotone" 
+                            dataKey="membros" 
+                            stroke="#7c3aed" 
+                            strokeWidth={2}
+                            name="Membros"
+                            dot={{ r: 4 }}
+                          />
+                          <Line 
+                            type="monotone" 
+                            dataKey="frequentadores" 
+                            stroke="#f59e0b" 
+                            strokeWidth={2}
+                            name="Frequentadores"
+                            dot={{ r: 4 }}
+                          />
+                          <Line 
+                            type="monotone" 
+                            dataKey="total" 
+                            stroke="#10b981" 
+                            strokeWidth={2}
+                            strokeDasharray="5 5"
+                            name="Total"
+                            dot={{ r: 4 }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+
+                  {/* Gráfico de Comparação (Barras) */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <BarChart3 className="w-5 h-5" />
+                        Comparação de Membros e Frequentadores
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={chartData}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis 
+                            dataKey="dateShort" 
+                            tick={{ fontSize: 12 }}
+                            angle={-45}
+                            textAnchor="end"
+                            height={80}
+                          />
+                          <YAxis tick={{ fontSize: 12 }} />
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: "hsl(var(--background))",
+                              border: "1px solid hsl(var(--border))",
+                              borderRadius: "6px"
+                            }}
+                          />
+                          <Legend />
+                          <Bar dataKey="membros" fill="#7c3aed" name="Membros" />
+                          <Bar dataKey="frequentadores" fill="#f59e0b" name="Frequentadores" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+
+                  {/* Resumo Estatístico */}
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">
+                          Média de Membros
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">
+                          {reports.length > 0
+                            ? Math.round(
+                                reports.reduce((sum, r) => sum + r.membersCount, 0) / reports.length
+                              )
+                            : 0}
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">
+                          Média de Frequentadores
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">
+                          {reports.length > 0
+                            ? Math.round(
+                                reports.reduce((sum, r) => sum + r.frequentadoresCount, 0) / reports.length
+                              )
+                            : 0}
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">
+                          Média Total
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">
+                          {reports.length > 0
+                            ? Math.round(
+                                reports.reduce(
+                                  (sum, r) => sum + r.membersCount + r.frequentadoresCount,
+                                  0
+                                ) / reports.length
+                              )
+                            : 0}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </>
+              )}
+            </TabsContent>
+
+            <TabsContent value="tabela">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Relatórios de {cellName}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {reports.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-8">
+                      Nenhum relatório encontrado para este período.
+                    </p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Data</TableHead>
+                            <TableHead>Membros</TableHead>
+                            <TableHead>Frequentadores</TableHead>
+                            <TableHead>Total</TableHead>
+                            <TableHead>Observações</TableHead>
+                            <TableHead className="text-right">Ações</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                    <TableBody>
+                      {filteredAndSortedReports.map((report) => (
+                            <TableRow key={report.id}>
+                              <TableCell>{formatDateBR(report.reportDate)}</TableCell>
+                              <TableCell>{report.membersCount}</TableCell>
+                              <TableCell>{report.frequentadoresCount}</TableCell>
+                              <TableCell>
+                                <Badge variant="outline">
+                                  {report.membersCount + report.frequentadoresCount}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="max-w-xs truncate">
+                                {report.observations || "-"}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex justify-end gap-2">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => openEditReport(report)}
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </Button>
+                                  <AlertDialog
+                                    open={deleteReportId === report.id}
+                                    onOpenChange={(open) => {
+                                      if (!open) {
+                                        setDeleteReportId(null);
+                                      } else {
+                                        setDeleteReportId(report.id);
+                                      }
+                                    }}
+                                  >
+                                    <AlertDialogTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setDeleteReportId(report.id)}
+                                      >
+                                        <Trash2 className="w-4 h-4 text-destructive" />
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          Tem certeza que deseja excluir este relatório? Esta ação não
+                                          pode ser desfeita.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel onClick={() => setDeleteReportId(null)}>
+                                          Cancelar
+                                        </AlertDialogCancel>
+                                        <AlertDialogAction onClick={handleDeleteReport}>
+                                          Excluir
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
         )}
 
         {/* Dialog de Edição */}
@@ -1041,141 +1552,384 @@ export function CellReportsWeekly() {
         </Dialog>
       </div>
 
-      {/* Filtros de mês e ano */}
+      {/* Seleção de Semana por Mês */}
       <Card>
         <CardHeader>
-          <CardTitle>Filtros</CardTitle>
+          <CardTitle>Selecionar Semana</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <Label htmlFor="month">Mês</Label>
-              <Select
-                value={selectedMonth.toString()}
-                onValueChange={(value) => setSelectedMonth(parseInt(value))}
-              >
-                <SelectTrigger id="month">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => (
-                    <SelectItem key={month} value={month.toString()}>
-                      {new Date(2000, month - 1, 1).toLocaleDateString("pt-BR", {
-                        month: "long",
-                      })}
+        <CardContent className="space-y-4">
+          {/* Seletor de Mês */}
+          <div>
+            <Label htmlFor="month-select">Mês</Label>
+            <Select value={selectedMonthKey} onValueChange={setSelectedMonthKey}>
+              <SelectTrigger id="month-select" className="w-full sm:w-[300px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {monthKeys.map((monthKey) => {
+                  const firstWeek = weeksByMonth[monthKey]?.[0];
+                  if (!firstWeek) return null;
+                  const monthLabel = firstWeek.start.toLocaleDateString("pt-BR", { 
+                    month: "long", 
+                    year: "numeric" 
+                  });
+                  return (
+                    <SelectItem key={monthKey} value={monthKey}>
+                      {monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1)}
                     </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex-1">
-              <Label htmlFor="year">Ano</Label>
-              <Select
-                value={selectedYear.toString()}
-                onValueChange={(value) => setSelectedYear(parseInt(value))}
-              >
-                <SelectTrigger id="year">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: 5 }, (_, i) => currentDate.getFullYear() - 2 + i).map(
-                    (year) => (
-                      <SelectItem key={year} value={year.toString()}>
-                        {year}
-                      </SelectItem>
-                    )
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
+                  );
+                })}
+              </SelectContent>
+            </Select>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Lista de Relatórios */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Meus Relatórios</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {reports.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">
-              Nenhum relatório encontrado para este período.
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Membros</TableHead>
-                    <TableHead>Frequentadores</TableHead>
-                    <TableHead>Total</TableHead>
-                    <TableHead>Observações</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {reports.map((report) => (
-                    <TableRow key={report.id}>
-                      <TableCell>{formatDateBR(report.reportDate)}</TableCell>
-                      <TableCell>{report.membersCount}</TableCell>
-                      <TableCell>{report.frequentadoresCount}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {report.membersCount + report.frequentadoresCount}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="max-w-xs truncate">
-                        {report.observations || "-"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openEditReport(report)}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setDeleteReportId(report.id)}
-                              >
-                                <Trash2 className="w-4 h-4 text-destructive" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Tem certeza que deseja excluir este relatório? Esta ação não pode
-                                  ser desfeita.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel onClick={() => setDeleteReportId(null)}>
-                                  Cancelar
-                                </AlertDialogCancel>
-                                <AlertDialogAction onClick={handleDeleteReport}>
-                                  Excluir
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+          {/* Semanas do Mês Selecionado */}
+          {currentMonthWeeks.length > 0 && (
+            <div>
+              <Label className="mb-2 block">Semanas disponíveis</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+                {currentMonthWeeks.map((week) => (
+                  <Button
+                    key={week.key}
+                    variant={selectedWeekKey === week.key ? "default" : "outline"}
+                    onClick={() => setSelectedWeekKey(week.key)}
+                    className={`justify-start text-left h-auto py-2.5 px-3 ${
+                      week.isCurrent && selectedWeekKey !== week.key 
+                        ? "border-2 border-primary" 
+                        : ""
+                    }`}
+                  >
+                    <div className="flex flex-col items-start w-full">
+                      <span className={`text-sm ${week.isCurrent ? "font-semibold" : ""}`}>
+                        {week.label.replace(" (Atual)", "")}
+                      </span>
+                      {week.isCurrent && (
+                        <span className="text-xs text-primary/80 mt-0.5">Semana Atual</span>
+                      )}
+                    </div>
+                  </Button>
+                ))}
+              </div>
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Gráficos e Lista de Relatórios */}
+      <Tabs defaultValue="graficos" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="graficos" className="flex items-center gap-2">
+            <BarChart3 className="w-4 h-4" />
+            Gráficos
+          </TabsTrigger>
+          <TabsTrigger value="tabela" className="flex items-center gap-2">
+            <Calendar className="w-4 h-4" />
+            Tabela
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="graficos" className="space-y-6">
+          {reports.length === 0 ? (
+            <Card>
+              <CardContent className="py-8">
+                <p className="text-center text-muted-foreground">
+                  Nenhum relatório encontrado para este período. Crie relatórios para ver os gráficos.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              {/* Gráfico de Evolução (Linha) */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5" />
+                    Evolução de Membros e Frequentadores
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis 
+                        dataKey="dateShort" 
+                        tick={{ fontSize: 12 }}
+                        angle={-45}
+                        textAnchor="end"
+                        height={80}
+                      />
+                      <YAxis tick={{ fontSize: 12 }} />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: "hsl(var(--background))",
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: "6px"
+                        }}
+                      />
+                      <Legend />
+                      <Line 
+                        type="monotone" 
+                        dataKey="membros" 
+                        stroke="#7c3aed" 
+                        strokeWidth={2}
+                        name="Membros"
+                        dot={{ r: 4 }}
+                      />
+                      <Line 
+                        type="monotone" 
+                        dataKey="frequentadores" 
+                        stroke="#f59e0b" 
+                        strokeWidth={2}
+                        name="Frequentadores"
+                        dot={{ r: 4 }}
+                      />
+                      <Line 
+                        type="monotone" 
+                        dataKey="total" 
+                        stroke="#10b981" 
+                        strokeWidth={2}
+                        strokeDasharray="5 5"
+                        name="Total"
+                        dot={{ r: 4 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              {/* Gráfico de Comparação (Barras) */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BarChart3 className="w-5 h-5" />
+                    Comparação de Membros e Frequentadores
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis 
+                        dataKey="dateShort" 
+                        tick={{ fontSize: 12 }}
+                        angle={-45}
+                        textAnchor="end"
+                        height={80}
+                      />
+                      <YAxis tick={{ fontSize: 12 }} />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: "hsl(var(--background))",
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: "6px"
+                        }}
+                      />
+                      <Legend />
+                      <Bar dataKey="membros" fill="#7c3aed" name="Membros" />
+                      <Bar dataKey="frequentadores" fill="#f59e0b" name="Frequentadores" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              {/* Resumo Estatístico Detalhado */}
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                      <Users className="w-4 h-4" />
+                      Média de Membros
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{stats.avgMembers}</div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Min: {stats.minMembers} | Max: {stats.maxMembers}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                      <Users className="w-4 h-4" />
+                      Média de Frequentadores
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{stats.avgFrequentadores}</div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Min: {stats.minFrequentadores} | Max: {stats.maxFrequentadores}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                      <Activity className="w-4 h-4" />
+                      Média Total
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{stats.avgTotal}</div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Min: {stats.minTotal} | Max: {stats.maxTotal}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                      {stats.growthRate >= 0 ? (
+                        <TrendingUp className="w-4 h-4 text-green-500" />
+                      ) : (
+                        <TrendingDown className="w-4 h-4 text-red-500" />
+                      )}
+                      Crescimento
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className={`text-2xl font-bold ${stats.growthRate >= 0 ? "text-green-500" : "text-red-500"}`}>
+                      {stats.growthRate >= 0 ? "+" : ""}{stats.growthRate}%
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {stats.totalReports} relatório(s)
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Estatísticas Adicionais */}
+              <div className="grid gap-4 md:grid-cols-3">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Total de Membros
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{stats.totalMembers}</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Total de Frequentadores
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{stats.totalFrequentadores}</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Total de Participantes
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{stats.totalParticipants}</div>
+                  </CardContent>
+                </Card>
+              </div>
+            </>
+          )}
+        </TabsContent>
+
+        <TabsContent value="tabela">
+          <Card>
+            <CardHeader>
+              <CardTitle>Meus Relatórios</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {reports.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">
+                  Nenhum relatório encontrado para este período.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Data</TableHead>
+                        <TableHead>Membros</TableHead>
+                        <TableHead>Frequentadores</TableHead>
+                        <TableHead>Total</TableHead>
+                        <TableHead>Observações</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredAndSortedReports.map((report) => (
+                        <TableRow key={report.id}>
+                          <TableCell>{formatDateBR(report.reportDate)}</TableCell>
+                          <TableCell>{report.membersCount}</TableCell>
+                          <TableCell>{report.frequentadoresCount}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">
+                              {report.membersCount + report.frequentadoresCount}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="max-w-xs truncate">
+                            {report.observations || "-"}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openEditReport(report)}
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                              <AlertDialog
+                                open={deleteReportId === report.id}
+                                onOpenChange={(open) => {
+                                  if (!open) {
+                                    setDeleteReportId(null);
+                                  } else {
+                                    setDeleteReportId(report.id);
+                                  }
+                                }}
+                              >
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setDeleteReportId(report.id)}
+                                  >
+                                    <Trash2 className="w-4 h-4 text-destructive" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Tem certeza que deseja excluir este relatório? Esta ação não pode
+                                      ser desfeita.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel onClick={() => setDeleteReportId(null)}>
+                                      Cancelar
+                                    </AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleDeleteReport}>
+                                      Excluir
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Dialog de Edição */}
       <Dialog

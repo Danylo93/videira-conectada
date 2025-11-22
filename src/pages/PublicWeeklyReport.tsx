@@ -26,6 +26,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { CheckCircle2, AlertCircle } from "lucide-react";
 import logoVideira from "@/assets/logo-videira.png";
+import { formatDateBR } from "@/lib/dateUtils";
 
 interface Leader {
   id: string;
@@ -49,16 +50,54 @@ export function PublicWeeklyReport() {
   const [existingReport, setExistingReport] = useState<any>(null);
   const [showUpdateDialog, setShowUpdateDialog] = useState(false);
 
+  // Calcular início e fim da semana atual (segunda a domingo)
+  const getCurrentWeekRange = () => {
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - daysToMonday);
+    monday.setHours(0, 0, 0, 0);
+    
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    sunday.setHours(23, 59, 59, 999);
+    
+    return {
+      start: monday,
+      end: sunday,
+      startStr: `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`,
+      endStr: `${sunday.getFullYear()}-${String(sunday.getMonth() + 1).padStart(2, '0')}-${String(sunday.getDate()).padStart(2, '0')}`,
+    };
+  };
+
+  const weekRange = getCurrentWeekRange();
+
   // Verificar se há parâmetros na URL
   useEffect(() => {
     const dateParam = searchParams.get("date");
     const liderParam = searchParams.get("lider");
     
     if (dateParam) {
-      setReportDate(dateParam);
+      // Validar se a data está na semana atual
+      const selectedDate = new Date(dateParam + "T00:00:00");
+      if (selectedDate >= weekRange.start && selectedDate <= weekRange.end) {
+        setReportDate(dateParam);
+      } else {
+        // Se a data não está na semana atual, usar hoje
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        setReportDate(`${year}-${month}-${day}`);
+        toast({
+          title: "Aviso",
+          description: "Apenas datas da semana atual são permitidas. Data ajustada para hoje.",
+        });
+      }
     } else {
       // Se não tem data, usar hoje no fuso horário local (Brasil)
-      // Usar getFullYear, getMonth, getDate para evitar conversão UTC
       const today = new Date();
       const year = today.getFullYear();
       const month = String(today.getMonth() + 1).padStart(2, '0');
@@ -384,11 +423,27 @@ export function PublicWeeklyReport() {
                     id="date"
                     type="date"
                     value={reportDate}
-                    onChange={(e) => setReportDate(e.target.value)}
+                    onChange={(e) => {
+                      const selectedDate = new Date(e.target.value + "T00:00:00");
+                      // Validar se a data está na semana atual
+                      if (selectedDate >= weekRange.start && selectedDate <= weekRange.end) {
+                        setReportDate(e.target.value);
+                      } else {
+                        toast({
+                          title: "Data inválida",
+                          description: `Apenas datas da semana atual são permitidas (${formatDateBR(weekRange.start)} a ${formatDateBR(weekRange.end)})`,
+                          variant: "destructive",
+                        });
+                      }
+                    }}
+                    min={weekRange.startStr}
+                    max={weekRange.endStr}
                     required
-                    max={new Date().toISOString().split("T")[0]}
                     className="h-11 sm:h-10 text-sm sm:text-base"
                   />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Semana atual: {formatDateBR(weekRange.start)} a {formatDateBR(weekRange.end)}
+                  </p>
                 </div>
 
                 <div>

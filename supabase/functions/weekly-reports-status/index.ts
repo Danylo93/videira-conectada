@@ -8,6 +8,7 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 
 interface LeaderWeeklyReportStatus {
@@ -28,7 +29,10 @@ interface LeaderWeeklyReportStatus {
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response(null, { 
+      status: 204,
+      headers: corsHeaders 
+    });
   }
 
   try {
@@ -90,19 +94,32 @@ serve(async (req) => {
       );
     }
 
-    // Buscar relatórios da data específica
+    // Buscar relatórios de toda a semana (segunda a domingo)
     const liderIds = leaders.map((l) => l.id);
+    
+    // Calcular fim da semana (domingo)
+    // Garantir que targetDate está no formato correto
+    const mondayDate = new Date(targetDate);
+    if (isNaN(mondayDate.getTime())) {
+      throw new Error(`Data inválida: ${targetDate}`);
+    }
+    const sunday = new Date(mondayDate);
+    sunday.setDate(mondayDate.getDate() + 6);
+    const weekEndDate = sunday.toISOString().split("T")[0];
+    
     const { data: reports, error: reportsError } = await supabase
       .from("cell_reports_weekly")
       .select("lider_id, report_date, members_count, frequentadores_count")
-      .eq("report_date", targetDate)
-      .in("lider_id", liderIds);
+      .in("lider_id", liderIds)
+      .gte("report_date", targetDate)
+      .lte("report_date", weekEndDate);
 
     if (reportsError) {
       throw reportsError;
     }
 
     // Criar mapa de relatórios por líder
+    // Se um líder tiver múltiplos relatórios na semana, usar o mais recente
     const reportsMap = new Map<string, {
       reportDate: string;
       membersCount: number;
@@ -110,11 +127,26 @@ serve(async (req) => {
     }>();
     
     (reports || []).forEach((r: any) => {
-      reportsMap.set(r.lider_id, {
-        reportDate: r.report_date,
-        membersCount: r.members_count || 0,
-        frequentadoresCount: r.frequentadores_count || 0,
-      });
+      const existing = reportsMap.get(r.lider_id);
+      // Se já existe um relatório para este líder, usar o mais recente (comparar datas)
+      if (!existing) {
+        reportsMap.set(r.lider_id, {
+          reportDate: r.report_date,
+          membersCount: r.members_count || 0,
+          frequentadoresCount: r.frequentadores_count || 0,
+        });
+      } else {
+        // Comparar datas para pegar o mais recente
+        const existingDate = new Date(existing.reportDate);
+        const currentDate = new Date(r.report_date);
+        if (currentDate > existingDate) {
+          reportsMap.set(r.lider_id, {
+            reportDate: r.report_date,
+            membersCount: r.members_count || 0,
+            frequentadoresCount: r.frequentadores_count || 0,
+          });
+        }
+      }
     });
 
     // Obter URL base do frontend (ajustar conforme necessário)

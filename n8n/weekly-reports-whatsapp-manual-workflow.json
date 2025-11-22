@@ -1,0 +1,215 @@
+{
+  "name": "Enviar Relatórios Semanais - Manual (Webhook)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "send-weekly-reports",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Manual",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "weekly-reports-manual"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Processar dados recebidos do webhook\nconst body = $input.item.json.body || $input.item.json;\n\n// Validar dados recebidos\nif (!body.leaders || !Array.isArray(body.leaders)) {\n  return {\n    json: {\n      error: \"Formato inválido: 'leaders' deve ser um array\",\n      shouldProcess: false\n    }\n  };\n}\n\n// Filtrar apenas líderes com telefone\nconst leadersWithPhone = body.leaders.filter(leader => leader.liderPhone);\n\nif (leadersWithPhone.length === 0) {\n  return {\n    json: {\n      error: \"Nenhum líder com telefone encontrado\",\n      shouldProcess: false,\n      total: body.leaders.length\n    }\n  };\n}\n\nreturn {\n  json: {\n    leaders: leadersWithPhone,\n    weekStartDate: body.weekStartDate,\n    weekEndDate: body.weekEndDate,\n    pastorId: body.pastorId,\n    isKids: body.isKids || false,\n    shouldProcess: true,\n    total: leadersWithPhone.length\n  }\n};"
+      },
+      "id": "process-data",
+      "name": "Processar Dados",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.shouldProcess }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-process",
+      "name": "Verificar se deve processar",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Separar líderes em itens individuais para processamento paralelo\nconst leaders = $input.item.json.leaders;\n\nreturn leaders.map(leader => ({\n  json: {\n    liderId: leader.liderId,\n    liderName: leader.liderName,\n    liderPhone: leader.liderPhone,\n    fillLink: leader.fillLink,\n    weekStartDate: $input.item.json.weekStartDate\n  }\n}));"
+      },
+      "id": "split-leaders",
+      "name": "Separar Líderes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Formatar mensagem personalizada para cada líder\nconst leader = $input.item.json;\n\n// Formatar data da semana\nconst weekDate = new Date(leader.weekStartDate);\nconst formattedDate = weekDate.toLocaleDateString('pt-BR', {\n  weekday: 'long',\n  day: 'numeric',\n  month: 'long',\n  year: 'numeric'\n});\n\n// Criar mensagem personalizada\nconst message = `📋 *Relatório Semanal de Célula*\n\nOlá *${leader.liderName}*! 👋\n\nLembramos que ainda não recebemos o relatório semanal da sua célula.\n\n📅 *Semana:* ${formattedDate}\n\nPor favor, preencha o relatório através do link abaixo:\n\n🔗 ${leader.fillLink}\n\n*Obrigado pela sua dedicação!* 🙏`;\n\nreturn {\n  json: {\n    message: message,\n    phone: leader.liderPhone,\n    liderName: leader.liderName,\n    liderId: leader.liderId,\n    fillLink: leader.fillLink\n  }\n};"
+      },
+      "id": "format-message",
+      "name": "Formatar Mensagem Individual",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1050, 200]
+    },
+    {
+      "parameters": {
+        "instanceName": "={{ $env.EVOLUTION_INSTANCE_NAME }}",
+        "operation": "sendText",
+        "number": "={{ $json.phone }}",
+        "text": "={{ $json.message }}"
+      },
+      "id": "send-whatsapp",
+      "name": "Enviar WhatsApp Individual",
+      "type": "@evolution-api/n8n-nodes-evolution-api",
+      "typeVersion": 1,
+      "position": [1250, 200],
+      "credentials": {
+        "evolutionApi": {
+          "id": "evolution-api",
+          "name": "Evolution API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Agregar resultados do envio\nconst items = $input.all();\n\nconst successful = items.filter(item => !item.json.error).length;\nconst failed = items.filter(item => item.json.error).length;\nconst total = items.length;\n\nconst failedLeaders = items\n  .filter(item => item.json.error)\n  .map(item => item.json.liderName || 'Desconhecido');\n\nreturn {\n  json: {\n    success: true,\n    total: total,\n    successful: successful,\n    failed: failed,\n    failedLeaders: failedLeaders,\n    message: `Enviado para ${successful} de ${total} líder(es)${failed > 0 ? ` (${failed} falharam)` : ''}`\n  }\n};"
+      },
+      "id": "aggregate-results",
+      "name": "Agregar Resultados",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1450, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "respond",
+      "name": "Responder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1650, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "respond-error",
+      "name": "Responder Erro",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [850, 400]
+    }
+  ],
+  "connections": {
+    "Webhook Manual": {
+      "main": [
+        [
+          {
+            "node": "Processar Dados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar Dados": {
+      "main": [
+        [
+          {
+            "node": "Verificar se deve processar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar se deve processar": {
+      "main": [
+        [
+          {
+            "node": "Separar Líderes",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Erro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Separar Líderes": {
+      "main": [
+        [
+          {
+            "node": "Formatar Mensagem Individual",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar Mensagem Individual": {
+      "main": [
+        [
+          {
+            "node": "Enviar WhatsApp Individual",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar WhatsApp Individual": {
+      "main": [
+        [
+          {
+            "node": "Agregar Resultados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agregar Resultados": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-01-21T00:00:00.000Z",
+  "versionId": "1"
+}
+

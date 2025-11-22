@@ -1,6 +1,6 @@
 # Explicação dos Workflows de Relatórios Semanais
 
-## 📋 Resumo dos 3 Workflows
+## 📋 Resumo dos Workflows Disponíveis
 
 ### 1. `weekly-reports-status-workflow.json`
 **Tipo**: Webhook (consulta manual)  
@@ -26,35 +26,61 @@
 
 ---
 
-### 3. `weekly-reports-whatsapp-scheduled-workflow.json` ⭐ **RECOMENDADO**
+### 3. `weekly-reports-whatsapp-scheduled-workflow.json` (Automático)
 **Tipo**: Agendado (verificação contínua)  
 **Quando usar**:
-- ✅ **Este é o workflow principal que você precisa**
-- ✅ Verifica a cada 15 minutos
+- ✅ Verifica a cada 15 minutos automaticamente
 - ✅ Envia apenas para pendentes
 - ✅ Para quando todos preencherem
 - ✅ Adapta-se automaticamente
+- ⚠️ Pode enviar mensagens mesmo quando não necessário
 
 **Uso**: Roda continuamente, verificando e enviando mensagens conforme necessário
 
 ---
 
+### 4. `weekly-reports-whatsapp-manual-workflow.json` ⭐ **RECOMENDADO PARA CONTROLE**
+**Tipo**: Webhook (acionamento manual)  
+**Quando usar**:
+- ✅ **Controle total sobre quando enviar**
+- ✅ Acionado pelo pastor via botão na interface
+- ✅ Envia apenas para líderes pendentes no momento
+- ✅ Feedback imediato
+- ✅ Não envia spam
+
+**Uso**: Pastor clica no botão "Enviar WhatsApp" e o sistema envia apenas para quem está pendente
+
+---
+
 ## 🎯 Qual Workflow Usar?
 
-### Cenário 1: Automação Completa (Recomendado)
+### Cenário 1: Controle Manual (Recomendado) ⭐
+**Use apenas**: `weekly-reports-whatsapp-manual-workflow.json`
+
+Este workflow oferece:
+- Controle total sobre quando enviar
+- Envia apenas quando o pastor solicita
+- Feedback imediato
+- Não envia mensagens desnecessárias
+
+**Como usar**: Pastor clica no botão "Enviar WhatsApp" na interface quando quiser enviar lembretes.
+
+---
+
+### Cenário 2: Automação Completa
 **Use apenas**: `weekly-reports-whatsapp-scheduled-workflow.json`
 
-Este workflow faz tudo:
+Este workflow faz tudo automaticamente:
 - Verifica a cada 15 minutos
 - Envia mensagens para pendentes
 - Para quando todos preencherem
 - Funciona 24/7
 
-**Não precisa dos outros 2 workflows neste caso.**
+**Ideal para**: Quando você quer que o sistema funcione sem intervenção manual.
 
 ---
 
-### Cenário 2: Envio Único Semanal
+### Cenário 3: Envio Único Semanal
 **Use apenas**: `weekly-reports-whatsapp-workflow.json`
 
 Se você só quer enviar uma vez por semana (segunda às 18h) e não precisa de verificação contínua.
@@ -63,7 +89,7 @@ Se você só quer enviar uma vez por semana (segunda às 18h) e não precisa de 
 
 ---
 
-### Cenário 3: Consulta Manual + Automação
+### Cenário 4: Consulta Manual + Automação
 **Use**:
 - `weekly-reports-status-workflow.json` (para consultas manuais)
 - `weekly-reports-whatsapp-scheduled-workflow.json` (para automação)
@@ -76,18 +102,25 @@ Se você só quer enviar uma vez por semana (segunda às 18h) e não precisa de 
 
 ## 💡 Recomendação Final
 
-**Para a maioria dos casos, use apenas:**
+**Para a maioria dos casos, use:**
+```
+weekly-reports-whatsapp-manual-workflow.json
+```
+
+Este workflow oferece:
+- ✅ Controle total sobre quando enviar
+- ✅ Envia apenas quando necessário
+- ✅ Feedback imediato
+- ✅ Não envia spam
+
+**Alternativa (automação completa):**
 ```
 weekly-reports-whatsapp-scheduled-workflow.json
 ```
 
-Este workflow faz tudo que você precisa:
-- ✅ Verifica continuamente
-- ✅ Envia mensagens automaticamente
-- ✅ Para quando todos preencherem
-- ✅ Funciona sem intervenção
+Use se preferir automação contínua sem intervenção manual.
 
-Os outros 2 workflows são opcionais e podem ser ignorados se você não precisar de funcionalidades específicas deles.
+**Você também pode usar ambos simultaneamente** se quiser ter automação + opção manual!
 
 ---
 

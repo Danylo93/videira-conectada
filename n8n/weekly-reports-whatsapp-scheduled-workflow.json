@@ -21,8 +21,7 @@
     {
       "parameters": {
         "url": "={{ $env.SUPABASE_URL }}/functions/v1/weekly-reports-status",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "authentication": "none",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
