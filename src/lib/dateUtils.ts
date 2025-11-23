@@ -124,26 +124,25 @@ export function formatDateMedium(dateInput: string | Date): string {
 }
 
 /**
- * Retorna o sábado da semana para uma data fornecida
- * A semana começa no sábado e termina na sexta-feira
+ * Retorna a segunda-feira da semana para uma data fornecida
+ * A semana começa na segunda-feira e termina no domingo
  */
 export function getWeekStartDate(dateInput: string | Date): Date {
   const date = typeof dateInput === 'string' ? new Date(dateInput) : new Date(dateInput);
   
-  // Obter o dia da semana (0 = domingo, 6 = sábado)
+  // Obter o dia da semana (0 = domingo, 1 = segunda, ..., 6 = sábado)
   const dayOfWeek = date.getDay();
   
-  // Calcular quantos dias subtrair para chegar ao sábado
-  // Se for sábado (6), subtrai 0
-  // Se for domingo (0), subtrai 1
-  // Se for segunda (1), subtrai 2
-  // etc.
-  const daysToSubtract = dayOfWeek === 0 ? 1 : dayOfWeek === 6 ? 0 : dayOfWeek + 1;
+  // Calcular quantos dias subtrair para chegar à segunda-feira
+  // Se for segunda (1), subtrai 0
+  // Se for terça (2), subtrai 1
+  // Se for domingo (0), subtrai 6 (volta para a segunda anterior)
+  const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
   
-  const saturday = new Date(date);
-  saturday.setDate(date.getDate() - daysToSubtract);
-  saturday.setHours(0, 0, 0, 0);
+  const monday = new Date(date);
+  monday.setDate(date.getDate() - daysToSubtract);
+  monday.setHours(0, 0, 0, 0);
   
-  return saturday;
+  return monday;
 }
 

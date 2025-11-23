@@ -672,18 +672,39 @@ export function Dashboard() {
           totalFrequentadores: totalFrequentadoresWeekly,
         });
 
-        // Formatar label da semana similar ao dashboard de relatórios semanais
+        // Formatar label da semana (segunda a domingo)
         const weeklyRows = Array.from(weekly.entries())
           .sort(([a], [b]) => (a < b ? -1 : 1))
           .map(([key, v]) => {
-            const date = new Date(key);
-            const weekEnd = new Date(date);
-            weekEnd.setDate(weekEnd.getDate() + 6);
-            // Formato: "06 de set. - 12 de set." (similar ao dashboard de relatórios semanais)
-            const startStr = formatDateShort(key);
-            const endStr = formatDateShort(weekEnd.toISOString());
+            const weekStart = new Date(key + 'T00:00:00');
+            const weekEnd = new Date(weekStart);
+            weekEnd.setDate(weekStart.getDate() + 6); // Domingo (segunda + 6 dias)
+            
+            // Formato: "17 de nov. - 23 de nov." (segunda a domingo)
+            // Usar métodos UTC para garantir o dia correto
+            const startYear = weekStart.getUTCFullYear();
+            const startMonth = weekStart.getUTCMonth();
+            const startDay = weekStart.getUTCDate();
+            
+            const endYear = weekEnd.getUTCFullYear();
+            const endMonth = weekEnd.getUTCMonth();
+            const endDay = weekEnd.getUTCDate();
+            
+            // Criar datas locais para formatação
+            const startDateLocal = new Date(startYear, startMonth, startDay);
+            const endDateLocal = new Date(endYear, endMonth, endDay);
+            
+            const startMonthStr = startDateLocal.toLocaleDateString('pt-BR', { month: 'short' });
+            const endMonthStr = endDateLocal.toLocaleDateString('pt-BR', { month: 'short' });
+            
+            // Se for o mesmo mês, mostrar apenas uma vez: "17 - 23 de nov."
+            // Se for meses diferentes, mostrar: "30 de nov. - 1 de dez."
+            const name = startMonthStr === endMonthStr 
+              ? `${startDay} - ${endDay} de ${startMonthStr}`
+              : `${startDay} de ${startMonthStr} - ${endDay} de ${endMonthStr}`;
+            
             return { 
-              name: `${startStr} - ${endStr}`, 
+              name, 
               members: v.members,
               frequentadores: v.frequentadores,
               total: v.total,
