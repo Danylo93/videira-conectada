@@ -7,7 +7,7 @@ import { eventsService } from "@/integrations/supabase/events";
 import FancyLoader from "@/components/FancyLoader";
 import { useStatistics } from "@/hooks/useStatistics";
 import type { Event } from "@/types/event";
-import { formatDateBR, formatDateBRLong, formatDateShort, formatDateMedium } from "@/lib/dateUtils";
+import { formatDateBR, formatDateBRLong, formatDateShort, formatDateMedium, getWeekStartDate } from "@/lib/dateUtils";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -76,6 +76,7 @@ type EventItem = { id: string; title: string; date: string };
 // Componente de Calendário Mensal
 const MonthCalendar = ({ events }: { events: Event[] }) => {
   const now = new Date();
+  // Usar métodos locais para o mês atual (não UTC, pois queremos o mês local)
   const currentMonth = now.getMonth();
   const currentYear = now.getFullYear();
   const firstDay = new Date(currentYear, currentMonth, 1);
@@ -86,16 +87,24 @@ const MonthCalendar = ({ events }: { events: Event[] }) => {
   // Criar array de dias do mês
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
-  // Mapear eventos por dia
+  // Mapear eventos por dia (usar UTC para consistência com formatDateShort)
   const eventsByDay = new Map<number, Event[]>();
   events.forEach((event) => {
     const eventDate = new Date(event.event_date);
-    if (eventDate.getMonth() === currentMonth && eventDate.getFullYear() === currentYear) {
-      const day = eventDate.getDate();
-      if (!eventsByDay.has(day)) {
-        eventsByDay.set(day, []);
+    // Usar métodos UTC para extrair dia, mês e ano (mesma lógica de formatDateShort)
+    const eventYear = eventDate.getUTCFullYear();
+    const eventMonth = eventDate.getUTCMonth();
+    const eventDay = eventDate.getUTCDate();
+    
+    // Comparar com o mês atual (usar UTC também para consistência)
+    const currentYearUTC = now.getUTCFullYear();
+    const currentMonthUTC = now.getUTCMonth();
+    
+    if (eventMonth === currentMonthUTC && eventYear === currentYearUTC) {
+      if (!eventsByDay.has(eventDay)) {
+        eventsByDay.set(eventDay, []);
       }
-      eventsByDay.get(day)!.push(event);
+      eventsByDay.get(eventDay)!.push(event);
     }
   });
 
@@ -103,14 +112,14 @@ const MonthCalendar = ({ events }: { events: Event[] }) => {
 
   return (
     <div className="w-full">
-      <div className="grid grid-cols-7 gap-1 mb-2">
+      <div className="grid grid-cols-7 gap-0.5 mb-1">
         {weekDays.map((day) => (
-          <div key={day} className="text-center text-sm font-medium text-muted-foreground py-2">
+          <div key={day} className="text-center text-xs font-medium text-muted-foreground py-1">
             {day}
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-1">
+      <div className="grid grid-cols-7 gap-0.5">
         {/* Espaços vazios antes do primeiro dia */}
         {Array.from({ length: startingDayOfWeek }).map((_, i) => (
           <div key={`empty-${i}`} className="aspect-square" />
@@ -123,18 +132,20 @@ const MonthCalendar = ({ events }: { events: Event[] }) => {
           return (
             <div
               key={day}
-              className={`aspect-square border rounded-lg p-1 flex flex-col items-center justify-start ${
+              className={`aspect-square border rounded-md p-0.5 flex flex-col items-center justify-start ${
                 isToday
                   ? 'bg-primary text-primary-foreground border-primary'
-                  : 'bg-muted/50 hover:bg-muted border-border'
+                  : dayEvents.length > 0
+                  ? 'bg-primary/10 border-primary/30 hover:bg-primary/20'
+                  : 'bg-muted/30 hover:bg-muted/50 border-border'
               } transition-colors`}
             >
-              <span className={`text-xs font-medium ${isToday ? 'text-primary-foreground' : 'text-foreground'}`}>
+              <span className={`text-[10px] font-medium ${isToday ? 'text-primary-foreground' : 'text-foreground'}`}>
                 {day}
               </span>
               {dayEvents.length > 0 && (
-                <div className="flex flex-wrap gap-0.5 mt-0.5 justify-center">
-                  {dayEvents.slice(0, 2).map((event, idx) => (
+                <div className="flex flex-wrap gap-0.5 mt-0.5 justify-center w-full">
+                  {dayEvents.slice(0, 3).map((event, idx) => (
                     <div
                       key={event.id}
                       className={`w-1.5 h-1.5 rounded-full ${
@@ -143,9 +154,9 @@ const MonthCalendar = ({ events }: { events: Event[] }) => {
                       title={event.name}
                     />
                   ))}
-                  {dayEvents.length > 2 && (
-                    <span className={`text-[8px] ${isToday ? 'text-primary-foreground' : 'text-muted-foreground'}`}>
-                      +{dayEvents.length - 2}
+                  {dayEvents.length > 3 && (
+                    <span className={`text-[7px] ${isToday ? 'text-primary-foreground' : 'text-primary'}`}>
+                      +{dayEvents.length - 3}
                     </span>
                   )}
                 </div>
@@ -155,24 +166,24 @@ const MonthCalendar = ({ events }: { events: Event[] }) => {
         })}
       </div>
       {events.length > 0 && (
-        <div className="mt-4 space-y-2">
-          <p className="text-sm font-medium">Eventos do Mês:</p>
-          <div className="space-y-1">
-            {events.slice(0, 5).map((event) => {
+        <div className="mt-3 space-y-1.5">
+          <p className="text-xs font-semibold text-foreground">Eventos do Mês:</p>
+          <div className="space-y-1 max-h-[120px] overflow-y-auto">
+            {events.slice(0, 4).map((event) => {
               const eventDate = new Date(event.event_date);
               return (
-                <div key={event.id} className="flex items-center gap-2 text-sm p-2 bg-muted rounded">
-                  <div className="w-2 h-2 rounded-full bg-primary" />
-                  <span className="font-medium">{event.name}</span>
-                  <span className="text-muted-foreground ml-auto">
+                <div key={event.id} className="flex items-center gap-2 text-xs p-1.5 bg-primary/5 rounded border border-primary/20 hover:bg-primary/10 transition-colors">
+                  <div className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />
+                  <span className="font-medium text-foreground truncate">{event.name}</span>
+                  <span className="text-muted-foreground ml-auto text-[10px] flex-shrink-0">
                     {formatDateShort(event.event_date)}
                   </span>
                 </div>
               );
             })}
-            {events.length > 5 && (
-              <p className="text-xs text-muted-foreground text-center">
-                +{events.length - 5} evento(s) adicional(is)
+            {events.length > 4 && (
+              <p className="text-[10px] text-muted-foreground text-center pt-1">
+                +{events.length - 4} evento(s) adicional(is)
               </p>
             )}
           </div>
@@ -213,10 +224,19 @@ export function Dashboard() {
   
   const [monthEvents, setMonthEvents] = useState<Event[]>([]);
 
-  // gráfico (apenas mensal)
+  // gráfico (semanal para pastor, mensal para outros)
+  const [weeklyRows, setWeeklyRows] = useState<
+    { name: string; members: number; frequentadores: number; total: number }[]
+  >([]);
   const [monthlyRows, setMonthlyRows] = useState<
     { name: string; members: number; visitors: number; total: number }[]
   >([]);
+  
+  // Totais baseados em cell_reports_weekly para o gráfico de pizza (apenas para pastor)
+  const [weeklyTotals, setWeeklyTotals] = useState<{
+    totalMembers: number;
+    totalFrequentadores: number;
+  } | null>(null);
 
   // Novos dados para métricas avançadas
   const [alerts, setAlerts] = useState<Array<{
@@ -516,62 +536,135 @@ export function Dashboard() {
       const yearStart = new Date(now.getFullYear(), 0, 1);
       const yearEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
 
-      let reportsQuery = supabase
-        .from("cell_reports")
-        .select("members_present,visitors_present,week_start,lider_id")
-        .gte("week_start", yearStart.toISOString())
-        .lte("week_start", yearEnd.toISOString());
+      if (isPastor && !isKidsMode) {
+        // Para pastor: usar cell_reports_weekly para dados semanais
+        let reportsQuery = supabase
+          .from("cell_reports_weekly")
+          .select("report_date,members_count,frequentadores_count")
+          .gte("report_date", yearStart.toISOString().split('T')[0])
+          .lte("report_date", yearEnd.toISOString().split('T')[0]);
 
-      if (isLeader) {
-        reportsQuery = reportsQuery.eq("lider_id", user.id);
-      } else if (isDiscipulador) {
-        const isKidsMode = mode === 'kids';
-        let leaderQuery = supabase
-          .from("profiles")
-          .select("id")
-          .eq("role", "lider")
-          .eq("discipulador_uuid", user.id);
+        const { data: yearReports } = await reportsQuery;
+
+        type WeeklyReportRow = {
+          report_date: string;
+          members_count: number;
+          frequentadores_count: number;
+        };
+
+        // Agrupar por semana (sábado da semana)
+        const weekly = new Map<string, { members: number; frequentadores: number; total: number }>();
         
-        if (isKidsMode) {
-          leaderQuery = leaderQuery.eq('is_kids', true);
-        } else {
-          leaderQuery = leaderQuery.or('is_kids.is.null,is_kids.eq.false');
-        }
+        // Calcular totais para o gráfico de pizza (somar todos os relatórios)
+        let totalMembersWeekly = 0;
+        let totalFrequentadoresWeekly = 0;
         
-        const { data: leaderIds } = await leaderQuery;
-        const ids = (leaderIds ?? []).map((l: { id: string }) => l.id);
-        reportsQuery = ids.length ? reportsQuery.in("lider_id", ids) : reportsQuery.eq("lider_id", "");
-      }
-
-      const { data: yearReports } = await reportsQuery;
-
-      const monthly = new Map<string, { members: number; visitors: number; total: number }>();
-      type ReportRow = {
-        week_start: string;
-        members_present: string[] | null;
-        visitors_present: string[] | null;
-      };
-
-      ((yearReports as ReportRow[] | null) ?? []).forEach((r) => {
-        const d = new Date(r.week_start);
-        const key = monthKeyOf(d);
-        const m = Array.isArray(r.members_present) ? r.members_present.length : 0;
-        const v = Array.isArray(r.visitors_present) ? r.visitors_present.length : 0;
-        const sum = m + v;
-        monthly.set(key, {
-          members: (monthly.get(key)?.members ?? 0) + m,
-          visitors: (monthly.get(key)?.visitors ?? 0) + v,
-          total: (monthly.get(key)?.total ?? 0) + sum,
+        ((yearReports as WeeklyReportRow[] | null) ?? []).forEach((r) => {
+          const reportDate = new Date(r.report_date);
+          const weekStart = getWeekStartDate(reportDate);
+          const weekKey = weekStart.toISOString().split('T')[0]; // YYYY-MM-DD (sábado da semana)
+          
+          const m = r.members_count || 0;
+          const v = r.frequentadores_count || 0;
+          const sum = m + v;
+          
+          // Somar para totais do gráfico de pizza
+          totalMembersWeekly += m;
+          totalFrequentadoresWeekly += v;
+          
+          if (!weekly.has(weekKey)) {
+            weekly.set(weekKey, { members: 0, frequentadores: 0, total: 0 });
+          }
+          
+          const current = weekly.get(weekKey)!;
+          weekly.set(weekKey, {
+            members: current.members + m,
+            frequentadores: current.frequentadores + v,
+            total: current.total + sum,
+          });
         });
-      });
+        
+        // Salvar totais para o gráfico de pizza
+        setWeeklyTotals({
+          totalMembers: totalMembersWeekly,
+          totalFrequentadores: totalFrequentadoresWeekly,
+        });
 
-      // Dados mensais para o gráfico (usando dados das estatísticas)
-      // As variáveis de crescimento agora vêm do hook useStatistics
+        // Formatar label da semana similar ao dashboard de relatórios semanais
+        const weeklyRows = Array.from(weekly.entries())
+          .sort(([a], [b]) => (a < b ? -1 : 1))
+          .map(([key, v]) => {
+            const date = new Date(key);
+            const weekEnd = new Date(date);
+            weekEnd.setDate(weekEnd.getDate() + 6);
+            // Formato: "06 de set. - 12 de set." (similar ao dashboard de relatórios semanais)
+            const startStr = formatDateShort(key);
+            const endStr = formatDateShort(weekEnd.toISOString());
+            return { 
+              name: `${startStr} - ${endStr}`, 
+              members: v.members,
+              frequentadores: v.frequentadores,
+              total: v.total,
+            };
+          });
+        setWeeklyRows(weeklyRows);
+      } else {
+        // Para outros: dados mensais (usar cell_reports_weekly também)
+        let reportsQuery = supabase
+          .from("cell_reports_weekly")
+          .select("report_date,members_count,frequentadores_count")
+          .gte("report_date", yearStart.toISOString().split('T')[0])
+          .lte("report_date", yearEnd.toISOString().split('T')[0]);
 
-      const rows = Array.from(monthly.entries())
-        .sort(([a], [b]) => (a < b ? -1 : 1))
-        .map(([key, v]) => ({ name: labelMonth(key), ...v }));
-      setMonthlyRows(rows);
+        if (isLeader) {
+          reportsQuery = reportsQuery.eq("lider_id", user.id);
+        } else if (isDiscipulador) {
+          const isKidsMode = mode === 'kids';
+          let leaderQuery = supabase
+            .from("profiles")
+            .select("id")
+            .eq("role", "lider")
+            .eq("discipulador_uuid", user.id);
+          
+          if (isKidsMode) {
+            leaderQuery = leaderQuery.eq('is_kids', true);
+          } else {
+            leaderQuery = leaderQuery.or('is_kids.is.null,is_kids.eq.false');
+          }
+          
+          const { data: leaderIds } = await leaderQuery;
+          const ids = (leaderIds ?? []).map((l: { id: string }) => l.id);
+          reportsQuery = ids.length ? reportsQuery.in("lider_id", ids) : reportsQuery.eq("lider_id", "");
+        }
+
+        const { data: yearReports } = await reportsQuery;
+
+        type WeeklyReportRow = {
+          report_date: string;
+          members_count: number;
+          frequentadores_count: number;
+        };
+
+        const monthly = new Map<string, { members: number; visitors: number; total: number }>();
+
+        ((yearReports as WeeklyReportRow[] | null) ?? []).forEach((r) => {
+          const d = new Date(r.report_date);
+          const key = monthKeyOf(d);
+          const m = r.members_count || 0;
+          const v = r.frequentadores_count || 0;
+          const sum = m + v;
+          monthly.set(key, {
+            members: (monthly.get(key)?.members ?? 0) + m,
+            visitors: (monthly.get(key)?.visitors ?? 0) + v,
+            total: (monthly.get(key)?.total ?? 0) + sum,
+          });
+        });
+
+        const rows = Array.from(monthly.entries())
+          .sort(([a], [b]) => (a < b ? -1 : 1))
+          .map(([key, v]) => ({ name: labelMonth(key), ...v }));
+        setMonthlyRows(rows);
+      }
 
       /* ---- DADOS PARA DASHBOARD MELHORADO (MODO NORMAL - PASTOR) ---- */
       if (isPastor && !isKidsMode) {
@@ -656,15 +749,17 @@ export function Dashboard() {
           });
         }
 
-        // Carregar eventos do mês atual
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-        
+        // Carregar eventos do mês atual (usar UTC para consistência)
         try {
           const allEvents = await eventsService.getEvents();
           const currentMonthEvents = allEvents.filter((event) => {
             const eventDate = new Date(event.event_date);
-            return eventDate >= monthStart && eventDate <= monthEnd;
+            // Usar métodos UTC para comparar (mesma lógica de formatDateShort)
+            const eventYear = eventDate.getUTCFullYear();
+            const eventMonth = eventDate.getUTCMonth();
+            const currentYearUTC = now.getUTCFullYear();
+            const currentMonthUTC = now.getUTCMonth();
+            return eventYear === currentYearUTC && eventMonth === currentMonthUTC;
           });
           setMonthEvents(currentMonthEvents);
         } catch (error) {
@@ -848,7 +943,7 @@ export function Dashboard() {
               trend={statistics?.networkData ? { value: 12, label: "vs mês anterior" } : undefined}
             />
             <KpiCard 
-              title={isKidsMode ? "Líderes Kids" : "Líderes"} 
+              title={isKidsMode ? "Células Kids" : "Células"} 
               value={statistics?.totalLeaders || 0} 
               icon={Users} 
               subtitle={isKidsMode ? "Total no ministério kids" : "Total na igreja"}
@@ -862,18 +957,19 @@ export function Dashboard() {
               trend={statistics?.networkData ? { value: 15, label: "vs mês anterior" } : undefined}
             />
             <KpiCard 
-              title="Taxa de Presença" 
-              value={`${performanceMetrics?.attendanceRate || 0}%`}
-              icon={Target}
-              subtitle="Média geral"
-              color={performanceMetrics && performanceMetrics.attendanceRate >= 80 ? "success" : "warning"}
+              title="Frequentadores" 
+              value={statistics?.totalFrequentadores || 0} 
+              icon={Users} 
+              subtitle="Ativos cadastrados"
+              trend={statistics?.networkData ? { value: 10, label: "vs mês anterior" } : undefined}
             />
+            
             <KpiCard 
-              title="Compliance" 
-              value={`${performanceMetrics?.reportCompliance || 0}%`}
-              icon={Award}
-              subtitle="Relatórios em dia"
-              color={performanceMetrics && performanceMetrics.reportCompliance >= 90 ? "success" : "warning"}
+              title="Próximos Eventos" 
+              value={events.length}
+              icon={Calendar}
+              subtitle="Eventos agendados"
+              color="primary"
             />
           </>
         ) : isDiscipulador ? (
@@ -941,63 +1037,27 @@ export function Dashboard() {
         )}
       </div>
 
-      {/* Métricas de Performance */}
-      {performanceMetrics && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard
-            title="Taxa de Presença"
-            value={performanceMetrics.attendanceRate}
-            target={isPastor ? 85 : isDiscipulador ? 80 : 75}
-            icon={Target}
-            color={performanceMetrics.attendanceRate >= (isPastor ? 85 : isDiscipulador ? 80 : 75) ? "success" : "warning"}
-          />
-          <MetricCard
-            title="Compliance de Relatórios"
-            value={performanceMetrics.reportCompliance}
-            target={isPastor ? 95 : isDiscipulador ? 90 : 85}
-            icon={FileText}
-            color={performanceMetrics.reportCompliance >= (isPastor ? 95 : isDiscipulador ? 90 : 85) ? "success" : "warning"}
-          />
-          <MetricCard
-            title="Meta de Crescimento"
-            value={Math.abs(performanceMetrics.currentGrowth)}
-            target={performanceMetrics.growthTarget}
-            icon={TrendingUp}
-            color={performanceMetrics.currentGrowth >= performanceMetrics.growthTarget ? "success" : "warning"}
-          />
-          <MetricCard
-            title="Próximos Eventos"
-            value={events.length}
-            target={isPastor ? 10 : isDiscipulador ? 8 : 5}
-            icon={Calendar}
-            color="primary"
-          />
-        </div>
-      )}
-
+      
       {/* Gráficos e Visualizações */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Gráfico de Presenças Mensais */}
+        {/* Gráfico de Presenças (Semanal para Pastor, Mensal para outros) */}
         <Card className={`${isKidsMode ? 'hover:shadow-lg hover:shadow-pink-100 border-pink-200' : 'hover:grape-glow'} transition-smooth`}>
           <CardHeader className="pb-2">
             <CardTitle className={`flex items-center gap-2 ${isKidsMode ? 'text-pink-700' : ''}`}>
               <TrendingUp className={`w-5 h-5 ${isKidsMode ? 'text-pink-500' : 'text-primary'}`} />
-              Presenças Mensais
+              {isPastor && !isKidsMode ? "Presenças Semanais" : "Presenças Mensais"}
             </CardTitle>
           </CardHeader>
           <CardContent className="h-[300px]">
-            {!statistics?.monthlyData || statistics.monthlyData.length === 0 ? (
-              <div className="flex items-center justify-center h-full">
-                <p className="text-center text-muted-foreground">Sem dados para exibir.</p>
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={statistics.monthlyData.map(month => ({
-                  name: `${month.month} ${month.year}`,
-                  members: month.averageMembers,
-                  frequentadores: month.averageFrequentadores,
-                  total: month.averageTotal,
-                }))}>
+            {isPastor && !isKidsMode ? (
+              // Dados semanais para pastor
+              weeklyRows.length === 0 ? (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-center text-muted-foreground">Sem dados para exibir.</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={weeklyRows.slice(-12)}>
                   <defs>
                     <linearGradient id={isKidsMode ? "gradTotalKids" : "gradTotal"} x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor={isKidsMode ? "#ec4899" : "var(--primary)"} stopOpacity={0.4} />
@@ -1005,14 +1065,14 @@ export function Dashboard() {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                  <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-45} textAnchor="end" height={60} />
                   <YAxis />
                   <Tooltip />
                   <Legend />
                   <Area
                     type="monotone"
                     dataKey="total"
-                    name="Total (média)"
+                    name="Total"
                     fill={`url(#${isKidsMode ? "gradTotalKids" : "gradTotal"})`}
                     stroke={isKidsMode ? "#ec4899" : "var(--primary)"}
                     strokeWidth={2}
@@ -1021,7 +1081,7 @@ export function Dashboard() {
                   <Line
                     type="monotone"
                     dataKey="members"
-                    name="Membros (média)"
+                    name="Membros"
                     stroke={isKidsMode ? "#a855f7" : "#7c3aed"}
                     strokeWidth={2}
                     dot
@@ -1030,7 +1090,7 @@ export function Dashboard() {
                   <Line
                     type="monotone"
                     dataKey="frequentadores"
-                    name="Frequentadores (média)"
+                    name="Frequentadores"
                     stroke={isKidsMode ? "#f472b6" : "#f59e0b"}
                     strokeWidth={2}
                     dot
@@ -1038,6 +1098,62 @@ export function Dashboard() {
                   />
                 </ComposedChart>
               </ResponsiveContainer>
+              )
+            ) : (
+              // Dados mensais para outros
+              !statistics?.monthlyData || statistics.monthlyData.length === 0 ? (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-center text-muted-foreground">Sem dados para exibir.</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={statistics.monthlyData.map(month => ({
+                    name: `${month.month} ${month.year}`,
+                    members: month.averageMembers,
+                    frequentadores: month.averageFrequentadores,
+                    total: month.averageTotal,
+                  }))}>
+                    <defs>
+                      <linearGradient id={isKidsMode ? "gradTotalKids" : "gradTotal"} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={isKidsMode ? "#ec4899" : "var(--primary)"} stopOpacity={0.4} />
+                        <stop offset="100%" stopColor={isKidsMode ? "#ec4899" : "var(--primary)"} stopOpacity={0.06} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Area
+                      type="monotone"
+                      dataKey="total"
+                      name="Total (média)"
+                      fill={`url(#${isKidsMode ? "gradTotalKids" : "gradTotal"})`}
+                      stroke={isKidsMode ? "#ec4899" : "var(--primary)"}
+                      strokeWidth={2}
+                      isAnimationActive
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="members"
+                      name="Membros (média)"
+                      stroke={isKidsMode ? "#a855f7" : "#7c3aed"}
+                      strokeWidth={2}
+                      dot
+                      isAnimationActive
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="frequentadores"
+                      name="Frequentadores (média)"
+                      stroke={isKidsMode ? "#f472b6" : "#f59e0b"}
+                      strokeWidth={2}
+                      dot
+                      isAnimationActive
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              )
             )}
           </CardContent>
         </Card>
@@ -1051,7 +1167,30 @@ export function Dashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="h-[300px]">
-            {!statistics ? (
+            {isPastor && !isKidsMode && weeklyTotals ? (
+              // Para pastor: usar dados de cell_reports_weekly
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={[
+                      { name: 'Membros', value: weeklyTotals.totalMembers, color: isKidsMode ? '#a855f7' : '#7c3aed' },
+                      { name: 'Frequentadores', value: weeklyTotals.totalFrequentadores, color: isKidsMode ? '#f472b6' : '#f59e0b' },
+                    ]}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    dataKey="value"
+                    label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
+                  >
+                    {[{ name: 'Membros', value: weeklyTotals.totalMembers, color: isKidsMode ? '#a855f7' : '#7c3aed' },
+                      { name: 'Frequentadores', value: weeklyTotals.totalFrequentadores, color: isKidsMode ? '#f472b6' : '#f59e0b' }].map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : !statistics ? (
               <div className="flex items-center justify-center h-full">
                 <p className="text-center text-muted-foreground">Carregando dados...</p>
               </div>
@@ -1100,21 +1239,7 @@ export function Dashboard() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                  <div className="p-4 bg-primary/5 rounded-lg">
-                    <p className="text-sm text-muted-foreground">Total de Cultos</p>
-                    <p className="text-2xl font-bold text-primary">{serviceReportsData.total}</p>
-                  </div>
-                  <div className="p-4 bg-primary/5 rounded-lg">
-                    <p className="text-sm text-muted-foreground">Este Mês</p>
-                    <p className="text-2xl font-bold text-primary">{serviceReportsData.thisMonth}</p>
-                    {serviceReportsData.lastMonth > 0 && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {serviceReportsData.thisMonth > serviceReportsData.lastMonth ? '+' : ''}
-                        {serviceReportsData.thisMonth - serviceReportsData.lastMonth} vs mês anterior
-                      </p>
-                    )}
-                  </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                   <div className="p-4 bg-primary/5 rounded-lg">
                     <p className="text-sm text-muted-foreground">Média de Presença</p>
                     <p className="text-2xl font-bold text-primary">{serviceReportsData.averageAttendance}</p>
@@ -1158,75 +1283,11 @@ export function Dashboard() {
             </Card>
           )}
 
-          {/* Seção de Relatórios de Célula */}
-          {cellReportsData && (
-            <Card className="hover:grape-glow transition-smooth">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="w-5 h-5 text-primary" />
-                    Relatórios de Célula
-                  </CardTitle>
-                  <Button variant="outline" size="sm" onClick={() => navigate("/relatorios")}>
-                    Ver Todos
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                  <div className="p-4 bg-primary/5 rounded-lg">
-                    <p className="text-sm text-muted-foreground">Total de Relatórios</p>
-                    <p className="text-2xl font-bold text-primary">{cellReportsData.total}</p>
-                  </div>
-                  <div className="p-4 bg-primary/5 rounded-lg">
-                    <p className="text-sm text-muted-foreground">Este Mês</p>
-                    <p className="text-2xl font-bold text-primary">{cellReportsData.thisMonth}</p>
-                    {cellReportsData.total > 0 && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {Math.round((cellReportsData.thisMonth / cellReportsData.total) * 100)}% do total
-                      </p>
-                    )}
-                  </div>
-                  <div className="p-4 bg-primary/5 rounded-lg">
-                    <p className="text-sm text-muted-foreground">Última Atualização</p>
-                    {cellReportsData.recentReports.length > 0 && (
-                      <p className="text-sm font-medium">
-                        {formatDateMedium(cellReportsData.recentReports[0].weekStart)}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-sm font-medium mb-2">Últimos Relatórios</p>
-                  {cellReportsData.recentReports.slice(0, 5).map((report, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-3 bg-muted rounded-lg hover:bg-muted/80 transition-colors">
-                      <div>
-                        <p className="font-medium text-sm">
-                          Semana de {formatDateBR(report.weekStart)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatDateBRLong(report.weekStart).split(',')[0]}
-                        </p>
-                      </div>
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={() => navigate("/relatorios")}
-                      >
-                        Ver Detalhes
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
           {/* Calendário Mensal com Eventos */}
           <Card className="hover:grape-glow transition-smooth">
-            <CardHeader>
+            <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 text-lg">
                   <Calendar className="w-5 h-5 text-primary" />
                   Calendário - {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
                 </CardTitle>
@@ -1235,7 +1296,7 @@ export function Dashboard() {
                 </Button>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-0">
               <MonthCalendar events={monthEvents} />
             </CardContent>
           </Card>
