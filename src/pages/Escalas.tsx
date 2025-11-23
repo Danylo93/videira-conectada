@@ -54,6 +54,8 @@ import {
   UserPlus,
   Edit,
   Trash2,
+  MessageSquare,
+  Copy,
 } from "lucide-react";
 import { formatDateBR, getWeekStartDate } from "@/lib/dateUtils";
 import {
@@ -67,7 +69,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-type AreaServico = "midia" | "domingo_kids" | "louvor" | "mesa_som" | "cantina";
+type AreaServico = "midia" | "domingo_kids" | "louvor" | "mesa_som" | "cantina" | "conexao";
 
 interface Servo {
   id: string;
@@ -87,6 +89,14 @@ type FuncaoLouvor =
   | "bateria"
   | "guitarra";
 
+type FuncaoConexao =
+  | "recepcao1"
+  | "recepcao2"
+  | "estacionamento1"
+  | "estacionamento2"
+  | "nave_igreja"
+  | "porta_kids";
+
 interface Escala {
   id: string;
   semana_inicio: string;
@@ -97,6 +107,7 @@ interface Escala {
   locked: boolean;
   created_by: string;
   funcao_louvor?: FuncaoLouvor | null;
+  funcao_conexao?: FuncaoConexao | null;
 }
 
 const FUNCOES_LOUVOR: { value: FuncaoLouvor; label: string }[] = [
@@ -110,12 +121,22 @@ const FUNCOES_LOUVOR: { value: FuncaoLouvor; label: string }[] = [
   { value: "guitarra", label: "Guitarra" },
 ];
 
+const FUNCOES_CONEXAO: { value: FuncaoConexao; label: string }[] = [
+  { value: "recepcao1", label: "Recepção 1" },
+  { value: "recepcao2", label: "Recepção 2" },
+  { value: "estacionamento1", label: "Estacionamento 1" },
+  { value: "estacionamento2", label: "Estacionamento 2" },
+  { value: "nave_igreja", label: "Nave da igreja" },
+  { value: "porta_kids", label: "Porta dos Kids" },
+];
+
 const AREAS: { value: AreaServico; label: string; color: string }[] = [
   { value: "midia", label: "Mídia", color: "bg-blue-500" },
   { value: "domingo_kids", label: "Domingo Kids", color: "bg-purple-500" },
   { value: "louvor", label: "Louvor", color: "bg-yellow-500" },
   { value: "mesa_som", label: "Mesa de Som", color: "bg-green-500" },
   { value: "cantina", label: "Cantina", color: "bg-orange-500" },
+  { value: "conexao", label: "Conexão", color: "bg-pink-500" },
 ];
 
 export function Escalas() {
@@ -197,10 +218,11 @@ export function Escalas() {
           dia,
           locked,
           created_by,
-          funcao_louvor
+          funcao_louvor,
+          funcao_conexao
         `)
         .eq("semana_inicio", selectedWeek)
-        .order("area, dia, funcao_louvor");
+        .order("area, dia, funcao_louvor, funcao_conexao");
 
       if (escalasError) throw escalasError;
 
@@ -232,6 +254,7 @@ export function Escalas() {
         locked: e.locked,
         created_by: e.created_by,
         funcao_louvor: e.funcao_louvor || null,
+        funcao_conexao: e.funcao_conexao || null,
       }));
 
       setEscalas(formattedEscalas);
@@ -258,6 +281,7 @@ export function Escalas() {
       louvor: { sabado: [], domingo: [] },
       mesa_som: { sabado: [], domingo: [] },
       cantina: { sabado: [], domingo: [] },
+      conexao: { sabado: [], domingo: [] },
     };
 
     escalas.forEach((escala) => {
@@ -265,7 +289,7 @@ export function Escalas() {
     });
 
     // Ordenar escalas de louvor por função (ordem definida em FUNCOES_LOUVOR)
-    const ordenarPorFuncao = (a: Escala, b: Escala) => {
+    const ordenarPorFuncaoLouvor = (a: Escala, b: Escala) => {
       const indexA = FUNCOES_LOUVOR.findIndex((f) => f.value === a.funcao_louvor);
       const indexB = FUNCOES_LOUVOR.findIndex((f) => f.value === b.funcao_louvor);
       
@@ -277,11 +301,161 @@ export function Escalas() {
       return indexA - indexB;
     };
 
-    organized.louvor.sabado.sort(ordenarPorFuncao);
-    organized.louvor.domingo.sort(ordenarPorFuncao);
+    // Ordenar escalas de conexão por função (ordem definida em FUNCOES_CONEXAO)
+    const ordenarPorFuncaoConexao = (a: Escala, b: Escala) => {
+      const indexA = FUNCOES_CONEXAO.findIndex((f) => f.value === a.funcao_conexao);
+      const indexB = FUNCOES_CONEXAO.findIndex((f) => f.value === b.funcao_conexao);
+      
+      // Se não tiver função, vai para o final
+      if (indexA === -1 && indexB === -1) return 0;
+      if (indexA === -1) return 1;
+      if (indexB === -1) return -1;
+      
+      return indexA - indexB;
+    };
+
+    organized.louvor.sabado.sort(ordenarPorFuncaoLouvor);
+    organized.louvor.domingo.sort(ordenarPorFuncaoLouvor);
+    organized.conexao.sabado.sort(ordenarPorFuncaoConexao);
+    organized.conexao.domingo.sort(ordenarPorFuncaoConexao);
 
     return organized;
   }, [escalas]);
+
+  // Gerar mensagem formatada para WhatsApp
+  const generateWhatsAppMessage = () => {
+    if (!selectedWeek) {
+      toast({
+        title: "Erro",
+        description: "Selecione uma semana primeiro",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const sabado = new Date(selectedWeek);
+    const domingo = new Date(sabado);
+    domingo.setDate(sabado.getDate() + 1);
+
+    let message = `📅 *LEMBRETE DE ESCALA DA SEMANA*\n\n`;
+    message += `*${formatDateBR(sabado)}* (Sábado) e *${formatDateBR(domingo)}* (Domingo)\n\n`;
+    message += `━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+    AREAS.forEach((area) => {
+      const areaLabel = area.label;
+      const escalasSabado = escalasPorArea[area.value].sabado;
+      const escalasDomingo = escalasPorArea[area.value].domingo;
+
+      // Pular se não houver escalas e for domingo_kids (só domingo)
+      if (area.value === "domingo_kids" && escalasDomingo.length === 0) {
+        return;
+      }
+
+      // Pular se não houver escalas em nenhum dia
+      if (escalasSabado.length === 0 && escalasDomingo.length === 0) {
+        return;
+      }
+
+      message += `🎯 *${areaLabel}*\n`;
+
+      // Sábado (exceto domingo_kids)
+      if (area.value !== "domingo_kids" && escalasSabado.length > 0) {
+        message += `\n📆 *Sábado (${formatDateBR(sabado)})*\n`;
+
+        if (area.value === "louvor" || area.value === "conexao") {
+          // Agrupar por função
+          const funcoes = area.value === "louvor" ? FUNCOES_LOUVOR : FUNCOES_CONEXAO;
+          funcoes.forEach((funcao) => {
+            const escalasFuncao = escalasSabado.filter(
+              (e) =>
+                area.value === "louvor"
+                  ? e.funcao_louvor === funcao.value
+                  : e.funcao_conexao === funcao.value
+            );
+            if (escalasFuncao.length > 0) {
+              message += `  • ${funcao.label}: `;
+              message += escalasFuncao
+                .map((e) => e.servo_name || "Servo removido")
+                .join(", ");
+              message += `\n`;
+            }
+          });
+        } else {
+          // Lista simples
+          escalasSabado.forEach((escala) => {
+            message += `  • ${escala.servo_name || "Servo removido"}\n`;
+          });
+        }
+      }
+
+      // Domingo
+      if (escalasDomingo.length > 0) {
+        message += `\n📆 *Domingo (${formatDateBR(domingo)})*\n`;
+
+        if (area.value === "louvor" || area.value === "conexao") {
+          // Agrupar por função
+          const funcoes = area.value === "louvor" ? FUNCOES_LOUVOR : FUNCOES_CONEXAO;
+          funcoes.forEach((funcao) => {
+            const escalasFuncao = escalasDomingo.filter(
+              (e) =>
+                area.value === "louvor"
+                  ? e.funcao_louvor === funcao.value
+                  : e.funcao_conexao === funcao.value
+            );
+            if (escalasFuncao.length > 0) {
+              message += `  • ${funcao.label}: `;
+              message += escalasFuncao
+                .map((e) => e.servo_name || "Servo removido")
+                .join(", ");
+              message += `\n`;
+            }
+          });
+        } else {
+          // Lista simples
+          escalasDomingo.forEach((escala) => {
+            message += `  • ${escala.servo_name || "Servo removido"}\n`;
+          });
+        }
+      }
+
+      message += `\n`;
+    });
+
+    message += `━━━━━━━━━━━━━━━━━━━━\n`;
+    message += `Que Deus abençoe a todos! 🙏`;
+
+    return message;
+  };
+
+  // Copiar mensagem para área de transferência
+  const handleCopyMessage = async () => {
+    const message = generateWhatsAppMessage();
+    if (!message) return;
+
+    try {
+      await navigator.clipboard.writeText(message);
+      toast({
+        title: "Sucesso",
+        description: "Mensagem copiada para a área de transferência!",
+      });
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Erro ao copiar mensagem",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Abrir WhatsApp com mensagem pré-formatada
+  const handleOpenWhatsApp = () => {
+    const message = generateWhatsAppMessage();
+    if (!message) return;
+
+    const encodedMessage = encodeURIComponent(message);
+    const whatsappUrl = `https://wa.me/?text=${encodedMessage}`;
+    window.open(whatsappUrl, "_blank");
+  };
 
   // Servos disponíveis (não escalados no dia em nenhum setor)
   const getAvailableServos = (area: AreaServico, dia: "sabado" | "domingo") => {
@@ -435,17 +609,24 @@ export function Escalas() {
     const parts = overId.split("|");
     const targetArea = parts[0] as AreaServico;
     const targetDia = parts[1] as "sabado" | "domingo";
-    const targetFuncao = parts[2] as FuncaoLouvor | undefined;
+    const targetFuncaoLouvor = parts[2] as FuncaoLouvor | undefined;
+    const targetFuncaoConexao = parts[2] as FuncaoConexao | undefined;
 
     // Se for louvor, precisa ter função
-    if (targetArea === "louvor" && !targetFuncao) {
+    if (targetArea === "louvor" && !targetFuncaoLouvor) {
       return; // Não pode mover para louvor sem função
+    }
+
+    // Se for conexão, precisa ter função
+    if (targetArea === "conexao" && !targetFuncaoConexao) {
+      return; // Não pode mover para conexão sem função
     }
 
     if (
       escala.area === targetArea &&
       escala.dia === targetDia &&
-      escala.funcao_louvor === targetFuncao
+      escala.funcao_louvor === targetFuncaoLouvor &&
+      escala.funcao_conexao === targetFuncaoConexao
     ) {
       return; // Mesma posição
     }
@@ -475,11 +656,17 @@ export function Escalas() {
       };
 
       // Se for louvor, atualizar função
-      if (targetArea === "louvor" && targetFuncao) {
-        updateData.funcao_louvor = targetFuncao;
-      } else {
-        // Se não for louvor, remover função
+      if (targetArea === "louvor" && targetFuncaoLouvor) {
+        updateData.funcao_louvor = targetFuncaoLouvor;
+        updateData.funcao_conexao = null;
+      } else if (targetArea === "conexao" && targetFuncaoConexao) {
+        // Se for conexão, atualizar função
+        updateData.funcao_conexao = targetFuncaoConexao;
         updateData.funcao_louvor = null;
+      } else {
+        // Se não for louvor nem conexão, remover funções
+        updateData.funcao_louvor = null;
+        updateData.funcao_conexao = null;
       }
 
       const { error } = await supabase
@@ -509,7 +696,8 @@ export function Escalas() {
     area: AreaServico,
     dia: "sabado" | "domingo",
     servoId: string,
-    funcaoLouvor?: FuncaoLouvor
+    funcaoLouvor?: FuncaoLouvor,
+    funcaoConexao?: FuncaoConexao
   ) => {
     if (!canEdit || !user?.id) return;
 
@@ -568,6 +756,14 @@ export function Escalas() {
       // Adicionar função do louvor se for área de louvor
       if (area === "louvor" && funcaoLouvor) {
         insertData.funcao_louvor = funcaoLouvor;
+        insertData.funcao_conexao = null;
+      } else if (area === "conexao" && funcaoConexao) {
+        // Adicionar função de conexão se for área de conexão
+        insertData.funcao_conexao = funcaoConexao;
+        insertData.funcao_louvor = null;
+      } else {
+        insertData.funcao_louvor = null;
+        insertData.funcao_conexao = null;
       }
 
       const { error } = await supabase.from("escalas").insert(insertData);
@@ -735,16 +931,30 @@ export function Escalas() {
               Gerencie as escalas semanais de serviço
             </p>
           </div>
-          {canEdit && (
-            <Button
-              onClick={() => handleOpenServoDialog()}
-              className="w-full sm:w-auto h-8 sm:h-auto text-xs sm:text-sm"
-              size={isMobile ? "sm" : "default"}
-            >
-              <UserPlus className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
-              Novo Servo
-            </Button>
-          )}
+          <div className="flex gap-2">
+            {selectedWeek && (
+              <Button
+                onClick={handleOpenWhatsApp}
+                variant="outline"
+                className="w-full sm:w-auto h-8 sm:h-auto text-xs sm:text-sm bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
+                size={isMobile ? "sm" : "default"}
+              >
+                <MessageSquare className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+                <span className="hidden sm:inline">Lembrete WhatsApp</span>
+                <span className="sm:hidden">WhatsApp</span>
+              </Button>
+            )}
+            {canEdit && (
+              <Button
+                onClick={() => handleOpenServoDialog()}
+                className="w-full sm:w-auto h-8 sm:h-auto text-xs sm:text-sm"
+                size={isMobile ? "sm" : "default"}
+              >
+                <UserPlus className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+                Novo Servo
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Navegação de Semana - Compacta no mobile */}
@@ -811,16 +1021,20 @@ export function Escalas() {
                 <CardContent className="flex-1 p-2 sm:p-4 space-y-2 sm:space-y-4">
                 {/* Sábado - Não mostrar para Domingo Kids */}
                 {area.value !== "domingo_kids" && (
-                  area.value === "louvor" ? (
+                  area.value === "louvor" || area.value === "conexao" ? (
                     // Renderização especial para Louvor com subcategorias
                     <Card className="border-2">
                       <CardHeader className="p-2 sm:p-3 pb-2 sm:pb-2">
                         <CardTitle className="text-[11px] sm:text-sm font-semibold">Sábado</CardTitle>
                       </CardHeader>
                       <CardContent className="p-2 sm:p-3 pt-0 space-y-1.5 sm:space-y-3">
-                      {FUNCOES_LOUVOR.map((funcao) => {
+                      {(area.value === "louvor" ? FUNCOES_LOUVOR : FUNCOES_CONEXAO).map((funcao) => {
+                        const funcaoValue = funcao.value;
                         const escalasFuncao = escalasPorArea[area.value].sabado.filter(
-                          (e) => e.funcao_louvor === funcao.value
+                          (e) => 
+                            area.value === "louvor" 
+                              ? e.funcao_louvor === funcaoValue
+                              : e.funcao_conexao === funcaoValue
                         );
                         return (
                           <div key={funcao.value} className="space-y-1">
@@ -837,7 +1051,8 @@ export function Escalas() {
                                         area.value,
                                         "sabado",
                                         value,
-                                        funcao.value
+                                        area.value === "louvor" ? funcao.value as FuncaoLouvor : undefined,
+                                        area.value === "conexao" ? funcao.value as FuncaoConexao : undefined
                                       );
                                     }
                                   }}
@@ -962,16 +1177,19 @@ export function Escalas() {
                 )}
 
                 {/* Domingo */}
-                {area.value === "louvor" ? (
-                  // Renderização especial para Louvor com subcategorias
+                {area.value === "louvor" || area.value === "conexao" ? (
+                  // Renderização especial para Louvor e Conexão com subcategorias
                   <Card className="border-2">
                     <CardHeader className="p-2 sm:p-3 pb-2 sm:pb-2">
                       <CardTitle className="text-[11px] sm:text-sm font-semibold">Domingo</CardTitle>
                     </CardHeader>
                     <CardContent className="p-2 sm:p-3 pt-0 space-y-1.5 sm:space-y-3">
-                    {FUNCOES_LOUVOR.map((funcao) => {
+                    {(area.value === "louvor" ? FUNCOES_LOUVOR : FUNCOES_CONEXAO).map((funcao) => {
                       const escalasFuncao = escalasPorArea[area.value].domingo.filter(
-                        (e) => e.funcao_louvor === funcao.value
+                        (e) => 
+                          area.value === "louvor" 
+                            ? e.funcao_louvor === (funcao as FuncaoLouvor).value
+                            : e.funcao_conexao === (funcao as FuncaoConexao).value
                       );
                       return (
                         <div key={funcao.value} className="space-y-0.5 sm:space-y-1">
@@ -988,7 +1206,8 @@ export function Escalas() {
                                       area.value,
                                       "domingo",
                                       value,
-                                      funcao.value
+                                      area.value === "louvor" ? funcao.value as FuncaoLouvor : undefined,
+                                      area.value === "conexao" ? funcao.value as FuncaoConexao : undefined
                                     );
                                   }
                                 }}
