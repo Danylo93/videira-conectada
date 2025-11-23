@@ -1,0 +1,126 @@
+{
+  "name": "Lembretes de Relatórios Semanais",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lembretes-relatorios",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook Receber Dados",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "lembretes-relatorios"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Processar dados recebidos da edge function\n// No N8N, os dados do webhook vêm em $input.item.json.body\nconst inputData = $input.item.json;\n\n// Tentar diferentes formas de acessar os dados\nlet body = inputData.body || inputData;\n\n// Se body ainda não tiver os dados, tentar acessar diretamente\nif (!body.type && !body.leaders) {\n  // Pode estar em outro formato\n  body = inputData;\n}\n\n// Debug: ver o que está chegando\nconsole.log('Input completo:', JSON.stringify(inputData, null, 2));\nconsole.log('Body:', JSON.stringify(body, null, 2));\n\n// Verificar se é um lembrete de relatório semanal\nif (body.type === 'weekly_report_reminder' && body.leaders && Array.isArray(body.leaders) && body.leaders.length > 0) {\n  // Retornar array de líderes para processar individualmente\n  const result = body.leaders.map(leader => ({\n    json: {\n      name: leader.name,\n      phone: leader.phone,\n      celula: leader.celula || '',\n      fillLink: leader.fillLink,\n      weekRange: leader.weekRange,\n      weekStartDate: body.weekStartDate,\n      weekEndDate: body.weekEndDate\n    }\n  }));\n  \n  console.log('Líderes processados:', result.length);\n  return result;\n}\n\n// Se não for o formato esperado, retornar vazio\nconsole.log('Formato não esperado ou sem líderes');\nconsole.log('Type:', body.type);\nconsole.log('Leaders existe?', !!body.leaders);\nconsole.log('Leaders é array?', Array.isArray(body.leaders));\nreturn [];"
+      },
+      "id": "process-data",
+      "name": "Processar Dados",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Formatar mensagem para WhatsApp\nconst leader = $input.item.json;\n\n// Debug\nconsole.log('Formatando mensagem para:', leader.name);\n\n// Formatar mensagem\nconst message = `*LEMBRETE DE RELATORIO SEMANAL*\n\nOlá *${leader.name}*!\n\nVocê ainda não preencheu o relatório semanal da sua célula.\n\n*Período:* ${leader.weekRange}\n\nClique no link abaixo para preencher:\n${leader.fillLink}\n\nQue Deus abencoe!`;\n\nreturn {\n  json: {\n    message: message,\n    phone: leader.phone,\n    name: leader.name\n  }\n};"
+      },
+      "id": "format-message",
+      "name": "Formatar Mensagem",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "instanceName": "={{ $env.EVOLUTION_INSTANCE_NAME }}",
+        "operation": "sendText",
+        "number": "={{ $json.phone }}",
+        "text": "={{ $json.message }}"
+      },
+      "id": "send-whatsapp",
+      "name": "Enviar via WhatsApp",
+      "type": "@evolution-api/n8n-nodes-evolution-api",
+      "typeVersion": 1,
+      "position": [850, 300],
+      "credentials": {
+        "evolutionApi": {
+          "id": "evolution-api",
+          "name": "Evolution API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"message\": \"Lembretes processados com sucesso\",\n  \"sent\": {{ $('Processar Dados').all().length || 0 }}\n}"
+      },
+      "id": "respond",
+      "name": "Responder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Receber Dados": {
+      "main": [
+        [
+          {
+            "node": "Processar Dados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar Dados": {
+      "main": [
+        [
+          {
+            "node": "Formatar Mensagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar Mensagem": {
+      "main": [
+        [
+          {
+            "node": "Enviar via WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar via WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-01-24T00:00:00.000Z",
+  "versionId": "1"
+}
+

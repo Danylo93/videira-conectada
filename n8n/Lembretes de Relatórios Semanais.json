@@ -1,0 +1,145 @@
+{
+  "name": "Lembretes de Relatórios Semanais",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lembretes-relatorios",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "e60f17ec-52eb-4056-ae6b-5c147227c6b1",
+      "name": "Webhook Receber Dados",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -32,
+        0
+      ],
+      "webhookId": "lembretes-relatorios"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Versão mais robusta - tenta diferentes formatos\nconst allData = $input.item.json;\n\n// Debug completo\nconsole.log('=== DEBUG INICIO ===');\nconsole.log('Tipo do input:', typeof allData);\nconsole.log('Input completo:', JSON.stringify(allData, null, 2));\n\n// Tentar encontrar os dados\nlet leaders = null;\nlet weekStartDate = null;\nlet weekEndDate = null;\n\n// Formato 1: dados em body\nif (allData.body) {\n  console.log('Dados encontrados em body');\n  leaders = allData.body.leaders;\n  weekStartDate = allData.body.weekStartDate;\n  weekEndDate = allData.body.weekEndDate;\n}\n// Formato 2: dados diretos\nelse if (allData.leaders) {\n  console.log('Dados encontrados diretamente');\n  leaders = allData.leaders;\n  weekStartDate = allData.weekStartDate;\n  weekEndDate = allData.weekEndDate;\n}\n\nconsole.log('Leaders encontrados:', leaders ? leaders.length : 0);\n\nif (leaders && Array.isArray(leaders) && leaders.length > 0) {\n  const result = leaders.map(leader => ({\n    json: {\n      name: leader.name,\n      phone: leader.phone,\n      celula: leader.celula || '',\n      fillLink: leader.fillLink,\n      weekRange: leader.weekRange,\n      weekStartDate: weekStartDate,\n      weekEndDate: weekEndDate\n    }\n  }));\n  \n  console.log('=== SUCESSO: Processados', result.length, 'líderes ===');\n  return result;\n}\n\nconsole.log('=== ERRO: Nenhum líder encontrado ===');\nreturn [];"
+      },
+      "id": "74ea4d30-110e-4c66-b454-b6bd3acd4d47",
+      "name": "Processar Dados",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        192,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Processar cada item individualmente\nconst data = $input.item.json;\n\n// Garantir que o telefone tem o código do país (55)\nlet phone = data.phone;\nif (!phone.startsWith('55')) {\n  phone = '55' + phone;\n}\n\n// Formatar mensagem para cada líder\nconst message = `*LEMBRETE DE RELATÓRIO SEMANAL*\n\nOlá *${data.name}*,\n\nVocê ainda não preencheu o relatório semanal da sua célula.\n\n*Período:* ${data.weekRange}\n\n*Clique no link abaixo para preencher:*  \n${data.fillLink}\n\nQue Deus abençoe!`;\n\n// Retornar no formato correto do n8n\nreturn {\n  json: {\n    message: message,\n    phone: phone,\n    name: data.name,\n  }\n};\n"
+      },
+      "id": "535223e6-ae60-4a6f-9da9-bfc7791f4838",
+      "name": "Formatar Mensagem",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        368,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"message\": \"Lembretes processados com sucesso\",\n  \"sent\": {{ $('Processar Dados').all().length || 0 }}\n}",
+        "options": {}
+      },
+      "id": "fa5d8ed8-f876-406a-a5de-237773d00f0b",
+      "name": "Responder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "Danylo",
+        "remoteJid": "={{ $json.phone }}@s.whatsapp.net",
+        "messageText": "={{ $json.message }}",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        592,
+        -128
+      ],
+      "id": "f0b7e069-427d-42ac-a54d-d9d166354fc7",
+      "name": "Enviar texto",
+      "credentials": {
+        "evolutionApi": {
+          "id": "yV6Dlb3DDjcV07ng",
+          "name": "Pessoal"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Receber Dados": {
+      "main": [
+        [
+          {
+            "node": "Processar Dados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar Dados": {
+      "main": [
+        [
+          {
+            "node": "Formatar Mensagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar Mensagem": {
+      "main": [
+        [
+          {
+            "node": "Enviar texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar texto": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "c50ff7de-1588-4b62-a4d4-1385cce1bef7",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5693b67dd53ed0bd8707766fff43e42ad4b9a7461013bd41b12ff4283ba248b1"
+  },
+  "id": "P6w8XKFjOi2fWLdt",
+  "tags": []
+}

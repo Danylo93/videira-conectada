@@ -150,7 +150,7 @@ serve(async (req) => {
     });
 
     // Obter URL base do frontend (ajustar conforme necessário)
-    const baseUrl = url.searchParams.get("base_url") || "https://seu-dominio.com";
+    const baseUrl = url.searchParams.get("base_url") || "https://videirasaomiguel.vercel.app";
 
     // Montar resultado
     const result: LeaderWeeklyReportStatus[] = leaders.map((leader) => {

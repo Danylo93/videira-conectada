@@ -132,11 +132,11 @@ serve(async (req) => {
       throw new Error("N8N webhook URL não configurada");
     }
 
-    const frontendUrl = baseUrl || Deno.env.get("FRONTEND_URL") || "https://seu-dominio.com";
+    const frontendUrl = baseUrl || Deno.env.get("FRONTEND_URL") || "https://videirasaomiguel.vercel.app";
 
     // Preparar mensagens para cada líder pendente
     const messages = pendingLeaders.map((leader) => {
-      const fillLink = `${frontendUrl}/preencher-relatorio?lider=${leader.id}&date=${weekStartDate}`;
+      const fillLink = `${frontendUrl}/preencher-relatorio?lider=${leader.id}`; //&date=${weekStartDate}
       
       return {
         liderId: leader.id,

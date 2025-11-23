@@ -82,7 +82,7 @@ No N8N, configure as seguintes variáveis de ambiente:
 SUPABASE_URL=https://seu-projeto.supabase.co
 SUPABASE_ANON_KEY=sua-chave-anon-key
 PASTOR_ID=uuid-do-pastor
-FRONTEND_URL=https://seu-dominio.com
+FRONTEND_URL=https://videirasaomiguel.vercel.app
 ```
 
 ### Como obter os valores:
@@ -253,7 +253,7 @@ Você ainda não preencheu o relatório semanal da sua célula.
 
 Por favor, preencha o relatório através do link abaixo:
 
-🔗 https://seu-dominio.com/relatorios-semanal?date=2025-01-20
+🔗 https://videirasaomiguel.vercel.app/relatorios-semanal?date=2025-01-20
 
 _Se você já preencheu, pode ignorar esta mensagem._
 ```
@@ -268,7 +268,7 @@ _Se você já preencheu, pode ignorar esta mensagem._
 
 ```json
 {
-  "message": "📊 Status dos Relatórios Semanais\n\n⏰ Pendentes (2):\n\n⏰ *João Silva* - Célula Central\n🔗 https://seu-dominio.com/relatorios-semanal?lider=uuid&date=2025-01-20\n\n✅ Preenchidos (3):\n\n✅ *Maria Santos* - Célula Norte\n👥 Membros: 5 | Frequentadores: 2\n",
+  "message": "📊 Status dos Relatórios Semanais\n\n⏰ Pendentes (2):\n\n⏰ *João Silva* - Célula Central\n🔗 https://videirasaomiguel.vercel.app/relatorios-semanal?lider=uuid&date=2025-01-20\n\n✅ Preenchidos (3):\n\n✅ *Maria Santos* - Célula Norte\n👥 Membros: 5 | Frequentadores: 2\n",
   "pendentes": 2,
   "preenchidos": 3,
   "total": 5
@@ -282,7 +282,7 @@ A Supabase Edge Function aceita os seguintes parâmetros de query:
 - `date` (opcional): Data do relatório no formato `YYYY-MM-DD`. Se não fornecido, usa a segunda-feira da semana atual.
 - `pastor_id` (opcional): ID do pastor para filtrar apenas seus líderes.
 - `is_kids` (opcional): `true` ou `false` para filtrar por modo Kids.
-- `base_url` (opcional): URL base do frontend para gerar links. Padrão: `https://seu-dominio.com`
+- `base_url` (opcional): URL base do frontend para gerar links. Padrão: `https://videirasaomiguel.vercel.app`
 
 ### Exemplo de chamada:
 

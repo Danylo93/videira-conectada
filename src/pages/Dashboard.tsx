@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { eventsService } from "@/integrations/supabase/events";
 import FancyLoader from "@/components/FancyLoader";
 import { useStatistics } from "@/hooks/useStatistics";
+import { useToast } from "@/hooks/use-toast";
 import type { Event } from "@/types/event";
 import { formatDateBR, formatDateBRLong, formatDateShort, formatDateMedium, getWeekStartDate } from "@/lib/dateUtils";
 
@@ -30,6 +31,8 @@ import {
   XCircle,
   type LucideIcon,
   Grape,
+  Send,
+  Bell,
 } from "lucide-react";
 import logoVideira from "@/assets/logo-videira.png";
 import {
@@ -193,11 +196,90 @@ const MonthCalendar = ({ events }: { events: Event[] }) => {
   );
 };
 
+// Componente para botão de enviar lembretes
+function SendWeeklyRemindersButton({ 
+  pastorId, 
+  isKids = false,
+  onSuccess,
+  onError 
+}: { 
+  pastorId: string; 
+  isKids?: boolean;
+  onSuccess?: (result: { sent: number; failed: number; pending: number }) => void;
+  onError?: (error: string) => void;
+}) {
+  const [sending, setSending] = useState(false);
+  const { toast } = useToast();
+
+  const handleSendReminders = async () => {
+    setSending(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error("Não autenticado");
+      }
+
+      // Usar supabase.functions.invoke para chamar a edge function
+      const { data, error } = await supabase.functions.invoke('send-weekly-reminders', {
+        body: {
+          pastorId,
+          isKids,
+          sendViaWhatsApp: true,
+          sendViaEmail: false,
+        },
+      });
+
+      if (error) {
+        throw new Error(error.message || "Erro ao enviar lembretes");
+      }
+
+      if (onSuccess && data) {
+        onSuccess({
+          sent: data.sent || 0,
+          failed: data.failed || 0,
+          pending: data.pending || 0,
+        });
+      }
+
+      // Atualizar dados do dashboard
+      window.location.reload();
+    } catch (error: any) {
+      const errorMessage = error.message || "Erro desconhecido ao enviar lembretes";
+      if (onError) {
+        onError(errorMessage);
+      }
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <Button
+      onClick={handleSendReminders}
+      disabled={sending}
+      className="w-full sm:w-auto"
+    >
+      {sending ? (
+        <>
+          <Clock className="w-4 h-4 mr-2 animate-spin" />
+          Enviando...
+        </>
+      ) : (
+        <>
+          <Send className="w-4 h-4 mr-2" />
+          Enviar Lembretes
+        </>
+      )}
+    </Button>
+  );
+}
+
 export function Dashboard() {
   const { user } = useAuth();
   const { mode } = useProfileMode();
   const navigate = useNavigate();
   const { data: statistics, loading: statsLoading } = useStatistics();
+  const { toast } = useToast();
 
   const [loading, setLoading] = useState(true);
 
@@ -1036,6 +1118,43 @@ export function Dashboard() {
           </>
         )}
       </div>
+
+      {/* Card de Lembretes de Relatórios Semanais (apenas para pastor) */}
+      {isPastor && (
+        <Card className="border-l-4 border-l-blue-500">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Bell className="w-5 h-5 text-blue-500" />
+              Lembretes de Relatórios Semanais
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Envie lembretes automáticos via WhatsApp para líderes que ainda não preencheram o relatório semanal desta semana.
+              </p>
+              <SendWeeklyRemindersButton 
+                pastorId={user.id} 
+                isKids={isKidsMode}
+                onSuccess={(result) => {
+                  toast({
+                    title: "Lembretes enviados!",
+                    description: `${result.sent} lembrete(s) enviado(s) com sucesso. ${result.failed > 0 ? `${result.failed} falharam.` : ''}`,
+                    variant: result.failed > 0 ? "default" : "default",
+                  });
+                }}
+                onError={(error) => {
+                  toast({
+                    title: "Erro ao enviar lembretes",
+                    description: error,
+                    variant: "destructive",
+                  });
+                }}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       
       {/* Gráficos e Visualizações */}

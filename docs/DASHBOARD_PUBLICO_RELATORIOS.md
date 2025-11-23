@@ -7,7 +7,7 @@ Esta página permite que o pastor acompanhe o status dos relatórios semanais se
 Acesse a URL com o ID do pastor no caminho:
 
 ```
-https://seu-dominio.com/dashboard-relatorios-semanais/UUID_DO_PASTOR
+https://videirasaomiguel.vercel.app/dashboard-relatorios-semanais/UUID_DO_PASTOR
 ```
 
 ### Formato da URL
@@ -19,12 +19,12 @@ https://seu-dominio.com/dashboard-relatorios-semanais/UUID_DO_PASTOR
 
 **Modo Normal:**
 ```
-https://seu-dominio.com/dashboard-relatorios-semanais/123e4567-e89b-12d3-a456-426614174000
+https://videirasaomiguel.vercel.app/dashboard-relatorios-semanais/123e4567-e89b-12d3-a456-426614174000
 ```
 
 **Modo Kids:**
 ```
-https://seu-dominio.com/dashboard-relatorios-semanais/123e4567-e89b-12d3-a456-426614174000/kids
+https://videirasaomiguel.vercel.app/dashboard-relatorios-semanais/123e4567-e89b-12d3-a456-426614174000/kids
 ```
 
 ### Vantagens da Nova URL

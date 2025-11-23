@@ -22,7 +22,7 @@ Após o deploy:
 
 1. Acesse o dashboard público:
    ```
-   https://seu-dominio.com/dashboard-relatorios-semanais/SEU_PASTOR_ID
+   https://videirasaomiguel.vercel.app/dashboard-relatorios-semanais/SEU_PASTOR_ID
    ```
 
 2. Clique em "Atualizar"

@@ -84,7 +84,7 @@ export async function getLeadersWeeklyReportStatus(
   // Construir URL base (ajustar conforme necessário)
   const baseUrl = typeof window !== 'undefined' 
     ? window.location.origin 
-    : 'https://seu-dominio.com';
+    : 'https://videirasaomiguel.vercel.app';
 
   // Montar resultado
   return leaders.map(leader => {
