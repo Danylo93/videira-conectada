@@ -24,6 +24,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { CheckCircle2, AlertCircle } from "lucide-react";
 import logoVideira from "@/assets/logo-videira.png";
 import { formatDateBR } from "@/lib/dateUtils";
@@ -37,6 +38,7 @@ interface Leader {
 export function PublicWeeklyReport() {
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
+  const isMobile = useIsMobile();
   
   const [leaders, setLeaders] = useState<Leader[]>([]);
   const [selectedLeaderId, setSelectedLeaderId] = useState<string>("");
@@ -356,8 +358,8 @@ export function PublicWeeklyReport() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 to-primary/20 py-4 sm:py-8 px-3 sm:px-4">
-      <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-primary/5 to-primary/20 py-3 sm:py-8 px-2 sm:px-4 overflow-x-hidden" style={{ WebkitOverflowScrolling: 'touch' }}>
+      <div className="max-w-2xl mx-auto w-full" style={{ position: 'relative', zIndex: 1 }}>
         {/* Header */}
         <div className="text-center mb-4 sm:mb-8">
           <div className="flex justify-center mb-3 sm:mb-4">
@@ -378,14 +380,14 @@ export function PublicWeeklyReport() {
         </div>
 
         {/* Form Card */}
-        <Card className="shadow-xl">
-          <CardHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3 sm:pb-4">
-            <CardTitle className="text-lg sm:text-xl">Preencher Relatório</CardTitle>
-            <CardDescription className="text-sm sm:text-base">
+        <Card className="shadow-xl overflow-hidden">
+          <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6 pb-2 sm:pb-4">
+            <CardTitle className="text-base sm:text-xl">Preencher Relatório</CardTitle>
+            <CardDescription className="text-xs sm:text-base">
               Selecione seu nome e preencha os dados da reunião da sua célula
             </CardDescription>
           </CardHeader>
-          <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
             {submitted ? (
               <div className="text-center py-6 sm:py-8 space-y-3 sm:space-y-4">
                 <CheckCircle2 className="w-12 h-12 sm:w-16 sm:h-16 text-green-500 mx-auto" />
@@ -399,12 +401,23 @@ export function PublicWeeklyReport() {
                 <div>
                   <Label htmlFor="leader" className="text-sm sm:text-base">Selecione seu nome *</Label>
                   <Select value={selectedLeaderId} onValueChange={setSelectedLeaderId} required>
-                    <SelectTrigger id="leader" className="h-11 sm:h-10 text-sm sm:text-base">
+                    <SelectTrigger 
+                      id="leader" 
+                      className="h-11 sm:h-10 text-sm sm:text-base touch-manipulation"
+                    >
                       <SelectValue placeholder="Selecione seu nome..." />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent 
+                      position={isMobile ? "item-aligned" : "popper"}
+                      className={isMobile ? "max-h-[60vh] z-[9999]" : "z-50"}
+                      sideOffset={isMobile ? 4 : 8}
+                    >
                       {leaders.map((leader) => (
-                        <SelectItem key={leader.id} value={leader.id} className="text-sm sm:text-base">
+                        <SelectItem 
+                          key={leader.id} 
+                          value={leader.id} 
+                          className="text-sm sm:text-base py-2.5 sm:py-1.5"
+                        >
                           {leader.name} {leader.celula ? `- ${leader.celula}` : ""}
                         </SelectItem>
                       ))}
@@ -439,9 +452,9 @@ export function PublicWeeklyReport() {
                     min={weekRange.startStr}
                     max={weekRange.endStr}
                     required
-                    className="h-11 sm:h-10 text-sm sm:text-base"
+                    className="h-11 sm:h-10 text-sm sm:text-base touch-manipulation"
                   />
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
                     Semana atual: {formatDateBR(weekRange.start)} a {formatDateBR(weekRange.end)}
                   </p>
                 </div>
@@ -456,7 +469,8 @@ export function PublicWeeklyReport() {
                     onChange={(e) => setMembersCount(parseInt(e.target.value) || 0)}
                     required
                     placeholder="0"
-                    className="h-11 sm:h-10 text-sm sm:text-base"
+                    className="h-11 sm:h-10 text-sm sm:text-base touch-manipulation"
+                    inputMode="numeric"
                   />
                 </div>
 
@@ -470,7 +484,8 @@ export function PublicWeeklyReport() {
                     onChange={(e) => setFrequentadoresCount(parseInt(e.target.value) || 0)}
                     required
                     placeholder="0"
-                    className="h-11 sm:h-10 text-sm sm:text-base"
+                    className="h-11 sm:h-10 text-sm sm:text-base touch-manipulation"
+                    inputMode="numeric"
                   />
                 </div>
 
@@ -481,8 +496,8 @@ export function PublicWeeklyReport() {
                     value={observations}
                     onChange={(e) => setObservations(e.target.value)}
                     placeholder="Observações sobre a reunião (opcional)..."
-                    rows={4}
-                    className="text-sm sm:text-base resize-none"
+                    rows={isMobile ? 3 : 4}
+                    className="text-sm sm:text-base resize-none touch-manipulation"
                   />
                 </div>
 
@@ -500,7 +515,7 @@ export function PublicWeeklyReport() {
 
         {/* Dialog de Confirmação de Atualização */}
         <AlertDialog open={showUpdateDialog} onOpenChange={setShowUpdateDialog}>
-          <AlertDialogContent className="max-w-[95vw] sm:max-w-md mx-4">
+          <AlertDialogContent className="max-w-[95vw] sm:max-w-md mx-2 sm:mx-4 max-h-[90vh] overflow-y-auto">
             <AlertDialogHeader>
               <AlertDialogTitle className="text-base sm:text-lg">Relatório já existe</AlertDialogTitle>
               <AlertDialogDescription className="text-sm sm:text-base">
@@ -550,8 +565,8 @@ export function PublicWeeklyReport() {
         </AlertDialog>
 
         {/* Info Card */}
-        <Card className="mt-4 sm:mt-6 bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
-          <CardContent className="pt-4 sm:pt-6 px-4 sm:px-6 pb-4 sm:pb-6">
+        <Card className="mt-3 sm:mt-6 bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
+          <CardContent className="pt-3 sm:pt-6 px-3 sm:px-6 pb-3 sm:pb-6">
             <div className="flex gap-2 sm:gap-3">
               <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
               <div className="space-y-1">

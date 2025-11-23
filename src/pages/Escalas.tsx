@@ -337,9 +337,9 @@ export function Escalas() {
     const domingo = new Date(sabado);
     domingo.setDate(sabado.getDate() + 1);
 
-    let message = `📅 *LEMBRETE DE ESCALA DA SEMANA*\n\n`;
-    message += `*${formatDateBR(sabado)}* (Sábado) e *${formatDateBR(domingo)}* (Domingo)\n\n`;
-    message += `━━━━━━━━━━━━━━━━━━━━\n\n`;
+    let message = `*LEMBRETE DE ESCALA DA SEMANA*\n\n`;
+    message += `*${formatDateBR(sabado)}* (Sabado) e *${formatDateBR(domingo)}* (Domingo)\n\n`;
+    message += `═══════════════════════\n\n`;
 
     AREAS.forEach((area) => {
       const areaLabel = area.label;
@@ -356,11 +356,11 @@ export function Escalas() {
         return;
       }
 
-      message += `🎯 *${areaLabel}*\n`;
+      message += `*${areaLabel}*\n`;
 
       // Sábado (exceto domingo_kids)
       if (area.value !== "domingo_kids" && escalasSabado.length > 0) {
-        message += `\n📆 *Sábado (${formatDateBR(sabado)})*\n`;
+        message += `\n*Sabado (${formatDateBR(sabado)})*\n`;
 
         if (area.value === "louvor" || area.value === "conexao") {
           // Agrupar por função
@@ -373,7 +373,7 @@ export function Escalas() {
                   : e.funcao_conexao === funcao.value
             );
             if (escalasFuncao.length > 0) {
-              message += `  • ${funcao.label}: `;
+              message += `  - ${funcao.label}: `;
               message += escalasFuncao
                 .map((e) => e.servo_name || "Servo removido")
                 .join(", ");
@@ -383,14 +383,14 @@ export function Escalas() {
         } else {
           // Lista simples
           escalasSabado.forEach((escala) => {
-            message += `  • ${escala.servo_name || "Servo removido"}\n`;
+            message += `  - ${escala.servo_name || "Servo removido"}\n`;
           });
         }
       }
 
       // Domingo
       if (escalasDomingo.length > 0) {
-        message += `\n📆 *Domingo (${formatDateBR(domingo)})*\n`;
+        message += `\n*Domingo (${formatDateBR(domingo)})*\n`;
 
         if (area.value === "louvor" || area.value === "conexao") {
           // Agrupar por função
@@ -403,7 +403,7 @@ export function Escalas() {
                   : e.funcao_conexao === funcao.value
             );
             if (escalasFuncao.length > 0) {
-              message += `  • ${funcao.label}: `;
+              message += `  - ${funcao.label}: `;
               message += escalasFuncao
                 .map((e) => e.servo_name || "Servo removido")
                 .join(", ");
@@ -413,7 +413,7 @@ export function Escalas() {
         } else {
           // Lista simples
           escalasDomingo.forEach((escala) => {
-            message += `  • ${escala.servo_name || "Servo removido"}\n`;
+            message += `  - ${escala.servo_name || "Servo removido"}\n`;
           });
         }
       }
@@ -421,8 +421,8 @@ export function Escalas() {
       message += `\n`;
     });
 
-    message += `━━━━━━━━━━━━━━━━━━━━\n`;
-    message += `Que Deus abençoe a todos! 🙏`;
+    message += `═══════════════════════\n`;
+    message += `Que Deus abencoe a todos!`;
 
     return message;
   };
@@ -1574,14 +1574,16 @@ function EscalaItem({ escala, canEdit, onDelete, onLock }: EscalaItemProps) {
       } ${canEdit && !escala.locked ? "cursor-move" : ""}`}
     >
       <div className="flex items-center gap-2 flex-1 min-w-0">
-        {canEdit && !escala.locked && (
+        {canEdit && !escala.locked ? (
           <div
             {...attributes}
             {...listeners}
-            className="cursor-grab active:cursor-grabbing"
+            className="cursor-grab active:cursor-grabbing flex-shrink-0"
           >
             <GripVertical className="h-4 w-4 text-muted-foreground" />
           </div>
+        ) : (
+          <div className="w-4 h-4 flex-shrink-0" /> // Espaçador quando não há ícone
         )}
         <span className="text-sm font-medium truncate">
           {escala.servo_name || "Servo removido"}

@@ -72,6 +72,12 @@ const SelectContent = React.forwardRef<
         className,
       )}
       position={position}
+      style={{ 
+        ...props.style,
+        // Prevenir problemas de renderização no Android
+        WebkitTransform: 'translateZ(0)',
+        transform: 'translateZ(0)',
+      }}
       {...props}
     >
       <SelectScrollUpButton />
