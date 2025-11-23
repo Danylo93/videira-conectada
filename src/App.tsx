@@ -50,6 +50,9 @@ import { TithesOfferings } from "./pages/TithesOfferings"; // <-- Dízimos e Ofe
 // FINANCEIRO
 import { Financial } from "./pages/Financial"; // <-- Financeiro (Pastor/Obreiro)
 
+// ESCALAS
+import { Escalas } from "./pages/Escalas"; // <-- Escalas (Pastor/Discipulador/Líder)
+
 const queryClient = new QueryClient();
 
 type LoaderCopy = {
@@ -211,6 +214,7 @@ function AppContent() {
         <Route path="/dizimos-ofertas" element={<TithesOfferings />} /> {/* <- Dízimos e Ofertas (Pastor/Obreiro/Tesoureiro) */}
         <Route path="/financeiro" element={<Financial />} /> {/* <- Financeiro (Pastor/Obreiro/Tesoureiro) */}
         <Route path="/dizimistas" element={<PublicDizimistasView />} /> {/* <- Dizimistas (Pastor/Obreiro/Tesoureiro) */}
+        <Route path="/escalas" element={<Escalas />} /> {/* <- Escalas (Pastor/Discipulador/Líder) */}
         <Route path="/estatisticas" element={<Statistics />} />
         <Route path="/gerenciar" element={<ChurchManagement />} />
         <Route path="/perfil" element={<Profile />} />
