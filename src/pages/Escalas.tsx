@@ -160,7 +160,7 @@ export function Escalas() {
     setSelectedWeek(saturday.toISOString().split("T")[0]);
   }, []);
 
-  // Carregar dados
+  // Carregar dados e validar semana
   useEffect(() => {
     if (selectedWeek) {
       loadData();
@@ -663,10 +663,55 @@ export function Escalas() {
   };
 
   const getPreviousWeek = () => {
+    if (!selectedWeek) return "";
     const current = new Date(selectedWeek);
     current.setDate(current.getDate() - 7);
+    const currentSaturday = getCurrentWeekSaturday();
+    
+    // Garantir que não retorne uma semana passada
+    current.setHours(0, 0, 0, 0);
+    currentSaturday.setHours(0, 0, 0, 0);
+    
+    if (current < currentSaturday) {
+      // Se a semana anterior for passada, retornar a semana atual
+      return currentSaturday.toISOString().split("T")[0];
+    }
+    
     return current.toISOString().split("T")[0];
   };
+
+  // Obter o sábado da semana atual
+  const getCurrentWeekSaturday = () => {
+    const today = new Date();
+    return getWeekStartDate(today);
+  };
+
+  // Verificar se a semana selecionada é a semana atual ou futura
+  const isWeekCurrentOrFuture = useMemo(() => {
+    if (!selectedWeek) return false;
+    const selected = new Date(selectedWeek);
+    const currentSaturday = getCurrentWeekSaturday();
+    
+    // Comparar apenas as datas (sem horas)
+    selected.setHours(0, 0, 0, 0);
+    currentSaturday.setHours(0, 0, 0, 0);
+    
+    return selected >= currentSaturday;
+  }, [selectedWeek]);
+
+  // Verificar se pode ir para semana anterior
+  const canGoToPreviousWeek = useMemo(() => {
+    if (!selectedWeek) return false;
+    const selected = new Date(selectedWeek);
+    const currentSaturday = getCurrentWeekSaturday();
+    
+    selected.setHours(0, 0, 0, 0);
+    currentSaturday.setHours(0, 0, 0, 0);
+    
+    // Se a semana selecionada for maior que a semana atual, pode voltar
+    // Se for igual à semana atual, não pode voltar (já está na primeira semana permitida)
+    return selected > currentSaturday;
+  }, [selectedWeek]);
 
   if (loading) {
     return (
@@ -680,70 +725,71 @@ export function Escalas() {
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6 pb-4">
-      {/* Header */}
-      <div className="space-y-3 sm:space-y-0">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <div className="space-y-2 sm:space-y-6 pb-2 sm:pb-4 -mx-1 sm:mx-0 px-1 sm:px-0">
+      {/* Header - Compacto no mobile */}
+      <div className="space-y-2 sm:space-y-0">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold">Escalas</h1>
-            <p className="text-sm sm:text-base text-muted-foreground">
+            <h1 className="text-xl sm:text-3xl font-bold">Escalas</h1>
+            <p className="text-xs sm:text-base text-muted-foreground hidden sm:block">
               Gerencie as escalas semanais de serviço
             </p>
           </div>
           {canEdit && (
             <Button
               onClick={() => handleOpenServoDialog()}
-              className="w-full sm:w-auto"
+              className="w-full sm:w-auto h-8 sm:h-auto text-xs sm:text-sm"
               size={isMobile ? "sm" : "default"}
             >
-              <UserPlus className="h-4 w-4 mr-2" />
+              <UserPlus className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
               Novo Servo
             </Button>
           )}
         </div>
 
-        {/* Navegação de Semana */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4">
+        {/* Navegação de Semana - Compacta no mobile */}
+        <div className="flex items-center gap-1.5 sm:gap-4">
           <Button
             variant="outline"
             onClick={() => setSelectedWeek(getPreviousWeek())}
-            size={isMobile ? "sm" : "default"}
-            className="flex-1 sm:flex-none"
+            size="sm"
+            className="h-7 sm:h-auto text-xs sm:text-sm px-2 sm:px-4 flex-shrink-0"
+            disabled={!canGoToPreviousWeek}
           >
             <span className="hidden sm:inline">Semana Anterior</span>
-            <span className="sm:hidden">Anterior</span>
+            <span className="sm:hidden">Ant</span>
           </Button>
-          <div className="flex items-center justify-center gap-2 sm:gap-3 px-3 py-2 bg-muted/50 rounded-lg flex-1 sm:flex-none">
-            <Calendar className="h-4 w-4 flex-shrink-0" />
+          <div className="flex items-center justify-center gap-1.5 sm:gap-3 px-2 sm:px-3 py-1.5 sm:py-2 bg-muted/50 rounded-md sm:rounded-lg flex-1 min-w-0">
+            <Calendar className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
             {selectedWeek ? (() => {
               const sabado = new Date(selectedWeek);
               const domingo = new Date(sabado);
               domingo.setDate(sabado.getDate() + 1);
               return (
-                <div className="flex items-center gap-2 sm:gap-3 text-xs sm:text-sm">
-                  <div className="flex flex-col items-center sm:items-start">
-                    <span className="text-xs text-muted-foreground">Sáb</span>
-                    <span className="font-medium">{formatDateBR(sabado)}</span>
+                <div className="flex items-center gap-1.5 sm:gap-3 text-[10px] sm:text-sm min-w-0">
+                  <div className="flex flex-col items-center sm:items-start min-w-0">
+                    <span className="text-[10px] sm:text-xs text-muted-foreground">Sáb</span>
+                    <span className="font-medium text-[10px] sm:text-sm truncate">{formatDateBR(sabado)}</span>
                   </div>
-                  <span className="text-muted-foreground">•</span>
-                  <div className="flex flex-col items-center sm:items-start">
-                    <span className="text-xs text-muted-foreground">Dom</span>
-                    <span className="font-medium">{formatDateBR(domingo)}</span>
+                  <span className="text-muted-foreground text-xs">•</span>
+                  <div className="flex flex-col items-center sm:items-start min-w-0">
+                    <span className="text-[10px] sm:text-xs text-muted-foreground">Dom</span>
+                    <span className="font-medium text-[10px] sm:text-sm truncate">{formatDateBR(domingo)}</span>
                   </div>
                 </div>
               );
             })() : (
-              <span className="text-sm font-medium">Selecione uma semana</span>
+              <span className="text-xs sm:text-sm font-medium">Selecione uma semana</span>
             )}
           </div>
           <Button
             variant="outline"
             onClick={() => setSelectedWeek(getNextWeek())}
-            size={isMobile ? "sm" : "default"}
-            className="flex-1 sm:flex-none"
+            size="sm"
+            className="h-7 sm:h-auto text-xs sm:text-sm px-2 sm:px-4 flex-shrink-0"
           >
             <span className="hidden sm:inline">Próxima Semana</span>
-            <span className="sm:hidden">Próxima</span>
+            <span className="sm:hidden">Próx</span>
           </Button>
         </div>
       </div>
@@ -755,20 +801,23 @@ export function Escalas() {
         onDragEnd={handleDragEnd}
       >
         {/* Grid de áreas - Scroll horizontal em mobile */}
-        <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0 pb-4 sm:pb-0">
-          <div className="grid grid-cols-[280px] sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4 min-w-max sm:min-w-0">
+        <div className="overflow-x-auto -mx-1 sm:mx-0 px-1 sm:px-0 pb-2 sm:pb-0 scrollbar-hide">
+          <div className="grid grid-cols-[260px] sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2 sm:gap-4 min-w-max sm:min-w-0">
             {AREAS.map((area) => (
-              <Card key={area.value} className="flex flex-col min-w-[280px] sm:min-w-0">
-                <CardHeader className={`${area.color} text-white p-3 sm:p-6`}>
-                  <CardTitle className="text-base sm:text-lg">{area.label}</CardTitle>
+              <Card key={area.value} className="flex flex-col min-w-[260px] sm:min-w-0 shadow-sm sm:shadow">
+                <CardHeader className={`${area.color} text-white p-2 sm:p-6`}>
+                  <CardTitle className="text-sm sm:text-lg font-semibold sm:font-normal">{area.label}</CardTitle>
                 </CardHeader>
-                <CardContent className="flex-1 p-3 sm:p-4 space-y-3 sm:space-y-4">
+                <CardContent className="flex-1 p-2 sm:p-4 space-y-2 sm:space-y-4">
                 {/* Sábado - Não mostrar para Domingo Kids */}
                 {area.value !== "domingo_kids" && (
                   area.value === "louvor" ? (
                     // Renderização especial para Louvor com subcategorias
-                    <div className="space-y-2 sm:space-y-3">
-                      <h3 className="font-semibold text-xs sm:text-sm">Sábado</h3>
+                    <Card className="border-2">
+                      <CardHeader className="p-2 sm:p-3 pb-2 sm:pb-2">
+                        <CardTitle className="text-[11px] sm:text-sm font-semibold">Sábado</CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-2 sm:p-3 pt-0 space-y-1.5 sm:space-y-3">
                       {FUNCOES_LOUVOR.map((funcao) => {
                         const escalasFuncao = escalasPorArea[area.value].sabado.filter(
                           (e) => e.funcao_louvor === funcao.value
@@ -820,7 +869,7 @@ export function Escalas() {
                                 items={escalasFuncao.map((e) => e.id)}
                                 strategy={verticalListSortingStrategy}
                               >
-                                <div className="space-y-1 min-h-[24px] sm:min-h-[30px]">
+                                <div className="space-y-0.5 sm:space-y-1 min-h-[20px] sm:min-h-[30px]">
                                   {escalasFuncao.map((escala) => (
                                     <EscalaItem
                                       key={escala.id}
@@ -843,12 +892,14 @@ export function Escalas() {
                           </div>
                         );
                       })}
-                    </div>
+                      </CardContent>
+                    </Card>
                   ) : (
                     // Renderização normal para outros setores
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <h3 className="font-semibold text-xs sm:text-sm">Sábado</h3>
+                    <Card className="border-2">
+                      <CardHeader className="p-2 sm:p-3 pb-2 sm:pb-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <CardTitle className="text-xs sm:text-sm font-semibold">Sábado</CardTitle>
                         {canEdit && (
                           <Select
                             key={`${area.value}-sabado-${servos.length}`}
@@ -878,47 +929,53 @@ export function Escalas() {
                             </SelectContent>
                           </Select>
                         )}
-                      </div>
-                      <DroppableArea id={`${area.value}|sabado`}>
-                        <SortableContext
-                          items={escalasPorArea[area.value].sabado.map(
-                            (e) => e.id
-                          )}
-                          strategy={verticalListSortingStrategy}
-                        >
-                          <div className="space-y-1.5 sm:space-y-2 min-h-[40px] sm:min-h-[50px]">
-                            {escalasPorArea[area.value].sabado.map((escala) => (
-                              <EscalaItem
-                                key={escala.id}
-                                escala={escala}
-                                canEdit={canEdit}
-                                onDelete={() =>
-                                  setDeleteDialog({ open: true, escalaId: escala.id })
-                                }
-                                onLock={() =>
-                                  handleLockEscala(escala.id, !escala.locked)
-                                }
-                              />
-                            ))}
-                          </div>
-                        </SortableContext>
-                      </DroppableArea>
-                    </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="p-2 sm:p-3 pt-0">
+                        <DroppableArea id={`${area.value}|sabado`}>
+                          <SortableContext
+                            items={escalasPorArea[area.value].sabado.map(
+                              (e) => e.id
+                            )}
+                            strategy={verticalListSortingStrategy}
+                          >
+                            <div className="space-y-1 sm:space-y-2 min-h-[30px] sm:min-h-[50px]">
+                              {escalasPorArea[area.value].sabado.map((escala) => (
+                                <EscalaItem
+                                  key={escala.id}
+                                  escala={escala}
+                                  canEdit={canEdit}
+                                  onDelete={() =>
+                                    setDeleteDialog({ open: true, escalaId: escala.id })
+                                  }
+                                  onLock={() =>
+                                    handleLockEscala(escala.id, !escala.locked)
+                                  }
+                                />
+                              ))}
+                            </div>
+                          </SortableContext>
+                        </DroppableArea>
+                      </CardContent>
+                    </Card>
                   )
                 )}
 
                 {/* Domingo */}
                 {area.value === "louvor" ? (
                   // Renderização especial para Louvor com subcategorias
-                  <div className="space-y-2 sm:space-y-3">
-                    <h3 className="font-semibold text-xs sm:text-sm">Domingo</h3>
+                  <Card className="border-2">
+                    <CardHeader className="p-2 sm:p-3 pb-2 sm:pb-2">
+                      <CardTitle className="text-[11px] sm:text-sm font-semibold">Domingo</CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-2 sm:p-3 pt-0 space-y-1.5 sm:space-y-3">
                     {FUNCOES_LOUVOR.map((funcao) => {
                       const escalasFuncao = escalasPorArea[area.value].domingo.filter(
                         (e) => e.funcao_louvor === funcao.value
                       );
                       return (
-                        <div key={funcao.value} className="space-y-1">
-                          <div className="flex items-center justify-between gap-2">
+                        <div key={funcao.value} className="space-y-0.5 sm:space-y-1">
+                          <div className="flex items-center justify-between gap-1.5 sm:gap-2">
                             <h4 className="text-[10px] sm:text-xs font-medium text-muted-foreground truncate">
                               {funcao.label}:
                             </h4>
@@ -936,8 +993,8 @@ export function Escalas() {
                                   }
                                 }}
                               >
-                                <SelectTrigger className="h-6 w-6 p-0 flex-shrink-0">
-                                  <Plus className="h-3 w-3" />
+                                <SelectTrigger className="h-5 w-5 sm:h-6 sm:w-6 p-0 flex-shrink-0">
+                                  <Plus className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                                 </SelectTrigger>
                                 <SelectContent>
                                   {getAvailableServos(area.value, "domingo").length ===
@@ -986,67 +1043,72 @@ export function Escalas() {
                         </div>
                       );
                     })}
-                  </div>
+                    </CardContent>
+                  </Card>
                 ) : (
                   // Renderização normal para outros setores
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-semibold text-sm">Domingo</h3>
-                      {canEdit && (
-                        <Select
-                          key={`${area.value}-domingo-${servos.length}`}
-                          onValueChange={async (value) => {
-                            if (value && value.trim() !== "") {
-                              await handleAddServo(area.value, "domingo", value);
-                            }
-                          }}
-                        >
-                          <SelectTrigger className="h-7 w-7 p-0">
-                            <Plus className="h-4 w-4" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {getAvailableServos(area.value, "domingo").length === 0 ? (
-                              <div className="p-2 text-sm text-muted-foreground text-center">
-                                Nenhum servo disponível
-                              </div>
-                            ) : (
-                              getAvailableServos(area.value, "domingo")
-                                .filter((s) => s.ativo && s.id)
-                                .map((servo) => (
-                                  <SelectItem key={servo.id} value={servo.id}>
-                                    {servo.nome}
-                                  </SelectItem>
-                                ))
-                            )}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    </div>
-                    <DroppableArea id={`${area.value}|domingo`}>
-                      <SortableContext
-                        items={escalasPorArea[area.value].domingo.map(
-                          (e) => e.id
+                  <Card className="border-2">
+                    <CardHeader className="p-2 sm:p-3 pb-2 sm:pb-2">
+                      <div className="flex items-center justify-between gap-1.5 sm:gap-2">
+                        <CardTitle className="text-[11px] sm:text-sm font-semibold">Domingo</CardTitle>
+                        {canEdit && (
+                          <Select
+                            key={`${area.value}-domingo-${servos.length}`}
+                            onValueChange={async (value) => {
+                              if (value && value.trim() !== "") {
+                                await handleAddServo(area.value, "domingo", value);
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="h-5 w-5 sm:h-7 sm:w-7 p-0 flex-shrink-0">
+                              <Plus className="h-2.5 w-2.5 sm:h-4 sm:w-4" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {getAvailableServos(area.value, "domingo").length === 0 ? (
+                                <div className="p-2 text-sm text-muted-foreground text-center">
+                                  Nenhum servo disponível
+                                </div>
+                              ) : (
+                                getAvailableServos(area.value, "domingo")
+                                  .filter((s) => s.ativo && s.id)
+                                  .map((servo) => (
+                                    <SelectItem key={servo.id} value={servo.id}>
+                                      {servo.nome}
+                                    </SelectItem>
+                                  ))
+                              )}
+                            </SelectContent>
+                          </Select>
                         )}
-                        strategy={verticalListSortingStrategy}
-                      >
-                        <div className="space-y-1.5 sm:space-y-2 min-h-[40px] sm:min-h-[50px]">
-                          {escalasPorArea[area.value].domingo.map((escala) => (
-                            <EscalaItem
-                              key={escala.id}
-                              escala={escala}
-                              canEdit={canEdit}
-                              onDelete={() =>
-                                setDeleteDialog({ open: true, escalaId: escala.id })
-                              }
-                              onLock={() =>
-                                handleLockEscala(escala.id, !escala.locked)
-                              }
-                            />
-                          ))}
-                        </div>
-                      </SortableContext>
-                    </DroppableArea>
-                  </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-2 sm:p-3 pt-0">
+                      <DroppableArea id={`${area.value}|domingo`}>
+                        <SortableContext
+                          items={escalasPorArea[area.value].domingo.map(
+                            (e) => e.id
+                          )}
+                          strategy={verticalListSortingStrategy}
+                        >
+                          <div className="space-y-1 sm:space-y-2 min-h-[30px] sm:min-h-[50px]">
+                            {escalasPorArea[area.value].domingo.map((escala) => (
+                              <EscalaItem
+                                key={escala.id}
+                                escala={escala}
+                                canEdit={canEdit}
+                                onDelete={() =>
+                                  setDeleteDialog({ open: true, escalaId: escala.id })
+                                }
+                                onLock={() =>
+                                  handleLockEscala(escala.id, !escala.locked)
+                                }
+                              />
+                            ))}
+                          </div>
+                        </SortableContext>
+                      </DroppableArea>
+                    </CardContent>
+                  </Card>
                 )}
               </CardContent>
             </Card>
@@ -1157,9 +1219,9 @@ export function Escalas() {
         </DialogContent>
       </Dialog>
 
-      {/* Seção de gerenciamento de servos */}
+      {/* Seção de gerenciamento de servos - Ocultar no mobile para economizar espaço */}
       {canEdit && (
-        <Card>
+        <Card className="hidden sm:block">
           <CardHeader className="p-4 sm:p-6">
             <CardTitle className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <span className="text-lg sm:text-xl">Gerenciar Servos</span>
