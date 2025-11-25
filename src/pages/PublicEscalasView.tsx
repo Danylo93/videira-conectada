@@ -249,25 +249,34 @@ export function PublicEscalasView() {
       }
     };
 
-    // Aguardar um pouco para o DOM renderizar completamente
-    const timeoutId = setTimeout(() => {
+    // Verificar imediatamente
+    checkScroll();
+    
+    // Aguardar renderização e verificar novamente
+    const timeoutId1 = setTimeout(() => {
       checkScroll();
     }, 100);
     
+    const timeoutId2 = setTimeout(() => {
+      checkScroll();
+    }, 500);
+    
     const scrollElement = scrollContainerRef.current;
     if (scrollElement) {
-      scrollElement.addEventListener("scroll", checkScroll);
+      scrollElement.addEventListener("scroll", checkScroll, { passive: true });
       window.addEventListener("resize", checkScroll);
       
       return () => {
-        clearTimeout(timeoutId);
+        clearTimeout(timeoutId1);
+        clearTimeout(timeoutId2);
         scrollElement.removeEventListener("scroll", checkScroll);
         window.removeEventListener("resize", checkScroll);
       };
     }
     
     return () => {
-      clearTimeout(timeoutId);
+      clearTimeout(timeoutId1);
+      clearTimeout(timeoutId2);
     };
   }, [escalas, loading]);
 
@@ -384,7 +393,7 @@ export function PublicEscalasView() {
                     {area.value === "domingo_kids" && responsibleName
                       ? `Domingo Kids da ${responsibleName}`
                       : area.value === "conexao" && responsibleName
-                      ? `Conexão Rede ${responsibleName}`
+                      ? `Conexão`
                       : area.label}
                   </CardTitle>
                 </CardHeader>
@@ -698,11 +707,11 @@ export function PublicEscalasView() {
                 });
               }
             }}
-            className="hidden sm:flex fixed left-4 top-1/2 -translate-y-1/2 z-40 cursor-pointer hover:scale-110 transition-transform"
+            className="flex fixed left-2 sm:left-4 top-1/2 -translate-y-1/2 z-50 cursor-pointer hover:scale-110 active:scale-95 transition-transform touch-manipulation"
             aria-label="Rolar para a esquerda"
           >
-            <div className="bg-white/90 backdrop-blur-sm rounded-full p-2 shadow-lg border border-gray-200 hover:bg-white hover:shadow-xl transition-all">
-              <ChevronLeft className="h-6 w-6 text-gray-600 animate-pulse" />
+            <div className="bg-white/90 backdrop-blur-sm rounded-full p-1.5 sm:p-2 shadow-lg border border-gray-200 hover:bg-white hover:shadow-xl transition-all">
+              <ChevronLeft className="h-5 w-5 sm:h-6 sm:w-6 text-gray-600 animate-pulse" />
             </div>
           </button>
         )}
@@ -718,11 +727,11 @@ export function PublicEscalasView() {
                 });
               }
             }}
-            className="hidden sm:flex fixed right-4 top-1/2 -translate-y-1/2 z-40 cursor-pointer hover:scale-110 transition-transform"
+            className="flex fixed right-2 sm:right-4 top-1/2 -translate-y-1/2 z-50 cursor-pointer hover:scale-110 active:scale-95 transition-transform touch-manipulation"
             aria-label="Rolar para a direita"
           >
-            <div className="bg-white/90 backdrop-blur-sm rounded-full p-2 shadow-lg border border-gray-200 hover:bg-white hover:shadow-xl transition-all">
-              <ChevronRight className="h-6 w-6 text-gray-600 animate-pulse" />
+            <div className="bg-white/90 backdrop-blur-sm rounded-full p-1.5 sm:p-2 shadow-lg border border-gray-200 hover:bg-white hover:shadow-xl transition-all">
+              <ChevronRight className="h-5 w-5 sm:h-6 sm:w-6 text-gray-600 animate-pulse" />
             </div>
           </button>
         )}
