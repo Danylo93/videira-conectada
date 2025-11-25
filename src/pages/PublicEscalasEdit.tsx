@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import type React from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -58,6 +57,7 @@ import {
   Copy,
 } from "lucide-react";
 import { formatDateBR, getWeekStartDate } from "@/lib/dateUtils";
+import logoVideira from "@/assets/logo-videira.png";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -139,8 +139,7 @@ const AREAS: { value: AreaServico; label: string; color: string }[] = [
   { value: "conexao", label: "Conexão", color: "bg-pink-500" },
 ];
 
-export function Escalas() {
-  const { user } = useAuth();
+export function PublicEscalasEdit() {
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const [escalas, setEscalas] = useState<Escala[]>([]);
@@ -148,6 +147,7 @@ export function Escalas() {
   const [loading, setLoading] = useState(true);
   const [selectedWeek, setSelectedWeek] = useState<string>("");
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [systemProfileId, setSystemProfileId] = useState<string | null>(null);
   const [deleteDialog, setDeleteDialog] = useState<{
     open: boolean;
     escalaId: string | null;
@@ -169,10 +169,41 @@ export function Escalas() {
     })
   );
 
-  // Verificar se o usuário pode editar
-  const canEdit = useMemo(() => {
-    return user?.role === "pastor" || user?.role === "discipulador" || user?.role === "lider";
-  }, [user]);
+  // Sempre permitir edição na versão pública
+  const canEdit = true;
+
+  // Obter profile ID do sistema (primeiro pastor encontrado) para usar como created_by
+  useEffect(() => {
+    const fetchSystemProfileId = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("role", "pastor")
+          .limit(1)
+          .single();
+        
+        if (!error && data) {
+          setSystemProfileId(data.id);
+        } else {
+          // Se não encontrar pastor, buscar qualquer perfil
+          const { data: anyProfile } = await supabase
+            .from("profiles")
+            .select("id")
+            .limit(1)
+            .single();
+          
+          if (anyProfile) {
+            setSystemProfileId(anyProfile.id);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching system profile:", error);
+      }
+    };
+
+    fetchSystemProfileId();
+  }, []);
 
   // Inicializar semana atual (sábado da semana)
   useEffect(() => {
@@ -194,17 +225,11 @@ export function Escalas() {
     try {
       setLoading(true);
 
-      // Carregar servos (todos se for autorizado, apenas ativos se não for)
-      let servosQuery = supabase
+      // Carregar todos os servos (versão pública permite editar tudo)
+      const { data: servosData, error: servosError } = await supabase
         .from("servos")
         .select("id, nome, telefone, email, ativo")
         .order("nome");
-      
-      if (!canEdit) {
-        servosQuery = servosQuery.eq("ativo", true);
-      }
-      
-      const { data: servosData, error: servosError } = await servosQuery;
 
       if (servosError) throw servosError;
       setServos(servosData || []);
@@ -542,7 +567,30 @@ export function Escalas() {
 
     try {
       if (servoDialog.servo) {
-        // Atualizar servo existente
+        // Atualizar servo existente - atualização otimista
+        const updatedServo: Servo = {
+          ...servoDialog.servo,
+          nome: servoFormData.nome.trim(),
+          telefone: servoFormData.telefone.trim() || undefined,
+          email: servoFormData.email.trim() || undefined,
+        };
+
+        // Atualização otimista
+        setServos((prevServos) =>
+          prevServos.map((s) => (s.id === servoDialog.servo!.id ? updatedServo : s))
+        );
+
+        // Atualizar também nas escalas se o nome mudou
+        if (servoDialog.servo.nome !== servoFormData.nome.trim()) {
+          setEscalas((prevEscalas) =>
+            prevEscalas.map((e) =>
+              e.servo_id === servoDialog.servo!.id
+                ? { ...e, servo_name: servoFormData.nome.trim() }
+                : e
+            )
+          );
+        }
+
         const { error } = await supabase
           .from("servos")
           .update({
@@ -552,33 +600,62 @@ export function Escalas() {
           })
           .eq("id", servoDialog.servo.id);
 
-        if (error) throw error;
-
-        toast({
-          title: "Sucesso",
-          description: "Servo atualizado com sucesso",
-        });
+        if (error) {
+          // Reverter em caso de erro
+          setServos((prevServos) =>
+            prevServos.map((s) => (s.id === servoDialog.servo!.id ? servoDialog.servo! : s))
+          );
+          throw error;
+        }
       } else {
-        // Criar novo servo
-        const { error } = await supabase.from("servos").insert({
+        // Criar novo servo - adicionar otimisticamente
+        const tempServoId = `temp-${Date.now()}-${Math.random()}`;
+        const newServo: Servo = {
+          id: tempServoId,
           nome: servoFormData.nome.trim(),
-          telefone: servoFormData.telefone.trim() || null,
-          email: servoFormData.email.trim() || null,
+          telefone: servoFormData.telefone.trim() || undefined,
+          email: servoFormData.email.trim() || undefined,
           ativo: true,
-        });
+        };
 
-        if (error) throw error;
+        // Atualização otimista
+        setServos((prevServos) => [...prevServos, newServo]);
 
-        toast({
-          title: "Sucesso",
-          description: "Servo criado com sucesso",
-        });
+        const { data: insertedData, error } = await supabase
+          .from("servos")
+          .insert({
+            nome: servoFormData.nome.trim(),
+            telefone: servoFormData.telefone.trim() || null,
+            email: servoFormData.email.trim() || null,
+            ativo: true,
+          })
+          .select()
+          .single();
+
+        if (error) {
+          // Remover o servo temporário em caso de erro
+          setServos((prevServos) =>
+            prevServos.filter((s) => s.id !== tempServoId)
+          );
+          throw error;
+        }
+
+        // Substituir o servo temporário pelo real
+        if (insertedData) {
+          setServos((prevServos) =>
+            prevServos.map((s) =>
+              s.id === tempServoId
+                ? {
+                    ...s,
+                    id: insertedData.id,
+                  }
+                : s
+            )
+          );
+        }
       }
 
       setServoDialog({ open: false, servo: null });
-      // Aguardar um pouco para garantir que o banco processou
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      loadData();
     } catch (error: any) {
       console.error("Error saving servo:", error);
       toast({
@@ -598,32 +675,46 @@ export function Escalas() {
         .eq("servo_id", servoId)
         .limit(1);
 
+      const servoToremove = servos.find((s) => s.id === servoId);
+      
       if (escalasComServo && escalasComServo.length > 0) {
-        // Desativar ao invés de deletar
+        // Desativar ao invés de deletar - atualização otimista
+        setServos((prevServos) =>
+          prevServos.map((s) =>
+            s.id === servoId ? { ...s, ativo: false } : s
+          )
+        );
+
         const { error } = await supabase
           .from("servos")
           .update({ ativo: false })
           .eq("id", servoId);
 
-        if (error) throw error;
-
-        toast({
-          title: "Sucesso",
-          description: "Servo desativado (está em escalas existentes)",
-        });
+        if (error) {
+          // Reverter em caso de erro
+          if (servoToremove) {
+            setServos((prevServos) =>
+              prevServos.map((s) => (s.id === servoId ? servoToremove : s))
+            );
+          }
+          throw error;
+        }
       } else {
-        // Deletar se não estiver em nenhuma escala
+        // Deletar se não estiver em nenhuma escala - remoção otimista
+        setServos((prevServos) =>
+          prevServos.filter((s) => s.id !== servoId)
+        );
+
         const { error } = await supabase.from("servos").delete().eq("id", servoId);
 
-        if (error) throw error;
-
-        toast({
-          title: "Sucesso",
-          description: "Servo removido com sucesso",
-        });
+        if (error) {
+          // Reverter em caso de erro
+          if (servoToremove) {
+            setServos((prevServos) => [...prevServos, servoToremove]);
+          }
+          throw error;
+        }
       }
-
-      loadData();
     } catch (error: any) {
       console.error("Error deleting servo:", error);
       toast({
@@ -717,27 +808,45 @@ export function Escalas() {
       return;
     }
 
-    // Atualizar escala
+    // Atualizar escala - atualização otimista
+    const updateData: any = {
+      area: targetArea,
+      dia: targetDia,
+    };
+
+    // Se for louvor, atualizar função
+    if (targetArea === "louvor" && targetFuncaoLouvor) {
+      updateData.funcao_louvor = targetFuncaoLouvor;
+      updateData.funcao_conexao = null;
+    } else if (targetArea === "conexao" && targetFuncaoConexao) {
+      // Se for conexão, atualizar função
+      updateData.funcao_conexao = targetFuncaoConexao;
+      updateData.funcao_louvor = null;
+    } else {
+      // Se não for louvor nem conexão, remover funções
+      updateData.funcao_louvor = null;
+      updateData.funcao_conexao = null;
+    }
+
+    // Guardar o estado anterior para possível reversão
+    const previousEscala = escala;
+
+    // Atualização otimista - atualiza o estado imediatamente
+    setEscalas((prevEscalas) =>
+      prevEscalas.map((e) =>
+        e.id === escalaId
+          ? {
+              ...e,
+              area: targetArea,
+              dia: targetDia,
+              funcao_louvor: updateData.funcao_louvor,
+              funcao_conexao: updateData.funcao_conexao,
+            }
+          : e
+      )
+    );
+
     try {
-      const updateData: any = {
-        area: targetArea,
-        dia: targetDia,
-      };
-
-      // Se for louvor, atualizar função
-      if (targetArea === "louvor" && targetFuncaoLouvor) {
-        updateData.funcao_louvor = targetFuncaoLouvor;
-        updateData.funcao_conexao = null;
-      } else if (targetArea === "conexao" && targetFuncaoConexao) {
-        // Se for conexão, atualizar função
-        updateData.funcao_conexao = targetFuncaoConexao;
-        updateData.funcao_louvor = null;
-      } else {
-        // Se não for louvor nem conexão, remover funções
-        updateData.funcao_louvor = null;
-        updateData.funcao_conexao = null;
-      }
-
       const { error } = await supabase
         .from("escalas")
         .update(updateData)
@@ -745,14 +854,17 @@ export function Escalas() {
 
       if (error) throw error;
 
-      toast({
-        title: "Sucesso",
-        description: "Escala atualizada com sucesso",
-      });
-
-      loadData();
+      // Sucesso silencioso - não precisa mostrar toast para cada movimento
     } catch (error: any) {
       console.error("Error updating escala:", error);
+      
+      // Reverter a atualização otimista em caso de erro
+      setEscalas((prevEscalas) =>
+        prevEscalas.map((e) =>
+          e.id === escalaId ? previousEscala : e
+        )
+      );
+      
       toast({
         title: "Erro",
         description: error.message || "Erro ao atualizar escala",
@@ -768,7 +880,13 @@ export function Escalas() {
     funcaoLouvor?: FuncaoLouvor,
     funcaoConexao?: FuncaoConexao
   ) => {
-    if (!canEdit || !user?.id) return;
+    if (!canEdit || !systemProfileId) {
+      toast({
+        title: "Aguarde",
+        description: "Carregando sistema...",
+      });
+      return;
+    }
 
     if (!servoId || servoId.trim() === "") {
       toast({
@@ -793,8 +911,6 @@ export function Escalas() {
         description: "Servo não encontrado ou inativo. Por favor, selecione outro servo.",
         variant: "destructive",
       });
-      // Recarregar lista de servos
-      loadData();
       return;
     }
 
@@ -812,6 +928,28 @@ export function Escalas() {
       return;
     }
 
+    // Buscar o nome do servo na lista local
+    const servo = servos.find((s) => s.id === servoId);
+    const servoName = servo?.nome || "Carregando...";
+
+    // Criar uma escala temporária para adição otimista
+    const tempEscalaId = `temp-${Date.now()}-${Math.random()}`;
+    const novaEscala: Escala = {
+      id: tempEscalaId,
+      semana_inicio: selectedWeek,
+      area,
+      servo_id: servoId,
+      servo_name: servoName,
+      dia,
+      locked: false,
+      created_by: systemProfileId,
+      funcao_louvor: area === "louvor" ? funcaoLouvor : null,
+      funcao_conexao: area === "conexao" ? funcaoConexao : null,
+    };
+
+    // Atualização otimista - adiciona imediatamente ao estado
+    setEscalas((prevEscalas) => [...prevEscalas, novaEscala]);
+
     try {
       const insertData: any = {
         semana_inicio: selectedWeek,
@@ -819,7 +957,7 @@ export function Escalas() {
         servo_id: servoId,
         dia,
         locked: false,
-        created_by: user.id,
+        created_by: systemProfileId,
       };
 
       // Adicionar função do louvor se for área de louvor
@@ -835,29 +973,53 @@ export function Escalas() {
         insertData.funcao_conexao = null;
       }
 
-      const { error } = await supabase.from("escalas").insert(insertData);
+      const { data: insertedData, error } = await supabase
+        .from("escalas")
+        .insert(insertData)
+        .select()
+        .single();
 
       if (error) {
+        // Remover a escala temporária em caso de erro
+        setEscalas((prevEscalas) =>
+          prevEscalas.filter((e) => e.id !== tempEscalaId)
+        );
+        
         if (error.code === "23503") {
           toast({
             title: "Erro",
-            description: "Servo não encontrado no banco de dados. Recarregando dados...",
+            description: "Servo não encontrado no banco de dados.",
             variant: "destructive",
           });
-          loadData();
           return;
         }
         throw error;
       }
 
-      toast({
-        title: "Sucesso",
-        description: "Servo adicionado à escala",
-      });
+      // Substituir a escala temporária pela real do banco
+      if (insertedData) {
+        setEscalas((prevEscalas) =>
+          prevEscalas.map((e) =>
+            e.id === tempEscalaId
+              ? {
+                  ...e,
+                  id: insertedData.id,
+                  created_by: insertedData.created_by,
+                }
+              : e
+          )
+        );
+      }
 
-      loadData();
+      // Sucesso silencioso - não precisa mostrar toast
     } catch (error: any) {
       console.error("Error adding servo:", error);
+      
+      // Remover a escala temporária em caso de erro
+      setEscalas((prevEscalas) =>
+        prevEscalas.filter((e) => e.id !== tempEscalaId)
+      );
+      
       toast({
         title: "Erro",
         description: error.message || "Erro ao adicionar servo",
@@ -869,6 +1031,16 @@ export function Escalas() {
   const handleDeleteEscala = async (escalaId: string) => {
     if (!canEdit) return;
 
+    // Guardar a escala removida para possível reversão
+    const escalaRemovida = escalas.find((e) => e.id === escalaId);
+    
+    // Atualização otimista - remove imediatamente do estado
+    setEscalas((prevEscalas) =>
+      prevEscalas.filter((e) => e.id !== escalaId)
+    );
+    
+    setDeleteDialog({ open: false, escalaId: null });
+
     try {
       const { error } = await supabase
         .from("escalas")
@@ -877,15 +1049,15 @@ export function Escalas() {
 
       if (error) throw error;
 
-      toast({
-        title: "Sucesso",
-        description: "Servo removido da escala",
-      });
-
-      loadData();
-      setDeleteDialog({ open: false, escalaId: null });
+      // Sucesso silencioso - não precisa mostrar toast
     } catch (error: any) {
       console.error("Error deleting escala:", error);
+      
+      // Reverter a remoção otimista em caso de erro
+      if (escalaRemovida) {
+        setEscalas((prevEscalas) => [...prevEscalas, escalaRemovida]);
+      }
+      
       toast({
         title: "Erro",
         description: error.message || "Erro ao remover servo",
@@ -896,6 +1068,13 @@ export function Escalas() {
 
   const handleLockEscala = async (escalaId: string, locked: boolean) => {
     if (!canEdit) return;
+
+    // Atualização otimista - atualiza o estado imediatamente
+    setEscalas((prevEscalas) =>
+      prevEscalas.map((e) =>
+        e.id === escalaId ? { ...e, locked } : e
+      )
+    );
 
     try {
       const { error } = await supabase
@@ -909,10 +1088,16 @@ export function Escalas() {
         title: "Sucesso",
         description: locked ? "Escala bloqueada" : "Escala desbloqueada",
       });
-
-      loadData();
     } catch (error: any) {
       console.error("Error locking escala:", error);
+      
+      // Reverter a atualização otimista em caso de erro
+      setEscalas((prevEscalas) =>
+        prevEscalas.map((e) =>
+          e.id === escalaId ? { ...e, locked: !locked } : e
+        )
+      );
+      
       toast({
         title: "Erro",
         description: "Erro ao alterar status da escala",
@@ -983,26 +1168,45 @@ export function Escalas() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-2 text-muted-foreground">Carregando escalas...</p>
-        </div>
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6 flex flex-col items-center justify-center space-y-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+            <p className="text-sm text-muted-foreground">Carregando escalas...</p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div className="space-y-2 sm:space-y-6 pb-2 sm:pb-4 -mx-1 sm:mx-0 px-1 sm:px-0">
-      {/* Header - Compacto no mobile */}
-      <div className="space-y-2 sm:space-y-0">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
-          <div>
-            <h1 className="text-xl sm:text-3xl font-bold">Escalas</h1>
-            <p className="text-xs sm:text-base text-muted-foreground hidden sm:block">
-              Gerencie as escalas semanais de serviço
-            </p>
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 pb-12 sm:pb-8 pt-4 sm:pt-8 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto space-y-2 sm:space-y-6">
+        {/* Header Público */}
+        <div className="text-center mb-4 sm:mb-6">
+          <div className="flex justify-center mb-3 sm:mb-4">
+            <img
+              src={logoVideira}
+              alt="Videira São Miguel"
+              className="h-12 sm:h-16 w-auto"
+            />
           </div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">
+            Escalas de Serviço
+          </h1>
+          <p className="text-xs sm:text-sm text-gray-600">
+            Gerencie as escalas semanais de serviço
+          </p>
+        </div>
+
+        {/* Header - Compacto no mobile */}
+        <div className="space-y-2 sm:space-y-0">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
+            <div className="hidden sm:block">
+              <p className="text-xs sm:text-base text-muted-foreground">
+                Versão pública editável
+              </p>
+            </div>
           <div className="flex gap-2">
             {selectedWeek && (
               <>
@@ -1095,24 +1299,23 @@ export function Escalas() {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        {/* Grid de áreas - Scroll horizontal em mobile */}
-        <div className="overflow-x-auto -mx-1 sm:mx-0 px-1 sm:px-0 pb-2 sm:pb-0 scrollbar-hide">
-          <div className="grid grid-cols-[260px] sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2 sm:gap-4 min-w-max sm:min-w-0">
-            {AREAS.map((area) => (
-              <Card key={area.value} className="flex flex-col min-w-[260px] sm:min-w-0 shadow-sm sm:shadow">
-                <CardHeader className={`${area.color} text-white p-2 sm:p-6`}>
-                  <CardTitle className="text-sm sm:text-lg font-semibold sm:font-normal">{area.label}</CardTitle>
+        {/* Grid de áreas - Layout vertical no mobile */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
+          {AREAS.map((area) => (
+            <Card key={area.value} className="flex flex-col shadow-sm sm:shadow">
+                <CardHeader className={`${area.color} text-white p-3 sm:p-6`}>
+                  <CardTitle className="text-base sm:text-lg font-semibold sm:font-normal">{area.label}</CardTitle>
                 </CardHeader>
-                <CardContent className="flex-1 p-2 sm:p-4 space-y-2 sm:space-y-4">
+                <CardContent className="flex-1 p-3 sm:p-4 space-y-3 sm:space-y-4">
                 {/* Sábado - Não mostrar para Domingo Kids */}
                 {area.value !== "domingo_kids" && (
                   area.value === "louvor" || area.value === "conexao" ? (
                     // Renderização especial para Louvor com subcategorias
                     <Card className="border-2">
-                      <CardHeader className="p-2 sm:p-3 pb-2 sm:pb-2">
-                        <CardTitle className="text-[11px] sm:text-sm font-semibold">Sábado</CardTitle>
+                      <CardHeader className="p-2.5 sm:p-3 pb-2 sm:pb-2">
+                        <CardTitle className="text-xs sm:text-sm font-semibold">Sábado</CardTitle>
                       </CardHeader>
-                      <CardContent className="p-2 sm:p-3 pt-0 space-y-1.5 sm:space-y-3">
+                      <CardContent className="p-2.5 sm:p-3 pt-0 space-y-1.5 sm:space-y-3">
                       {(area.value === "louvor" ? FUNCOES_LOUVOR : FUNCOES_CONEXAO).map((funcao) => {
                         const funcaoValue = funcao.value;
                         const escalasFuncao = escalasPorArea[area.value].sabado.filter(
@@ -1122,9 +1325,9 @@ export function Escalas() {
                               : e.funcao_conexao === funcaoValue
                         );
                         return (
-                          <div key={funcao.value} className="space-y-1">
+                          <div key={funcao.value} className="space-y-0.5 sm:space-y-1">
                             <div className="flex items-center justify-between gap-2">
-                              <h4 className="text-[10px] sm:text-xs font-medium text-muted-foreground truncate">
+                              <h4 className="text-xs sm:text-xs font-medium text-muted-foreground">
                                 {funcao.label}:
                               </h4>
                               {canEdit && (
@@ -1142,8 +1345,8 @@ export function Escalas() {
                                     }
                                   }}
                                 >
-                                  <SelectTrigger className="h-6 w-6 p-0 flex-shrink-0">
-                                    <Plus className="h-3 w-3" />
+                                  <SelectTrigger className="h-7 w-7 sm:h-6 sm:w-6 p-0 flex-shrink-0 touch-manipulation">
+                                    <Plus className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
                                   </SelectTrigger>
                                   <SelectContent>
                                     {getAvailableServos(area.value, "sabado").length ===
@@ -1169,7 +1372,7 @@ export function Escalas() {
                                 items={escalasFuncao.map((e) => e.id)}
                                 strategy={verticalListSortingStrategy}
                               >
-                                <div className="space-y-0.5 sm:space-y-1 min-h-[60px] sm:min-h-[80px]">
+                                <div className="space-y-1 sm:space-y-1 min-h-[40px] sm:min-h-[80px]">
                                   {escalasFuncao.map((escala) => (
                                     <EscalaItem
                                       key={escala.id}
@@ -1197,7 +1400,7 @@ export function Escalas() {
                   ) : (
                     // Renderização normal para outros setores
                     <Card className="border-2">
-                      <CardHeader className="p-2 sm:p-3 pb-2 sm:pb-2">
+                      <CardHeader className="p-2.5 sm:p-3 pb-2 sm:pb-2">
                         <div className="flex items-center justify-between gap-2">
                           <CardTitle className="text-xs sm:text-sm font-semibold">Sábado</CardTitle>
                         {canEdit && (
@@ -1209,8 +1412,8 @@ export function Escalas() {
                               }
                             }}
                           >
-                            <SelectTrigger className="h-6 w-6 sm:h-7 sm:w-7 p-0 flex-shrink-0">
-                              <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
+                            <SelectTrigger className="h-7 w-7 sm:h-7 sm:w-7 p-0 flex-shrink-0 touch-manipulation">
+                              <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                             </SelectTrigger>
                             <SelectContent>
                               {getAvailableServos(area.value, "sabado").length === 0 ? (
@@ -1231,7 +1434,7 @@ export function Escalas() {
                         )}
                         </div>
                       </CardHeader>
-                      <CardContent className="p-2 sm:p-3 pt-0">
+                      <CardContent className="p-2.5 sm:p-3 pt-0">
                         <DroppableArea id={`${area.value}|sabado`}>
                           <SortableContext
                             items={escalasPorArea[area.value].sabado.map(
@@ -1239,7 +1442,7 @@ export function Escalas() {
                             )}
                             strategy={verticalListSortingStrategy}
                           >
-                            <div className="space-y-1 sm:space-y-2 min-h-[80px] sm:min-h-[120px]">
+                            <div className="space-y-2 sm:space-y-2 min-h-[60px] sm:min-h-[120px]">
                               {escalasPorArea[area.value].sabado.map((escala) => (
                                 <EscalaItem
                                   key={escala.id}
@@ -1265,10 +1468,10 @@ export function Escalas() {
                 {area.value === "louvor" || area.value === "conexao" ? (
                   // Renderização especial para Louvor e Conexão com subcategorias
                   <Card className="border-2">
-                    <CardHeader className="p-2 sm:p-3 pb-2 sm:pb-2">
-                      <CardTitle className="text-[11px] sm:text-sm font-semibold">Domingo</CardTitle>
+                    <CardHeader className="p-2.5 sm:p-3 pb-2 sm:pb-2">
+                      <CardTitle className="text-xs sm:text-sm font-semibold">Domingo</CardTitle>
                     </CardHeader>
-                    <CardContent className="p-2 sm:p-3 pt-0 space-y-1.5 sm:space-y-3">
+                    <CardContent className="p-2.5 sm:p-3 pt-0 space-y-1.5 sm:space-y-3">
                     {(area.value === "louvor" ? FUNCOES_LOUVOR : FUNCOES_CONEXAO).map((funcao) => {
                       const escalasFuncao = escalasPorArea[area.value].domingo.filter(
                         (e) => 
@@ -1279,7 +1482,7 @@ export function Escalas() {
                       return (
                         <div key={funcao.value} className="space-y-0.5 sm:space-y-1">
                           <div className="flex items-center justify-between gap-1.5 sm:gap-2">
-                            <h4 className="text-[10px] sm:text-xs font-medium text-muted-foreground truncate">
+                            <h4 className="text-xs sm:text-xs font-medium text-muted-foreground">
                               {funcao.label}:
                             </h4>
                             {canEdit && (
@@ -1297,8 +1500,8 @@ export function Escalas() {
                                   }
                                 }}
                               >
-                                <SelectTrigger className="h-5 w-5 sm:h-6 sm:w-6 p-0 flex-shrink-0">
-                                  <Plus className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                                <SelectTrigger className="h-7 w-7 sm:h-6 sm:w-6 p-0 flex-shrink-0 touch-manipulation">
+                                  <Plus className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
                                 </SelectTrigger>
                                 <SelectContent>
                                   {getAvailableServos(area.value, "domingo").length ===
@@ -1324,7 +1527,7 @@ export function Escalas() {
                               items={escalasFuncao.map((e) => e.id)}
                               strategy={verticalListSortingStrategy}
                             >
-                              <div className="space-y-1 min-h-[60px] sm:min-h-[80px]">
+                              <div className="space-y-1 sm:space-y-1 min-h-[40px] sm:min-h-[80px]">
                                 {escalasFuncao.map((escala) => (
                                   <EscalaItem
                                     key={escala.id}
@@ -1352,9 +1555,9 @@ export function Escalas() {
                 ) : (
                   // Renderização normal para outros setores
                   <Card className="border-2">
-                    <CardHeader className="p-2 sm:p-3 pb-2 sm:pb-2">
+                    <CardHeader className="p-2.5 sm:p-3 pb-2 sm:pb-2">
                       <div className="flex items-center justify-between gap-1.5 sm:gap-2">
-                        <CardTitle className="text-[11px] sm:text-sm font-semibold">Domingo</CardTitle>
+                        <CardTitle className="text-xs sm:text-sm font-semibold">Domingo</CardTitle>
                         {canEdit && (
                           <Select
                             key={`${area.value}-domingo-${servos.length}`}
@@ -1364,8 +1567,8 @@ export function Escalas() {
                               }
                             }}
                           >
-                            <SelectTrigger className="h-5 w-5 sm:h-7 sm:w-7 p-0 flex-shrink-0">
-                              <Plus className="h-2.5 w-2.5 sm:h-4 sm:w-4" />
+                            <SelectTrigger className="h-7 w-7 sm:h-7 sm:w-7 p-0 flex-shrink-0 touch-manipulation">
+                              <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                             </SelectTrigger>
                             <SelectContent>
                               {getAvailableServos(area.value, "domingo").length === 0 ? (
@@ -1386,7 +1589,7 @@ export function Escalas() {
                         )}
                       </div>
                     </CardHeader>
-                    <CardContent className="p-2 sm:p-3 pt-0">
+                    <CardContent className="p-2.5 sm:p-3 pt-0">
                       <DroppableArea id={`${area.value}|domingo`}>
                         <SortableContext
                           items={escalasPorArea[area.value].domingo.map(
@@ -1394,7 +1597,7 @@ export function Escalas() {
                           )}
                           strategy={verticalListSortingStrategy}
                         >
-                          <div className="space-y-1 sm:space-y-2 min-h-[80px] sm:min-h-[120px]">
+                          <div className="space-y-2 sm:space-y-2 min-h-[60px] sm:min-h-[120px]">
                             {escalasPorArea[area.value].domingo.map((escala) => (
                               <EscalaItem
                                 key={escala.id}
@@ -1417,7 +1620,6 @@ export function Escalas() {
               </CardContent>
             </Card>
           ))}
-          </div>
         </div>
 
         <DragOverlay>
@@ -1605,6 +1807,7 @@ export function Escalas() {
           </CardContent>
         </Card>
       )}
+      </div>
     </div>
   );
 }
@@ -1632,6 +1835,7 @@ function DroppableArea({ id, children }: { id: string; children: React.ReactNode
 }
 
 function EscalaItem({ escala, canEdit, onDelete, onLock }: EscalaItemProps) {
+  const isMobile = useIsMobile();
   const {
     attributes,
     listeners,
@@ -1650,31 +1854,45 @@ function EscalaItem({ escala, canEdit, onDelete, onLock }: EscalaItemProps) {
     opacity: isDragging ? 0.5 : 1,
   };
 
+  // No mobile: aplicar listeners ao item inteiro; no desktop: apenas ao ícone
+  const dragProps = isMobile && canEdit && !escala.locked 
+    ? { ...attributes, ...listeners }
+    : {};
+
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`bg-card border rounded-lg p-2 flex items-center justify-between group ${
+      {...dragProps}
+      className={`bg-card border rounded-md sm:rounded-lg p-1.5 sm:p-2 flex items-center justify-between group touch-manipulation ${
         escala.locked ? "opacity-75 cursor-not-allowed" : ""
-      } ${canEdit && !escala.locked ? "cursor-move" : ""}`}
+      } ${canEdit && !escala.locked ? (isMobile ? "cursor-move" : "") : ""}`}
     >
-      <div className="flex items-center gap-2 flex-1 min-w-0">
+      <div className="flex items-center gap-1.5 sm:gap-2 flex-1 min-w-0">
         {canEdit && !escala.locked ? (
-          <div
-            {...attributes}
-            {...listeners}
-            className="cursor-grab active:cursor-grabbing flex-shrink-0"
-          >
-            <GripVertical className="h-4 w-4 text-muted-foreground" />
-          </div>
+          isMobile ? (
+            // No mobile: apenas mostra o ícone visualmente, o drag é no item inteiro
+            <div className="flex-shrink-0 pointer-events-none">
+              <GripVertical className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
+            </div>
+          ) : (
+            // No desktop: aplica listeners apenas no ícone
+            <div
+              {...attributes}
+              {...listeners}
+              className="cursor-grab active:cursor-grabbing flex-shrink-0"
+            >
+              <GripVertical className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
+            </div>
+          )
         ) : (
-          <div className="w-4 h-4 flex-shrink-0" /> // Espaçador quando não há ícone
+          <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
         )}
-        <span className="text-sm font-medium truncate">
+        <span className="text-xs sm:text-sm font-medium truncate">
           {escala.servo_name || "Servo removido"}
         </span>
         {!escala.servo_name && (
-          <Badge variant="destructive" className="ml-1 text-xs">
+          <Badge variant="destructive" className="ml-1 text-[10px] sm:text-xs">
             Inválido
           </Badge>
         )}
@@ -1683,12 +1901,19 @@ function EscalaItem({ escala, canEdit, onDelete, onLock }: EscalaItemProps) {
         )}
       </div>
       {canEdit && (
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div 
+          className="flex items-center gap-0.5 sm:gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+          onClick={(e) => e.stopPropagation()} // Prevenir que o clique nos botões inicie o drag
+          onTouchStart={(e) => e.stopPropagation()} // Prevenir que o toque nos botões inicie o drag
+        >
           <Button
             variant="ghost"
             size="sm"
-            className="h-6 w-6 p-0"
-            onClick={onLock}
+            className="h-5 w-5 sm:h-6 sm:w-6 p-0 touch-manipulation"
+            onClick={(e) => {
+              e.stopPropagation();
+              onLock();
+            }}
             title={escala.locked ? "Desbloquear" : "Bloquear"}
           >
             {escala.locked ? (
@@ -1700,8 +1925,11 @@ function EscalaItem({ escala, canEdit, onDelete, onLock }: EscalaItemProps) {
           <Button
             variant="ghost"
             size="sm"
-            className="h-6 w-6 p-0 text-destructive"
-            onClick={onDelete}
+            className="h-5 w-5 sm:h-6 sm:w-6 p-0 text-destructive touch-manipulation"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
             title="Remover"
           >
             <X className="h-3 w-3" />
