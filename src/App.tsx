@@ -21,6 +21,7 @@ import { PublicWeeklyReportsDashboard } from "@/pages/PublicWeeklyReportsDashboa
 import { PublicDizimistaRegistration } from "@/pages/PublicDizimistaRegistration";
 import { PublicDizimistasView } from "@/pages/PublicDizimistasView";
 import { PublicBatismoRegistration } from "@/pages/PublicBatismoRegistration";
+import { PublicBatizantesView } from "@/pages/PublicBatizantesView";
 import { BatizantesView } from "@/pages/BatizantesView";
 import { NetworkReports } from "@/pages/NetworkReports";
 import { ServiceReports } from "@/pages/ServiceReports";
@@ -195,6 +196,10 @@ function AppContent() {
       <Route
         path="/cadastro-batismo"
         element={<PublicBatismoRegistration />}
+      />
+      <Route
+        path="/acompanhamento-batismo"
+        element={<PublicBatizantesView />}
       />
 
       {/* privado */}
