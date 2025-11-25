@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -55,6 +56,7 @@ import {
   Trash2,
   MessageSquare,
   Copy,
+  Send,
 } from "lucide-react";
 import { formatDateBR, getWeekStartDate } from "@/lib/dateUtils";
 import logoVideira from "@/assets/logo-videira.png";
@@ -367,6 +369,19 @@ export function PublicEscalasEdit() {
     telefone: "",
     email: "",
   });
+  const [selectedAreasDialog, setSelectedAreasDialog] = useState<{
+    open: boolean;
+    forGroup: boolean;
+  }>({ open: false, forGroup: false });
+  const [selectedAreas, setSelectedAreas] = useState<Set<AreaServico>>(
+    new Set(AREAS.map((a) => a.value))
+  );
+  const [sendingReminders, setSendingReminders] = useState(false);
+  const [remindersProgress, setRemindersProgress] = useState<{
+    total: number;
+    sent: number;
+    current: string | null;
+  }>({ total: 0, sent: 0, current: null });
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -598,8 +613,112 @@ export function PublicEscalasEdit() {
     return organized;
   }, [escalas]);
 
-  // Gerar mensagem formatada para WhatsApp
-  const generateWhatsAppMessage = () => {
+  // Gerar mensagem individual para um servo específico (apenas seu setor)
+  const generateIndividualMessage = (servoId: string) => {
+    if (!selectedWeek) return "";
+
+    const sabado = new Date(selectedWeek);
+    const domingo = new Date(sabado);
+    domingo.setDate(sabado.getDate() + 1);
+
+    // Encontrar escalas deste servo na semana
+    const servosEscalas = escalas.filter(
+      (e) => e.servo_id === servoId && e.semana_inicio === selectedWeek
+    );
+
+    if (servosEscalas.length === 0) return "";
+
+    // Agrupar por área
+    const areasComServo = new Set<AreaServico>();
+    servosEscalas.forEach((e) => {
+      if (e.area) areasComServo.add(e.area as AreaServico);
+    });
+
+    let message = `*LEMBRETE DE ESCALA DA SEMANA*\n\n`;
+    message += `*${formatDateBR(sabado)}* (Sábado) e *${formatDateBR(domingo)}* (Domingo)\n\n`;
+
+    // Incluir apenas as áreas onde o servo está escalado
+    AREAS.forEach((area) => {
+      if (!areasComServo.has(area.value)) return;
+
+      const escalasSabado = escalasPorArea[area.value].sabado.filter(
+        (e) => e.servo_id === servoId
+      );
+      const escalasDomingo = escalasPorArea[area.value].domingo.filter(
+        (e) => e.servo_id === servoId
+      );
+
+      if (escalasSabado.length === 0 && escalasDomingo.length === 0) return;
+
+      message += `═══════════════════════\n`;
+      message += `*${area.label}*\n`;
+      message += `═══════════════════════\n\n`;
+
+      // Sábado
+      if (escalasSabado.length > 0 && area.value !== "domingo_kids") {
+        message += `*Sábado (${formatDateBR(sabado)})*\n`;
+        
+        if (area.value === "louvor") {
+          FUNCOES_LOUVOR.forEach((funcao) => {
+            const escalasFuncao = escalasSabado.filter(
+              (e) => e.funcao_louvor === funcao.value
+            );
+            if (escalasFuncao.length > 0) {
+              message += `  - ${funcao.label}: ${escalasFuncao[0].servo_name || "Servo removido"}\n`;
+            }
+          });
+        } else if (area.value === "conexao") {
+          const responsavel = escalasSabado[0];
+          if (responsavel) {
+            message += `  - Responsável: ${responsavel.servo_name || "Servo removido"}\n`;
+          }
+          escalasSabado.slice(1).forEach((escala) => {
+            message += `  - ${escala.servo_name || "Servo removido"}\n`;
+          });
+        } else {
+          escalasSabado.forEach((escala) => {
+            message += `  - ${escala.servo_name || "Servo removido"}\n`;
+          });
+        }
+      }
+
+      // Domingo
+      if (escalasDomingo.length > 0) {
+        message += `\n*Domingo (${formatDateBR(domingo)})*\n`;
+        
+        if (area.value === "louvor") {
+          FUNCOES_LOUVOR.forEach((funcao) => {
+            const escalasFuncao = escalasDomingo.filter(
+              (e) => e.funcao_louvor === funcao.value
+            );
+            if (escalasFuncao.length > 0) {
+              message += `  - ${funcao.label}: ${escalasFuncao[0].servo_name || "Servo removido"}\n`;
+            }
+          });
+        } else if (area.value === "conexao" || area.value === "domingo_kids") {
+          const responsavel = escalasDomingo[0];
+          if (responsavel) {
+            message += `  - Responsável: ${responsavel.servo_name || "Servo removido"}\n`;
+          }
+          escalasDomingo.slice(1).forEach((escala) => {
+            message += `  - ${escala.servo_name || "Servo removido"}\n`;
+          });
+        } else {
+          escalasDomingo.forEach((escala) => {
+            message += `  - ${escala.servo_name || "Servo removido"}\n`;
+          });
+        }
+      }
+
+      message += `\n`;
+    });
+
+    message += `Que Deus abencoe a todos!`;
+    return message;
+  };
+
+  // Gerar mensagem formatada para WhatsApp (com setores selecionados)
+  const generateWhatsAppMessage = (selectedAreasSet?: Set<AreaServico>) => {
     if (!selectedWeek) {
       toast({
         title: "Erro",
@@ -617,7 +736,14 @@ export function PublicEscalasEdit() {
     message += `*${formatDateBR(sabado)}* (Sábado) e *${formatDateBR(domingo)}* (Domingo)\n\n`;
     // message += `═══════════════════════\n\n`;
 
+    const areasToInclude = selectedAreasSet || selectedAreas;
+
     AREAS.forEach((area) => {
+      // Filtrar apenas áreas selecionadas
+      if (!areasToInclude.has(area.value)) {
+        return;
+      }
+
       const areaLabel = area.label;
       const escalasSabado = escalasPorArea[area.value].sabado;
       const escalasDomingo = escalasPorArea[area.value].domingo;
@@ -744,17 +870,36 @@ export function PublicEscalasEdit() {
     }
   };
 
-  // Abrir WhatsApp com mensagem pré-formatada (modo manual)
+  // Abrir WhatsApp Web para enviar mensagem para grupo
   const handleOpenWhatsApp = () => {
-    const message = generateWhatsAppMessage();
-    if (!message) return;
+    setSelectedAreasDialog({ open: true, forGroup: true });
+  };
+
+  // Confirmar envio para grupo
+  const handleConfirmGroupSend = () => {
+    const message = generateWhatsAppMessage(selectedAreas);
+    if (!message) {
+      toast({
+        title: "Erro",
+        description: "Nenhuma escala encontrada para os setores selecionados",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const encodedMessage = encodeURIComponent(message);
     const whatsappUrl = `https://wa.me/?text=${encodedMessage}`;
     window.open(whatsappUrl, "_blank");
+    
+    setSelectedAreasDialog({ open: false, forGroup: false });
+    
+    toast({
+      title: "Abrindo WhatsApp Web",
+      description: "Selecione o grupo ou contato para enviar a mensagem",
+    });
   };
 
-  // Enviar lembretes automáticos para cada servo via WhatsApp
+  // Enviar lembretes individuais para cada servo via WhatsApp
   const handleSendReminders = async () => {
     if (!selectedWeek) {
       toast({
@@ -765,35 +910,71 @@ export function PublicEscalasEdit() {
       return;
     }
 
-    try {
-      const { data, error } = await supabase.functions.invoke('send-escalas-reminders', {
-        body: {
-          semana_inicio: selectedWeek,
-        },
+    // Coletar todos os servos únicos escalados na semana
+    const servosEscaladosIds = new Set<string>();
+    escalas
+      .filter((e) => e.semana_inicio === selectedWeek && e.servo_id)
+      .forEach((e) => {
+        if (e.servo_id) servosEscaladosIds.add(e.servo_id);
       });
 
-      if (error) {
-        throw new Error(error.message || "Erro ao enviar lembretes");
-      }
+    const servosEscalados = servos.filter((s) => servosEscaladosIds.has(s.id) && s.telefone);
 
-      if (data?.success) {
-        const sentCount = data.sent || 0;
-        toast({
-          title: "Sucesso!",
-          description: `Lembretes enviados para ${sentCount} servo${sentCount !== 1 ? 's' : ''} via WhatsApp`,
-          duration: 5000,
-        });
-      } else {
-        throw new Error(data?.error || "Erro desconhecido");
-      }
-    } catch (error: any) {
-      console.error("Erro ao enviar lembretes:", error);
+    if (servosEscalados.length === 0) {
       toast({
-        title: "Erro",
-        description: error.message || "Erro ao enviar lembretes",
+        title: "Aviso",
+        description: "Nenhum servo escalado com telefone cadastrado",
         variant: "destructive",
       });
+      return;
     }
+
+    setSendingReminders(true);
+    setRemindersProgress({ total: servosEscalados.length, sent: 0, current: null });
+
+    let sentCount = 0;
+    let failedCount = 0;
+
+    for (let i = 0; i < servosEscalados.length; i++) {
+      const servo = servosEscalados[i];
+      const message = generateIndividualMessage(servo.id);
+
+      if (!message) {
+        failedCount++;
+        continue;
+      }
+
+      setRemindersProgress({
+        total: servosEscalados.length,
+        sent: sentCount,
+        current: servo.nome,
+      });
+
+      if (servo.telefone) {
+        const phoneNumber = servo.telefone.replace(/\D/g, ""); // Remove caracteres não numéricos
+        const encodedMessage = encodeURIComponent(message);
+        const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodedMessage}`;
+        
+        window.open(whatsappUrl, "_blank");
+        sentCount++;
+
+        // Aguardar 60 segundos antes de enviar para o próximo (exceto no último)
+        if (i < servosEscalados.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 60000)); // 60 segundos
+        }
+      } else {
+        failedCount++;
+      }
+    }
+
+    setSendingReminders(false);
+    setRemindersProgress({ total: 0, sent: 0, current: null });
+
+    toast({
+      title: "Envio concluído!",
+      description: `${sentCount} lembretes enviados${failedCount > 0 ? `, ${failedCount} falharam` : ""}`,
+      duration: 5000,
+    });
   };
 
   // Servos disponíveis (não escalados no dia em nenhum setor)
@@ -1636,21 +1817,24 @@ export function PublicEscalasEdit() {
                   variant="outline"
                         className="h-8 text-xs sm:text-sm bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
                         size="sm"
+                        disabled={sendingReminders}
                 >
                         <MessageSquare className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5" />
-                  <span className="hidden sm:inline">Enviar Lembretes</span>
-                  <span className="sm:hidden">Enviar</span>
+                  <span className="hidden sm:inline">
+                    {sendingReminders ? "Enviando..." : "Enviar Lembretes"}
+                  </span>
+                  <span className="sm:hidden">{sendingReminders ? "..." : "Enviar"}</span>
                 </Button>
                 <Button
                   onClick={handleOpenWhatsApp}
                   variant="outline"
                         className="h-8 text-xs sm:text-sm"
                         size="sm"
-                        title="Copiar mensagem para WhatsApp"
+                        title="Enviar mensagem para grupo no WhatsApp"
                       >
-                        <Copy className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5" />
-                  <span className="hidden sm:inline">Copiar Mensagem</span>
-                  <span className="sm:hidden">Copiar</span>
+                        <Send className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5" />
+                  <span className="hidden sm:inline">Enviar para Grupo</span>
+                  <span className="sm:hidden">Grupo</span>
                 </Button>
               </>
             )}
@@ -2522,6 +2706,147 @@ export function PublicEscalasEdit() {
         </DialogContent>
       </Dialog>
 
+      {/* Dialog para selecionar setores antes de enviar */}
+      <Dialog
+        open={selectedAreasDialog.open}
+        onOpenChange={(open) =>
+          setSelectedAreasDialog({ open, forGroup: selectedAreasDialog.forGroup })
+        }
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Selecionar Setores</DialogTitle>
+            <DialogDescription>
+              Selecione quais setores deseja incluir na mensagem
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-3">
+              {AREAS.map((area) => {
+                const hasEscalas =
+                  escalasPorArea[area.value].sabado.length > 0 ||
+                  escalasPorArea[area.value].domingo.length > 0;
+
+                return (
+                  <div
+                    key={area.value}
+                    className="flex items-center space-x-2 p-2 rounded-md hover:bg-muted/50"
+                  >
+                    <Checkbox
+                      id={`area-${area.value}`}
+                      checked={selectedAreas.has(area.value)}
+                      onCheckedChange={(checked) => {
+                        const newSet = new Set(selectedAreas);
+                        if (checked) {
+                          newSet.add(area.value);
+                        } else {
+                          newSet.delete(area.value);
+                        }
+                        setSelectedAreas(newSet);
+                      }}
+                      disabled={!hasEscalas}
+                    />
+                    <Label
+                      htmlFor={`area-${area.value}`}
+                      className={`flex-1 cursor-pointer ${
+                        !hasEscalas ? "text-muted-foreground" : ""
+                      }`}
+                    >
+                      {area.label}
+                      {!hasEscalas && (
+                        <span className="text-xs text-muted-foreground ml-2">
+                          (sem escalas)
+                        </span>
+                      )}
+                    </Label>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSelectedAreas(new Set(AREAS.map((a) => a.value)));
+                }}
+              >
+                Selecionar Todos
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSelectedAreas(new Set());
+                }}
+              >
+                Desmarcar Todos
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() =>
+                setSelectedAreasDialog({ open: false, forGroup: false })
+              }
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleConfirmGroupSend}
+              disabled={selectedAreas.size === 0}
+            >
+              <Send className="h-4 w-4 mr-2" />
+              Enviar para Grupo
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de progresso do envio de lembretes */}
+      {sendingReminders && (
+        <Dialog open={sendingReminders} onOpenChange={() => {}}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Enviando Lembretes</DialogTitle>
+              <DialogDescription>
+                Enviando lembretes individuais para cada servo. Aguarde...
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>Progresso:</span>
+                  <span>
+                    {remindersProgress.sent} / {remindersProgress.total}
+                  </span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div
+                    className="bg-primary h-2 rounded-full transition-all"
+                    style={{
+                      width: `${
+                        remindersProgress.total > 0
+                          ? (remindersProgress.sent / remindersProgress.total) * 100
+                          : 0
+                      }%`,
+                    }}
+                  />
+                </div>
+              </div>
+              {remindersProgress.current && (
+                <div className="text-sm text-muted-foreground">
+                  Enviando para: <strong>{remindersProgress.current}</strong>
+                </div>
+              )}
+              <div className="text-xs text-muted-foreground">
+                Aguarde 60 segundos entre cada envio...
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 }
