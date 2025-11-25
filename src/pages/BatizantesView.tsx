@@ -226,7 +226,7 @@ export function BatizantesView() {
   }
 
   return (
-    <div className="space-y-6 p-4 sm:p-6">
+    <div className="space-y-4 sm:space-y-6 p-3 sm:p-4 md:p-6 safe-area-inset">
       {/* Header */}
       <Card>
         <CardHeader>
@@ -317,7 +317,9 @@ export function BatizantesView() {
                   placeholder="Nome, líder ou tamanho..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 min-h-[44px] touch-manipulation"
+                  autoComplete="off"
+                  autoCapitalize="none"
                 />
               </div>
             </div>
@@ -326,13 +328,13 @@ export function BatizantesView() {
             <div>
               <Label htmlFor="leader" className="text-sm">Líder</Label>
               <Select value={selectedLeader} onValueChange={setSelectedLeader}>
-                <SelectTrigger id="leader" className="mt-1">
+                <SelectTrigger id="leader" className="mt-1 min-h-[44px] touch-manipulation">
                   <SelectValue placeholder="Todos os líderes" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
+                <SelectContent position="item-aligned" className="z-[9999]">
+                  <SelectItem value="all" className="min-h-[44px] touch-manipulation">Todos</SelectItem>
                   {leaders.map((leader) => (
-                    <SelectItem key={leader.id} value={leader.id}>
+                    <SelectItem key={leader.id} value={leader.id} className="min-h-[44px] touch-manipulation">
                       {leader.name}
                     </SelectItem>
                   ))}

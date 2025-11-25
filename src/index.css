@@ -315,3 +315,34 @@ All colors MUST be HSL.
 }
 .animate-loader-bar { animation: loader-bar 1.6s infinite; }
 .animate-spin-slow { animation: spin 2.5s linear infinite; }
+
+/* Mobile optimizations */
+@layer utilities {
+  /* Touch optimization for better mobile performance */
+  .touch-manipulation {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Safe area support for iOS notch and Android system bars */
+  .safe-area-inset {
+    padding-top: env(safe-area-inset-top);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+  }
+
+  /* Prevent zoom on input focus in iOS */
+  @supports (-webkit-touch-callout: none) {
+    input,
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
+  }
+
+  /* Better scroll behavior on mobile */
+  * {
+    -webkit-overflow-scrolling: touch;
+  }
+}

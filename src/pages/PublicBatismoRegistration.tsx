@@ -196,34 +196,34 @@ export function PublicBatismoRegistration() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 p-3 sm:p-4 md:p-6 lg:p-8 safe-area-inset">
       <div className="max-w-2xl mx-auto">
         <Card className="border-2">
-          <CardHeader className="text-center">
-            <div className="flex justify-center mb-4">
-              <img src={logoVideira} alt="Videira Conectada" className="h-16 sm:h-20" />
+          <CardHeader className="text-center px-4 sm:px-6 pt-4 sm:pt-6">
+            <div className="flex justify-center mb-3 sm:mb-4">
+              <img src={logoVideira} alt="Videira Conectada" className="h-14 sm:h-16 md:h-20" />
             </div>
-            <CardTitle className="text-xl sm:text-2xl md:text-3xl">
+            <CardTitle className="text-lg sm:text-xl md:text-2xl lg:text-3xl">
               Cadastro para Batismo
             </CardTitle>
-            <CardDescription className="text-sm sm:text-base mt-2">
+            <CardDescription className="text-xs sm:text-sm md:text-base mt-2">
               Preencha os dados abaixo para realizar seu cadastro
             </CardDescription>
             
             {/* Informações do Batismo */}
-            <div className="mt-4 bg-gradient-to-r from-blue-100 to-purple-100 p-4 rounded-lg">
+            <div className="mt-3 sm:mt-4 bg-gradient-to-r from-blue-100 to-purple-100 p-3 sm:p-4 rounded-lg">
               <div className="flex items-center justify-center gap-2 text-blue-700 mb-2">
-                <Calendar className="h-5 w-5" />
-                <p className="font-semibold text-base sm:text-lg">29 de Novembro de 2025</p>
+                <Calendar className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+                <p className="font-semibold text-sm sm:text-base md:text-lg">29 de Novembro de 2025</p>
               </div>
               <div className="flex items-center justify-center gap-2 text-blue-700">
-                <Clock className="h-5 w-5" />
-                <p className="font-semibold text-base sm:text-lg">18:00h</p>
+                <Clock className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+                <p className="font-semibold text-sm sm:text-base md:text-lg">18:00h</p>
               </div>
             </div>
           </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+          <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+            <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5 md:space-y-6">
               {/* Nome Completo */}
               <div>
                 <Label htmlFor="nomeCompleto" className="text-sm sm:text-base">
@@ -236,7 +236,9 @@ export function PublicBatismoRegistration() {
                   onChange={(e) => setNomeCompleto(e.target.value)}
                   placeholder="Digite seu nome completo"
                   required
-                  className="mt-1 text-sm sm:text-base"
+                  className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
+                  autoComplete="name"
+                  autoCapitalize="words"
                 />
               </div>
 
@@ -246,12 +248,12 @@ export function PublicBatismoRegistration() {
                   Líder <span className="text-red-500">*</span>
                 </Label>
                 <Select value={liderId} onValueChange={setLiderId} required>
-                  <SelectTrigger id="lider" className="mt-1 text-sm sm:text-base">
+                  <SelectTrigger id="lider" className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation">
                     <SelectValue placeholder="Selecione seu líder" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="item-aligned" className="z-[9999]">
                     {leaders.map((leader) => (
-                      <SelectItem key={leader.id} value={leader.id}>
+                      <SelectItem key={leader.id} value={leader.id} className="min-h-[44px] touch-manipulation">
                         {leader.name}
                       </SelectItem>
                     ))}
@@ -265,14 +267,14 @@ export function PublicBatismoRegistration() {
                   Tamanho da Camiseta <span className="text-red-500">*</span>
                 </Label>
                 <Select value={tamanhoCamiseta} onValueChange={setTamanhoCamiseta} required>
-                  <SelectTrigger id="tamanhoCamiseta" className="mt-1 text-sm sm:text-base">
+                  <SelectTrigger id="tamanhoCamiseta" className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation">
                     <SelectValue placeholder="Selecione o tamanho" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="P">P</SelectItem>
-                    <SelectItem value="M">M</SelectItem>
-                    <SelectItem value="G">G</SelectItem>
-                    <SelectItem value="GG">GG</SelectItem>
+                  <SelectContent position="item-aligned" className="z-[9999]">
+                    <SelectItem value="P" className="min-h-[44px] touch-manipulation">P</SelectItem>
+                    <SelectItem value="M" className="min-h-[44px] touch-manipulation">M</SelectItem>
+                    <SelectItem value="G" className="min-h-[44px] touch-manipulation">G</SelectItem>
+                    <SelectItem value="GG" className="min-h-[44px] touch-manipulation">GG</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -281,7 +283,7 @@ export function PublicBatismoRegistration() {
               <Button
                 type="submit"
                 disabled={submitting}
-                className="w-full text-sm sm:text-base py-2 sm:py-3"
+                className="w-full text-sm sm:text-base py-3 sm:py-4 min-h-[48px] touch-manipulation"
                 size="lg"
               >
                 {submitting ? (
