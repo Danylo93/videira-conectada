@@ -35,6 +35,7 @@ import NotFound from "./pages/NotFound";
 
 import FancyLoader from "./components/FancyLoader";
 import { useDelayedLoading } from "./hooks/useDelayedLoading";
+import { usePageTitle } from "./hooks/use-page-title";
 
 import { Auth } from "./pages/Auth";
 
@@ -168,6 +169,8 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 }
 
 function AppContent() {
+  usePageTitle();
+  
   return (
     <Routes>
       {/* público */}
