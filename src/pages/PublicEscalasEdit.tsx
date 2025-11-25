@@ -615,7 +615,7 @@ export function PublicEscalasEdit() {
 
     let message = `*LEMBRETE DE ESCALA DA SEMANA*\n\n`;
     message += `*${formatDateBR(sabado)}* (Sábado) e *${formatDateBR(domingo)}* (Domingo)\n\n`;
-    message += `═══════════════════════\n\n`;
+    // message += `═══════════════════════\n\n`;
 
     AREAS.forEach((area) => {
       const areaLabel = area.label;
@@ -632,21 +632,19 @@ export function PublicEscalasEdit() {
         return;
       }
 
+      message += `═══════════════════════\n`;
       message += `*${areaLabel}*\n`;
+      message += `═══════════════════════\n\n`;
 
       // Sábado (exceto domingo_kids)
       if (area.value !== "domingo_kids" && escalasSabado.length > 0) {
         message += `\n*Sábado (${formatDateBR(sabado)})*\n`;
 
-        if (area.value === "louvor" || area.value === "conexao") {
-          // Agrupar por função
-          const funcoes = area.value === "louvor" ? FUNCOES_LOUVOR : FUNCOES_CONEXAO;
-          funcoes.forEach((funcao) => {
+        if (area.value === "louvor") {
+          // Agrupar por função apenas para louvor
+          FUNCOES_LOUVOR.forEach((funcao) => {
             const escalasFuncao = escalasSabado.filter(
-              (e) =>
-                area.value === "louvor"
-                  ? e.funcao_louvor === funcao.value
-                  : e.funcao_conexao === funcao.value
+              (e) => e.funcao_louvor === funcao.value
             );
             if (escalasFuncao.length > 0) {
               message += `  - ${funcao.label}: `;
@@ -656,8 +654,22 @@ export function PublicEscalasEdit() {
               message += `\n`;
             }
           });
+        } else if (area.value === "conexao") {
+          // Conexão: primeiro é responsável, demais são servos
+          const responsavel = escalasSabado[0];
+          const outrosServos = escalasSabado.slice(1);
+          
+          if (responsavel) {
+            message += `  - Responsável: ${responsavel.servo_name || "Servo removido"}\n`;
+          }
+          
+          if (outrosServos.length > 0) {
+            outrosServos.forEach((escala) => {
+              message += `  - ${escala.servo_name || "Servo removido"}\n`;
+            });
+          }
         } else {
-          // Lista simples
+          // Lista simples para outras áreas
           escalasSabado.forEach((escala) => {
             message += `  - ${escala.servo_name || "Servo removido"}\n`;
           });
@@ -668,15 +680,11 @@ export function PublicEscalasEdit() {
       if (escalasDomingo.length > 0) {
         message += `\n*Domingo (${formatDateBR(domingo)})*\n`;
 
-        if (area.value === "louvor" || area.value === "conexao") {
-          // Agrupar por função
-          const funcoes = area.value === "louvor" ? FUNCOES_LOUVOR : FUNCOES_CONEXAO;
-          funcoes.forEach((funcao) => {
+        if (area.value === "louvor") {
+          // Agrupar por função apenas para louvor
+          FUNCOES_LOUVOR.forEach((funcao) => {
             const escalasFuncao = escalasDomingo.filter(
-              (e) =>
-                area.value === "louvor"
-                  ? e.funcao_louvor === funcao.value
-                  : e.funcao_conexao === funcao.value
+              (e) => e.funcao_louvor === funcao.value
             );
             if (escalasFuncao.length > 0) {
               message += `  - ${funcao.label}: `;
@@ -686,8 +694,22 @@ export function PublicEscalasEdit() {
               message += `\n`;
             }
           });
+        } else if (area.value === "conexao" || area.value === "domingo_kids") {
+          // Conexão e Domingo Kids: primeiro é responsável, demais são servos/servas
+          const responsavel = escalasDomingo[0];
+          const outrosServos = escalasDomingo.slice(1);
+          
+          if (responsavel) {
+            message += `  - Responsável: ${responsavel.servo_name || "Servo removido"}\n`;
+          }
+          
+          if (outrosServos.length > 0) {
+            outrosServos.forEach((escala) => {
+              message += `  - ${escala.servo_name || "Servo removido"}\n`;
+            });
+          }
         } else {
-          // Lista simples
+          // Lista simples para outras áreas
           escalasDomingo.forEach((escala) => {
             message += `  - ${escala.servo_name || "Servo removido"}\n`;
           });
@@ -697,7 +719,6 @@ export function PublicEscalasEdit() {
       message += `\n`;
     });
 
-    message += `═══════════════════════\n`;
     message += `Que Deus abencoe a todos!`;
 
     return message;

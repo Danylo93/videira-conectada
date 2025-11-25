@@ -191,3 +191,4 @@ Consulte o documento `CORRIGIR_ERRO_401_EVOLUTION_API.md` para resolver problema
 
 
 
+
