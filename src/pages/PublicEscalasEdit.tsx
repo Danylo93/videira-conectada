@@ -163,7 +163,11 @@ export function PublicEscalasEdit() {
   });
 
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // Exigir movimento de pelo menos 8px antes de iniciar drag (permite cliques rápidos)
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
@@ -1069,38 +1073,47 @@ export function PublicEscalasEdit() {
   const handleLockEscala = async (escalaId: string, locked: boolean) => {
     if (!canEdit) return;
 
-    // Atualização otimista - atualiza o estado imediatamente
-    setEscalas((prevEscalas) =>
-      prevEscalas.map((e) =>
-        e.id === escalaId ? { ...e, locked } : e
-      )
-    );
-
     try {
+      // Encontrar a escala atual para guardar o estado anterior
+      const escalaAtual = escalas.find((e) => e.id === escalaId);
+      if (!escalaAtual) {
+        console.error("Escala não encontrada:", escalaId);
+        return;
+      }
+
+      // Atualização otimista - atualiza o estado imediatamente
+      setEscalas((prevEscalas) =>
+        prevEscalas.map((e) =>
+          e.id === escalaId ? { ...e, locked } : e
+        )
+      );
+
       const { error } = await supabase
         .from("escalas")
         .update({ locked })
         .eq("id", escalaId);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
-      toast({
-        title: "Sucesso",
-        description: locked ? "Escala bloqueada" : "Escala desbloqueada",
-      });
+      // Sucesso silencioso - não precisa mostrar toast para cada bloqueio
     } catch (error: any) {
       console.error("Error locking escala:", error);
       
       // Reverter a atualização otimista em caso de erro
-      setEscalas((prevEscalas) =>
-        prevEscalas.map((e) =>
-          e.id === escalaId ? { ...e, locked: !locked } : e
-        )
-      );
+      const escalaAtual = escalas.find((e) => e.id === escalaId);
+      if (escalaAtual) {
+        setEscalas((prevEscalas) =>
+          prevEscalas.map((e) =>
+            e.id === escalaId ? { ...e, locked: escalaAtual.locked } : e
+          )
+        );
+      }
       
       toast({
         title: "Erro",
-        description: "Erro ao alterar status da escala",
+        description: error?.message || "Erro ao alterar status da escala",
         variant: "destructive",
       });
     }
@@ -1855,15 +1868,27 @@ function EscalaItem({ escala, canEdit, onDelete, onLock }: EscalaItemProps) {
   };
 
   // No mobile: aplicar listeners ao item inteiro; no desktop: apenas ao ícone
+  // Mas excluir os botões da área de drag
   const dragProps = isMobile && canEdit && !escala.locked 
     ? { ...attributes, ...listeners }
     : {};
+
+  // Handler para prevenir drag quando o toque for em botões
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    // Se o toque for em um botão ou dentro de um botão, não iniciar drag
+    if (target.closest('button')) {
+      e.stopPropagation();
+      return;
+    }
+  };
 
   return (
     <div
       ref={setNodeRef}
       style={style}
       {...dragProps}
+      onTouchStart={isMobile && canEdit && !escala.locked ? handleTouchStart : undefined}
       className={`bg-card border rounded-md sm:rounded-lg p-1.5 sm:p-2 flex items-center justify-between group touch-manipulation ${
         escala.locked ? "opacity-75 cursor-not-allowed" : ""
       } ${canEdit && !escala.locked ? (isMobile ? "cursor-move" : "") : ""}`}
@@ -1903,8 +1928,9 @@ function EscalaItem({ escala, canEdit, onDelete, onLock }: EscalaItemProps) {
       {canEdit && (
         <div 
           className="flex items-center gap-0.5 sm:gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
-          onClick={(e) => e.stopPropagation()} // Prevenir que o clique nos botões inicie o drag
-          onTouchStart={(e) => e.stopPropagation()} // Prevenir que o toque nos botões inicie o drag
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
         >
           <Button
             variant="ghost"
@@ -1912,8 +1938,14 @@ function EscalaItem({ escala, canEdit, onDelete, onLock }: EscalaItemProps) {
             className="h-5 w-5 sm:h-6 sm:w-6 p-0 touch-manipulation"
             onClick={(e) => {
               e.stopPropagation();
-              onLock();
+              try {
+                onLock();
+              } catch (error) {
+                console.error("Error in onLock:", error);
+              }
             }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
             title={escala.locked ? "Desbloquear" : "Bloquear"}
           >
             {escala.locked ? (
@@ -1928,8 +1960,14 @@ function EscalaItem({ escala, canEdit, onDelete, onLock }: EscalaItemProps) {
             className="h-5 w-5 sm:h-6 sm:w-6 p-0 text-destructive touch-manipulation"
             onClick={(e) => {
               e.stopPropagation();
-              onDelete();
+              try {
+                onDelete();
+              } catch (error) {
+                console.error("Error in onDelete:", error);
+              }
             }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
             title="Remover"
           >
             <X className="h-3 w-3" />
