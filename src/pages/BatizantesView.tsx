@@ -331,13 +331,23 @@ export function BatizantesView() {
                 <SelectTrigger id="leader" className="mt-1 min-h-[44px] touch-manipulation">
                   <SelectValue placeholder="Todos os líderes" />
                 </SelectTrigger>
-                <SelectContent position="item-aligned" className="z-[9999]">
+                <SelectContent position="popper" sideOffset={4} className="z-[9999] max-h-[300px]">
                   <SelectItem value="all" className="min-h-[44px] touch-manipulation">Todos</SelectItem>
-                  {leaders.map((leader) => (
-                    <SelectItem key={leader.id} value={leader.id} className="min-h-[44px] touch-manipulation">
-                      {leader.name}
+                  {leaders.length > 0 ? (
+                    leaders.map((leader) => (
+                      <SelectItem 
+                        key={leader.id} 
+                        value={leader.id} 
+                        className="min-h-[44px] touch-manipulation"
+                      >
+                        {leader.name}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="empty" disabled>
+                      Carregando líderes...
                     </SelectItem>
-                  ))}
+                  )}
                 </SelectContent>
               </Select>
             </div>

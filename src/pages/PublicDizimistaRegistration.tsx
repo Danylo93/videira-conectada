@@ -175,7 +175,7 @@ export function PublicDizimistaRegistration() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 flex items-center justify-center p-3 sm:p-4 safe-area-inset">
         <Card className="w-full max-w-md">
           <CardContent className="pt-6">
             <div className="text-center">
@@ -190,13 +190,13 @@ export function PublicDizimistaRegistration() {
 
   if (submitted) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 flex items-center justify-center p-3 sm:p-4 safe-area-inset">
         <Card className="w-full max-w-md">
-          <CardContent className="pt-6">
+          <CardContent className="pt-6 px-4 sm:px-6">
             <div className="text-center">
               <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
-              <h2 className="text-2xl font-bold mb-2">Cadastro Realizado!</h2>
-              <p className="text-muted-foreground mb-6">
+              <h2 className="text-xl sm:text-2xl font-bold mb-2">Cadastro Realizado!</h2>
+              <p className="text-sm sm:text-base text-muted-foreground mb-6">
                 Seu cadastro foi realizado com sucesso. Obrigado!
               </p>
               <Button
@@ -208,7 +208,7 @@ export function PublicDizimistaRegistration() {
                   setDiscipuladorId("");
                   setTelefone("");
                 }}
-                className="w-full"
+                className="w-full min-h-[48px] touch-manipulation"
               >
                 Fazer Novo Cadastro
               </Button>
@@ -220,22 +220,22 @@ export function PublicDizimistaRegistration() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 p-3 sm:p-4 md:p-6 lg:p-8 safe-area-inset">
       <div className="max-w-2xl mx-auto">
         <Card className="border-2">
-          <CardHeader className="text-center">
-            <div className="flex justify-center mb-4">
-              <img src={logoVideira} alt="Videira Conectada" className="h-16 sm:h-20" />
+          <CardHeader className="text-center px-4 sm:px-6 pt-4 sm:pt-6">
+            <div className="flex justify-center mb-3 sm:mb-4">
+              <img src={logoVideira} alt="Videira Conectada" className="h-14 sm:h-16 md:h-20" />
             </div>
-            <CardTitle className="text-xl sm:text-2xl md:text-3xl">
+            <CardTitle className="text-lg sm:text-xl md:text-2xl lg:text-3xl">
               Cadastro de Dizimista
             </CardTitle>
-            <CardDescription className="text-sm sm:text-base mt-2">
+            <CardDescription className="text-xs sm:text-sm md:text-base mt-2">
               Preencha os dados abaixo para realizar seu cadastro
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+          <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+            <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5 md:space-y-6">
               {/* Nome Completo */}
               <div>
                 <Label htmlFor="nomeCompleto" className="text-sm sm:text-base">
@@ -248,7 +248,9 @@ export function PublicDizimistaRegistration() {
                   onChange={(e) => setNomeCompleto(e.target.value)}
                   placeholder="Digite seu nome completo"
                   required
-                  className="mt-1 text-sm sm:text-base"
+                  className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
+                  autoComplete="name"
+                  autoCapitalize="words"
                 />
               </div>
 
@@ -264,9 +266,9 @@ export function PublicDizimistaRegistration() {
                       setConjugue("");
                     }
                   }}
-                  className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                  className="w-5 h-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 touch-manipulation"
                 />
-                <Label htmlFor="casado" className="text-sm sm:text-base cursor-pointer">
+                <Label htmlFor="casado" className="text-sm sm:text-base cursor-pointer touch-manipulation">
                   Sou casado(a)
                 </Label>
               </div>
@@ -284,7 +286,9 @@ export function PublicDizimistaRegistration() {
                     onChange={(e) => setConjugue(e.target.value)}
                     placeholder="Digite o nome do cônjuge"
                     required={casado}
-                    className="mt-1 text-sm sm:text-base"
+                    className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
+                    autoComplete="name"
+                    autoCapitalize="words"
                   />
                 </div>
               )}
@@ -294,18 +298,52 @@ export function PublicDizimistaRegistration() {
                 <Label htmlFor="discipulador" className="text-sm sm:text-base">
                   Discipulador <span className="text-red-500">*</span>
                 </Label>
-                <Select value={discipuladorId} onValueChange={setDiscipuladorId} required>
-                  <SelectTrigger id="discipulador" className="mt-1 text-sm sm:text-base">
-                    <SelectValue placeholder="Selecione seu discipulador" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {discipuladores.map((discipulador) => (
-                      <SelectItem key={discipulador.id} value={discipulador.id}>
-                        {discipulador.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {discipuladores.length === 0 && !loading ? (
+                  <div className="mt-1 p-3 border border-destructive rounded-md bg-destructive/10">
+                    <p className="text-sm text-destructive">
+                      Nenhum discipulador disponível. Por favor, entre em contato com a administração.
+                    </p>
+                  </div>
+                ) : (
+                  <Select 
+                    value={discipuladorId} 
+                    onValueChange={(value) => {
+                      if (value && value !== "empty") {
+                        setDiscipuladorId(value);
+                      }
+                    }}
+                    required
+                  >
+                    <SelectTrigger 
+                      id="discipulador" 
+                      className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
+                      disabled={discipuladores.length === 0}
+                    >
+                      <SelectValue placeholder={discipuladores.length === 0 ? "Carregando..." : "Selecione seu discipulador"} />
+                    </SelectTrigger>
+                    <SelectContent 
+                      position="popper" 
+                      sideOffset={4} 
+                      className="z-[9999] max-h-[50vh]"
+                    >
+                      {discipuladores.length > 0 ? (
+                        discipuladores.map((discipulador) => (
+                          <SelectItem 
+                            key={discipulador.id} 
+                            value={discipulador.id} 
+                            className="min-h-[44px] touch-manipulation text-sm"
+                          >
+                            {discipulador.name}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="empty" disabled>
+                          Nenhum discipulador disponível
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
               {/* Telefone */}
@@ -320,8 +358,10 @@ export function PublicDizimistaRegistration() {
                   onChange={handlePhoneChange}
                   placeholder="(00) 00000-0000"
                   required
-                  className="mt-1 text-sm sm:text-base"
+                  className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
                   maxLength={15}
+                  autoComplete="tel"
+                  inputMode="tel"
                 />
               </div>
 
@@ -329,7 +369,7 @@ export function PublicDizimistaRegistration() {
               <Button
                 type="submit"
                 disabled={submitting}
-                className="w-full text-sm sm:text-base py-2 sm:py-3"
+                className="w-full text-sm sm:text-base py-3 sm:py-4 min-h-[48px] touch-manipulation"
                 size="lg"
               >
                 {submitting ? (

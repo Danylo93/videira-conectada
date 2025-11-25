@@ -247,18 +247,52 @@ export function PublicBatismoRegistration() {
                 <Label htmlFor="lider" className="text-sm sm:text-base">
                   Líder <span className="text-red-500">*</span>
                 </Label>
-                <Select value={liderId} onValueChange={setLiderId} required>
-                  <SelectTrigger id="lider" className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation">
-                    <SelectValue placeholder="Selecione seu líder" />
-                  </SelectTrigger>
-                  <SelectContent position="item-aligned" className="z-[9999]">
-                    {leaders.map((leader) => (
-                      <SelectItem key={leader.id} value={leader.id} className="min-h-[44px] touch-manipulation">
-                        {leader.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {leaders.length === 0 && !loading ? (
+                  <div className="mt-1 p-3 border border-destructive rounded-md bg-destructive/10">
+                    <p className="text-sm text-destructive">
+                      Nenhum líder disponível. Por favor, entre em contato com a administração.
+                    </p>
+                  </div>
+                ) : (
+                  <Select 
+                    value={liderId} 
+                    onValueChange={(value) => {
+                      if (value && value !== "empty") {
+                        setLiderId(value);
+                      }
+                    }}
+                    required
+                  >
+                    <SelectTrigger 
+                      id="lider" 
+                      className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
+                      disabled={leaders.length === 0}
+                    >
+                      <SelectValue placeholder={leaders.length === 0 ? "Carregando..." : "Selecione seu líder"} />
+                    </SelectTrigger>
+                    <SelectContent 
+                      position="popper" 
+                      sideOffset={4} 
+                      className="z-[9999] max-h-[50vh]"
+                    >
+                      {leaders.length > 0 ? (
+                        leaders.map((leader) => (
+                          <SelectItem 
+                            key={leader.id} 
+                            value={leader.id} 
+                            className="min-h-[44px] touch-manipulation text-sm"
+                          >
+                            {leader.name}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="empty" disabled>
+                          Nenhum líder disponível
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
               {/* Tamanho da Camiseta */}
@@ -270,11 +304,15 @@ export function PublicBatismoRegistration() {
                   <SelectTrigger id="tamanhoCamiseta" className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation">
                     <SelectValue placeholder="Selecione o tamanho" />
                   </SelectTrigger>
-                  <SelectContent position="item-aligned" className="z-[9999]">
-                    <SelectItem value="P" className="min-h-[44px] touch-manipulation">P</SelectItem>
-                    <SelectItem value="M" className="min-h-[44px] touch-manipulation">M</SelectItem>
-                    <SelectItem value="G" className="min-h-[44px] touch-manipulation">G</SelectItem>
-                    <SelectItem value="GG" className="min-h-[44px] touch-manipulation">GG</SelectItem>
+                  <SelectContent 
+                    position="popper" 
+                    sideOffset={4} 
+                    className="z-[9999]"
+                  >
+                    <SelectItem value="P" className="min-h-[44px] touch-manipulation text-sm">P</SelectItem>
+                    <SelectItem value="M" className="min-h-[44px] touch-manipulation text-sm">M</SelectItem>
+                    <SelectItem value="G" className="min-h-[44px] touch-manipulation text-sm">G</SelectItem>
+                    <SelectItem value="GG" className="min-h-[44px] touch-manipulation text-sm">GG</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
