@@ -8,7 +8,7 @@ import FancyLoader from "@/components/FancyLoader";
 import { useStatistics } from "@/hooks/useStatistics";
 import { useToast } from "@/hooks/use-toast";
 import type { Event } from "@/types/event";
-import { formatDateBR, formatDateBRLong, formatDateShort, formatDateMedium, getWeekStartDate } from "@/lib/dateUtils";
+import { formatDateBR, formatDateBRLong, formatDateShort, formatDateMedium, getWeekStartDate, isWeeklyRemindersAllowed } from "@/lib/dateUtils";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -205,13 +205,168 @@ function SendWeeklyRemindersButton({
 }: { 
   pastorId: string; 
   isKids?: boolean;
-  onSuccess?: (result: { sent: number; failed: number; pending: number }) => void;
+  onSuccess?: (result: { sent: number; failed: number; pending: number; leaders: Array<{ id: string; name: string }> }) => void;
   onError?: (error: string) => void;
 }) {
   const [sending, setSending] = useState(false);
+  const [checkingStatus, setCheckingStatus] = useState(true);
+  const [allReportsSubmitted, setAllReportsSubmitted] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
   const { toast } = useToast();
 
+  // Chave única para localStorage baseada no pastorId e modo (kids/normal)
+  const storageKey = `lastReminderSent_${pastorId}_${isKids ? 'kids' : 'normal'}`;
+  
+  // Verificar período permitido
+  const periodCheck = isWeeklyRemindersAllowed();
+  const [isPeriodAllowed, setIsPeriodAllowed] = useState(periodCheck.isAllowed);
+  const [periodMessage, setPeriodMessage] = useState(periodCheck.message);
+  
+  // Resetar contador (limpar localStorage)
+  const resetCounter = () => {
+    localStorage.removeItem(storageKey);
+    setIsDisabled(false);
+    setTimeRemaining("");
+    toast({
+      title: "Contador resetado",
+      description: "Você pode enviar lembretes agora. O contador de 8 horas começará após o próximo envio.",
+      duration: 3000,
+    });
+  };
+  
+  // Verificar se pode enviar (8 horas desde o último envio E período permitido)
+  const canSend = (): boolean => {
+    // Primeiro verificar se está no período permitido
+    if (!isPeriodAllowed) return false;
+    
+    const lastSent = localStorage.getItem(storageKey);
+    if (!lastSent) return true;
+    
+    const lastSentTime = parseInt(lastSent, 10);
+    const now = Date.now();
+    const eightHoursInMs = 8 * 60 * 60 * 1000; // 8 horas em milissegundos
+    
+    return (now - lastSentTime) >= eightHoursInMs;
+  };
+
+  // Calcular tempo restante até poder enviar novamente
+  const getTimeRemaining = (): string => {
+    const lastSent = localStorage.getItem(storageKey);
+    if (!lastSent) return "";
+    
+    const lastSentTime = parseInt(lastSent, 10);
+    const now = Date.now();
+    const eightHoursInMs = 8 * 60 * 60 * 1000;
+    const timeRemaining = eightHoursInMs - (now - lastSentTime);
+    
+    if (timeRemaining <= 0) return "";
+    
+    const hours = Math.floor(timeRemaining / (60 * 60 * 1000));
+    const minutes = Math.floor((timeRemaining % (60 * 60 * 1000)) / (60 * 1000));
+    
+    return `${hours}h ${minutes}min`;
+  };
+
+  const [isDisabled, setIsDisabled] = useState(!canSend());
+  const [timeRemaining, setTimeRemaining] = useState(getTimeRemaining());
+  
+  // Atualizar verificação de período periodicamente
+  useEffect(() => {
+    const checkPeriod = () => {
+      const check = isWeeklyRemindersAllowed();
+      setIsPeriodAllowed(check.isAllowed);
+      setPeriodMessage(check.message);
+    };
+    
+    checkPeriod();
+    // Verificar a cada minuto
+    const periodInterval = setInterval(checkPeriod, 60000);
+    
+    return () => clearInterval(periodInterval);
+  }, []);
+
+  // Verificar status dos relatórios semanais
+  useEffect(() => {
+    const checkReportsStatus = async () => {
+      setCheckingStatus(true);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+
+        // Calcular início da semana (segunda-feira) usando a função utilitária
+        const today = new Date();
+        const monday = getWeekStartDate(today);
+        const weekStartDate = monday.toISOString().split("T")[0];
+
+        // Chamar edge function para verificar status
+        const { data, error } = await supabase.functions.invoke('weekly-reports-status', {
+          body: {
+            pastor_id: pastorId,
+            is_kids: isKids,
+            date: weekStartDate,
+            base_url: 'https://videirasaomiguel.vercel.app',
+          },
+        });
+
+        if (error) {
+          console.error('Erro ao verificar status:', error);
+          return;
+        }
+
+        // Verificar quantos líderes não preencheram
+        const pending = (data || []).filter((leader: any) => !leader.hasReport);
+        setPendingCount(pending.length);
+        setAllReportsSubmitted(pending.length === 0);
+      } catch (error) {
+        console.error('Erro ao verificar status dos relatórios:', error);
+      } finally {
+        setCheckingStatus(false);
+      }
+    };
+
+    checkReportsStatus();
+    // Verificar a cada 5 minutos
+    const statusInterval = setInterval(checkReportsStatus, 5 * 60 * 1000);
+
+    return () => clearInterval(statusInterval);
+  }, [pastorId, isKids]);
+
+  // Atualizar estado do botão periodicamente
+  useEffect(() => {
+    const checkInterval = setInterval(() => {
+      const canSendNow = canSend();
+      setIsDisabled(!canSendNow);
+      setTimeRemaining(getTimeRemaining());
+      
+      // Atualizar verificação de período também
+      const check = isWeeklyRemindersAllowed();
+      setIsPeriodAllowed(check.isAllowed);
+      setPeriodMessage(check.message);
+    }, 60000); // Verificar a cada minuto
+
+    return () => clearInterval(checkInterval);
+  }, [storageKey]);
+
   const handleSendReminders = async () => {
+    // Verificar período permitido primeiro
+    if (!isPeriodAllowed) {
+      toast({
+        title: "Período não permitido",
+        description: periodMessage,
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!canSend()) {
+      toast({
+        title: "Aguarde",
+        description: `Você pode enviar lembretes novamente em ${timeRemaining}`,
+        variant: "default",
+      });
+      return;
+    }
+
     setSending(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -233,13 +388,44 @@ function SendWeeklyRemindersButton({
         throw new Error(error.message || "Erro ao enviar lembretes");
       }
 
+      // Salvar timestamp do envio
+      localStorage.setItem(storageKey, Date.now().toString());
+      setIsDisabled(true);
+      setTimeRemaining(getTimeRemaining());
+
+      // Mostrar toast com os líderes que receberam lembretes
+      const leaders = data?.leaders || [];
+      if (leaders.length > 0) {
+        const leaderNames = leaders.map((l: { name: string }) => l.name).join(", ");
+        toast({
+          title: "Lembretes enviados!",
+          description: `Enviados para: ${leaderNames}`,
+          duration: 8000, // 8 segundos para dar tempo de ler
+        });
+      }
+
       if (onSuccess && data) {
         onSuccess({
           sent: data.sent || 0,
           failed: data.failed || 0,
           pending: data.pending || 0,
+          leaders: leaders,
         });
       }
+
+      // Atualizar status após envio
+      const { data: statusData } = await supabase.functions.invoke('weekly-reports-status', {
+        body: {
+          pastor_id: pastorId,
+          is_kids: isKids,
+          date: new Date().toISOString().split('T')[0],
+          base_url: 'https://videirasaomiguel.vercel.app',
+        },
+      });
+      
+      const pending = (statusData || []).filter((leader: any) => !leader.hasReport);
+      setPendingCount(pending.length);
+      setAllReportsSubmitted(pending.length === 0);
 
       // Atualizar dados do dashboard
       window.location.reload();
@@ -253,24 +439,83 @@ function SendWeeklyRemindersButton({
     }
   };
 
+  // Se todos os relatórios foram preenchidos, mostrar mensagem
+  if (checkingStatus) {
+    return (
+      <div className="flex items-center gap-2 text-muted-foreground">
+        <Clock className="w-4 h-4 animate-spin" />
+        <span className="text-sm">Verificando status...</span>
+      </div>
+    );
+  }
+
+  if (allReportsSubmitted) {
+    return (
+      <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+        <CheckCircle className="w-5 h-5" />
+        <span className="font-medium">Relatórios em dia</span>
+      </div>
+    );
+  }
+
   return (
-    <Button
-      onClick={handleSendReminders}
-      disabled={sending}
-      className="w-full sm:w-auto"
-    >
-      {sending ? (
-        <>
-          <Clock className="w-4 h-4 mr-2 animate-spin" />
-          Enviando...
-        </>
-      ) : (
-        <>
-          <Send className="w-4 h-4 mr-2" />
-          Enviar Lembretes
-        </>
+    <div className="space-y-2">
+      <div className="flex gap-2 flex-wrap">
+        <Button
+          onClick={handleSendReminders}
+          disabled={sending || isDisabled || !isPeriodAllowed}
+          className="flex-1 sm:flex-none"
+        >
+          {sending ? (
+            <>
+              <Clock className="w-4 h-4 mr-2 animate-spin" />
+              Enviando...
+            </>
+          ) : !isPeriodAllowed ? (
+            <>
+              <Clock className="w-4 h-4 mr-2" />
+              Período não permitido
+            </>
+          ) : isDisabled ? (
+            <>
+              <Clock className="w-4 h-4 mr-2" />
+              {timeRemaining ? `Aguarde ${timeRemaining}` : "Aguarde 8 horas"}
+            </>
+          ) : (
+            <>
+              <Send className="w-4 h-4 mr-2" />
+              Enviar Lembretes ({pendingCount} pendente{pendingCount !== 1 ? 's' : ''})
+            </>
+          )}
+        </Button>
+        {isDisabled && (
+          <Button
+            onClick={resetCounter}
+            variant="outline"
+            size="sm"
+            className="text-xs"
+            title="Resetar contador e permitir envio imediato"
+          >
+            Resetar
+          </Button>
+        )}
+      </div>
+      {isDisabled && timeRemaining && (
+        <p className="text-xs text-muted-foreground">
+          Próximo envio disponível em {timeRemaining}
+        </p>
       )}
-    </Button>
+      {!isPeriodAllowed && (
+        <p className="text-xs text-amber-600 dark:text-amber-400">
+          {periodMessage}
+        </p>
+      )}
+      {isPeriodAllowed && !isDisabled && pendingCount > 0 && (
+        <p className="text-xs text-muted-foreground">
+          {pendingCount} líder{pendingCount !== 1 ? 'es' : ''} ainda não preenche{pendingCount !== 1 ? 'ram' : ''} o relatório desta semana
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -1157,13 +1402,6 @@ export function Dashboard() {
               <SendWeeklyRemindersButton 
                 pastorId={user.id} 
                 isKids={isKidsMode}
-                onSuccess={(result) => {
-                  toast({
-                    title: "Lembretes enviados!",
-                    description: `${result.sent} lembrete(s) enviado(s) com sucesso. ${result.failed > 0 ? `${result.failed} falharam.` : ''}`,
-                    variant: result.failed > 0 ? "default" : "default",
-                  });
-                }}
                 onError={(error) => {
                   toast({
                     title: "Erro ao enviar lembretes",

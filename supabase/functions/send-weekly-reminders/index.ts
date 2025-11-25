@@ -65,10 +65,54 @@ serve(async (req) => {
       sendViaEmail = false,
     } = body;
 
+    // Verificar se está no período permitido (Quinta 22h até Domingo 23:59, horário de Brasília)
+    const now = new Date();
+    const brasiliaString = now.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" });
+    const brasiliaDate = new Date(brasiliaString);
+    
+    const dayOfWeek = brasiliaDate.getDay(); // 0 = domingo, 1 = segunda, ..., 6 = sábado
+    const hours = brasiliaDate.getHours();
+    const minutes = brasiliaDate.getMinutes();
+    const currentTime = hours * 60 + minutes; // Minutos desde meia-noite
+    
+    let isPeriodAllowed = false;
+    let periodMessage = "";
+    
+    if (dayOfWeek === 4) { // Quinta-feira
+      isPeriodAllowed = currentTime >= 22 * 60; // 22:00 ou depois
+      if (!isPeriodAllowed) {
+        periodMessage = "Lembretes disponíveis apenas de quinta-feira às 22:00 até domingo às 23:59";
+      }
+    } else if (dayOfWeek === 5 || dayOfWeek === 6) { // Sexta ou Sábado
+      isPeriodAllowed = true;
+    } else if (dayOfWeek === 0) { // Domingo
+      isPeriodAllowed = currentTime <= 23 * 60 + 59; // Até 23:59
+      if (!isPeriodAllowed) {
+        periodMessage = "Período encerrado. Lembretes disponíveis apenas de quinta-feira às 22:00 até domingo às 23:59";
+      }
+    } else {
+      // Segunda, terça ou quarta
+      periodMessage = "Lembretes disponíveis apenas de quinta-feira às 22:00 até domingo às 23:59";
+    }
+    
+    if (!isPeriodAllowed) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: periodMessage || "Período não permitido para envio de lembretes",
+          error: "PERIOD_NOT_ALLOWED",
+        }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 400,
+        }
+      );
+    }
+
     // Calcular início e fim da semana atual (segunda a domingo)
     const today = new Date();
-    const dayOfWeek = today.getDay();
-    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    const dayOfWeekToday = today.getDay();
+    const daysToMonday = dayOfWeekToday === 0 ? 6 : dayOfWeekToday - 1;
 
     const monday = new Date(today);
     monday.setDate(today.getDate() - daysToMonday);

@@ -146,3 +146,97 @@ export function getWeekStartDate(dateInput: string | Date): Date {
   return monday;
 }
 
+/**
+ * Verifica se está no período permitido para envio de lembretes semanais
+ * Período permitido: Quinta-feira 22:00 até Domingo 23:59 (horário de Brasília)
+ * @returns {object} { isAllowed: boolean, message: string, nextAvailableDate?: Date }
+ */
+export function isWeeklyRemindersAllowed(): {
+  isAllowed: boolean;
+  message: string;
+  nextAvailableDate?: Date;
+} {
+  try {
+    // Obter data/hora atual no timezone de Brasília (America/Sao_Paulo)
+    const now = new Date();
+    
+    // Criar uma data no timezone de Brasília
+    // Usar toLocaleString para obter a string formatada e depois parsear
+    const brasiliaDateStr = now.toLocaleString("en-US", {
+      timeZone: "America/Sao_Paulo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    });
+    
+    // Parsear a string (formato: MM/DD/YYYY, HH:MM:SS)
+    const [datePart, timePart] = brasiliaDateStr.split(", ");
+    const [month, day, year] = datePart.split("/").map(Number);
+    const [hours, minutes] = timePart.split(":").map(Number);
+    
+    // Criar uma data local para calcular o dia da semana
+    const brasiliaDate = new Date(year, month - 1, day, hours, minutes);
+    
+    // Obter dia da semana (0 = domingo, 1 = segunda, ..., 6 = sábado)
+    const dayOfWeek = brasiliaDate.getDay();
+    
+    const currentTime = hours * 60 + minutes; // Minutos desde meia-noite
+  
+  // Período permitido: Quinta (4) 22:00 até Domingo (0) 23:59
+  
+  if (dayOfWeek === 4) { // Quinta-feira
+    if (currentTime >= 22 * 60) { // 22:00 ou depois
+      return { isAllowed: true, message: "Período permitido" };
+    } else {
+      // Ainda não chegou às 22h de quinta
+      const nextAvailable = new Date(year, month - 1, day, 22, 0, 0);
+      return {
+        isAllowed: false,
+        message: `Lembretes disponíveis a partir de quinta-feira às 22:00`,
+        nextAvailableDate: nextAvailable,
+      };
+    }
+  } else if (dayOfWeek === 5) { // Sexta-feira
+    return { isAllowed: true, message: "Período permitido" };
+  } else if (dayOfWeek === 6) { // Sábado
+    return { isAllowed: true, message: "Período permitido" };
+  } else if (dayOfWeek === 0) { // Domingo
+    if (currentTime <= 23 * 60 + 59) { // Até 23:59
+      return { isAllowed: true, message: "Período permitido" };
+    } else {
+      // Passou das 23:59 de domingo
+      // Próximo período será quinta às 22h
+      const nextThursday = new Date(year, month - 1, day);
+      const daysUntilThursday = (4 - dayOfWeek + 7) % 7 || 7; // Próxima quinta
+      nextThursday.setDate(nextThursday.getDate() + daysUntilThursday);
+      nextThursday.setHours(22, 0, 0, 0);
+      return {
+        isAllowed: false,
+        message: `Período encerrado. Próximo período: quinta-feira às 22:00`,
+        nextAvailableDate: nextThursday,
+      };
+    }
+  } else {
+    // Segunda (1), terça (2) ou quarta (3)
+    // Próximo período será quinta às 22h
+    const nextThursday = new Date(year, month - 1, day);
+    const daysUntilThursday = (4 - dayOfWeek + 7) % 7;
+    nextThursday.setDate(nextThursday.getDate() + daysUntilThursday);
+    nextThursday.setHours(22, 0, 0, 0);
+    return {
+      isAllowed: false,
+      message: `Lembretes disponíveis apenas de quinta (22h) a domingo (23:59)`,
+      nextAvailableDate: nextThursday,
+    };
+  }
+  } catch (error) {
+    // Em caso de erro, permitir o envio (fallback seguro)
+    console.error("Erro ao verificar período permitido:", error);
+    return { isAllowed: true, message: "Período permitido" };
+  }
+}
+

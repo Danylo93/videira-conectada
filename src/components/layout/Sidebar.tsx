@@ -14,6 +14,7 @@ import {
   Heart,
   DollarSign,
   ClipboardList,
+  Droplets,
   LucideIcon
 } from 'lucide-react';
 import logoVideira from '@/assets/logo-videira.png';
@@ -109,6 +110,13 @@ const navigationItems: NavigationItem[] = [
     url: '/dizimistas',
     icon: Users,
     roles: ['pastor', 'obreiro', 'lider'], // Líderes com is_tesoureiro também terão acesso
+    kidsMode: false, // Não aparece no modo Kids
+  },
+  {
+    title: 'Batismo',
+    url: '/batizantes',
+    icon: Droplets,
+    roles: ['pastor', 'obreiro', 'discipulador', 'lider'],
     kidsMode: false, // Não aparece no modo Kids
   },
   {

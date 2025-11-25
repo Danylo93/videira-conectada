@@ -177,7 +177,9 @@ export function Escalas() {
   // Inicializar semana atual (sábado da semana)
   useEffect(() => {
     const today = new Date();
-    const saturday = getWeekStartDate(today); // Retorna o sábado da semana
+    const monday = getWeekStartDate(today); // Retorna a segunda-feira da semana
+    const saturday = new Date(monday);
+    saturday.setDate(monday.getDate() + 5); // Segunda + 5 dias = sábado
     setSelectedWeek(saturday.toISOString().split("T")[0]);
   }, []);
 
@@ -335,10 +337,10 @@ export function Escalas() {
 
     const sabado = new Date(selectedWeek);
     const domingo = new Date(sabado);
-    domingo.setDate(sabado.getDate() + 1);
+    domingo.setDate(sabado.getDate() + 1); // Sábado + 1 dia = domingo
 
     let message = `*LEMBRETE DE ESCALA DA SEMANA*\n\n`;
-    message += `*${formatDateBR(sabado)}* (Sabado) e *${formatDateBR(domingo)}* (Domingo)\n\n`;
+    message += `*${formatDateBR(sabado)}* (Sábado) e *${formatDateBR(domingo)}* (Domingo)\n\n`;
     message += `═══════════════════════\n\n`;
 
     AREAS.forEach((area) => {
@@ -360,7 +362,7 @@ export function Escalas() {
 
       // Sábado (exceto domingo_kids)
       if (area.value !== "domingo_kids" && escalasSabado.length > 0) {
-        message += `\n*Sabado (${formatDateBR(sabado)})*\n`;
+        message += `\n*Sábado (${formatDateBR(sabado)})*\n`;
 
         if (area.value === "louvor" || area.value === "conexao") {
           // Agrupar por função
@@ -447,7 +449,7 @@ export function Escalas() {
     }
   };
 
-  // Abrir WhatsApp com mensagem pré-formatada
+  // Abrir WhatsApp com mensagem pré-formatada (modo manual)
   const handleOpenWhatsApp = () => {
     const message = generateWhatsAppMessage();
     if (!message) return;
@@ -455,6 +457,48 @@ export function Escalas() {
     const encodedMessage = encodeURIComponent(message);
     const whatsappUrl = `https://wa.me/?text=${encodedMessage}`;
     window.open(whatsappUrl, "_blank");
+  };
+
+  // Enviar lembretes automáticos para cada servo via WhatsApp
+  const handleSendReminders = async () => {
+    if (!selectedWeek) {
+      toast({
+        title: "Erro",
+        description: "Selecione uma semana primeiro",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.functions.invoke('send-escalas-reminders', {
+        body: {
+          semana_inicio: selectedWeek,
+        },
+      });
+
+      if (error) {
+        throw new Error(error.message || "Erro ao enviar lembretes");
+      }
+
+      if (data?.success) {
+        const sentCount = data.sent || 0;
+        toast({
+          title: "Sucesso!",
+          description: `Lembretes enviados para ${sentCount} servo${sentCount !== 1 ? 's' : ''} via WhatsApp`,
+          duration: 5000,
+        });
+      } else {
+        throw new Error(data?.error || "Erro desconhecido");
+      }
+    } catch (error: any) {
+      console.error("Erro ao enviar lembretes:", error);
+      toast({
+        title: "Erro",
+        description: error.message || "Erro ao enviar lembretes",
+        variant: "destructive",
+      });
+    }
   };
 
   // Servos disponíveis (não escalados no dia em nenhum setor)
@@ -879,7 +923,10 @@ export function Escalas() {
   // Obter o sábado da semana atual
   const getCurrentWeekSaturday = () => {
     const today = new Date();
-    return getWeekStartDate(today);
+    const monday = getWeekStartDate(today);
+    const saturday = new Date(monday);
+    saturday.setDate(monday.getDate() + 5); // Segunda + 5 dias = sábado
+    return saturday;
   };
 
   // Verificar se a semana selecionada é a semana atual ou futura
@@ -933,16 +980,29 @@ export function Escalas() {
           </div>
           <div className="flex gap-2">
             {selectedWeek && (
-              <Button
-                onClick={handleOpenWhatsApp}
-                variant="outline"
-                className="w-full sm:w-auto h-8 sm:h-auto text-xs sm:text-sm bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
-                size={isMobile ? "sm" : "default"}
-              >
-                <MessageSquare className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
-                <span className="hidden sm:inline">Lembrete WhatsApp</span>
-                <span className="sm:hidden">WhatsApp</span>
-              </Button>
+              <>
+                <Button
+                  onClick={handleSendReminders}
+                  variant="outline"
+                  className="w-full sm:w-auto h-8 sm:h-auto text-xs sm:text-sm bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
+                  size={isMobile ? "sm" : "default"}
+                >
+                  <MessageSquare className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+                  <span className="hidden sm:inline">Enviar Lembretes</span>
+                  <span className="sm:hidden">Enviar</span>
+                </Button>
+                <Button
+                  onClick={handleOpenWhatsApp}
+                  variant="outline"
+                  className="w-full sm:w-auto h-8 sm:h-auto text-xs sm:text-sm"
+                  size={isMobile ? "sm" : "default"}
+                  title="Copiar mensagem para WhatsApp manual"
+                >
+                  <Copy className="h-3 w-3 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+                  <span className="hidden sm:inline">Copiar Mensagem</span>
+                  <span className="sm:hidden">Copiar</span>
+                </Button>
+              </>
             )}
             {canEdit && (
               <Button
@@ -974,7 +1034,7 @@ export function Escalas() {
             {selectedWeek ? (() => {
               const sabado = new Date(selectedWeek);
               const domingo = new Date(sabado);
-              domingo.setDate(sabado.getDate() + 1);
+              domingo.setDate(sabado.getDate() + 1); // Sábado + 1 dia = domingo
               return (
                 <div className="flex items-center gap-1.5 sm:gap-3 text-[10px] sm:text-sm min-w-0">
                   <div className="flex flex-col items-center sm:items-start min-w-0">

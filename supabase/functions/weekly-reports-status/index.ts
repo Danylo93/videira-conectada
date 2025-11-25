@@ -43,11 +43,22 @@ serve(async (req) => {
     // Criar cliente Supabase com service role key
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Obter parâmetros da query string
+    // Obter parâmetros da query string ou do body (POST)
     const url = new URL(req.url);
-    const reportDate = url.searchParams.get("date");
-    const pastorId = url.searchParams.get("pastor_id");
-    const isKids = url.searchParams.get("is_kids") === "true";
+    let requestBody: any = null;
+    
+    // Tentar ler do body se for POST
+    if (req.method === "POST") {
+      try {
+        requestBody = await req.json();
+      } catch {
+        // Se não conseguir ler JSON, continuar com query params
+      }
+    }
+    
+    const reportDate = requestBody?.date || url.searchParams.get("date");
+    const pastorId = requestBody?.pastor_id || url.searchParams.get("pastor_id");
+    const isKids = requestBody?.is_kids === true || requestBody?.is_kids === "true" || url.searchParams.get("is_kids") === "true";
 
     // Se não houver data, usar início da semana atual (segunda-feira)
     let targetDate = reportDate;
@@ -150,7 +161,7 @@ serve(async (req) => {
     });
 
     // Obter URL base do frontend (ajustar conforme necessário)
-    const baseUrl = url.searchParams.get("base_url") || "https://videirasaomiguel.vercel.app";
+    const baseUrl = requestBody?.base_url || url.searchParams.get("base_url") || "https://videirasaomiguel.vercel.app";
 
     // Montar resultado
     const result: LeaderWeeklyReportStatus[] = leaders.map((leader) => {

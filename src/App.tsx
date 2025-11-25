@@ -20,6 +20,8 @@ import { PublicWeeklyReport } from "@/pages/PublicWeeklyReport";
 import { PublicWeeklyReportsDashboard } from "@/pages/PublicWeeklyReportsDashboard";
 import { PublicDizimistaRegistration } from "@/pages/PublicDizimistaRegistration";
 import { PublicDizimistasView } from "@/pages/PublicDizimistasView";
+import { PublicBatismoRegistration } from "@/pages/PublicBatismoRegistration";
+import { BatizantesView } from "@/pages/BatizantesView";
 import { NetworkReports } from "@/pages/NetworkReports";
 import { ServiceReports } from "@/pages/ServiceReports";
 import { StatisticsNew as Statistics } from "@/pages/StatisticsNew";
@@ -190,6 +192,10 @@ function AppContent() {
         path="/cadastro-dizimista"
         element={<PublicDizimistaRegistration />}
       />
+      <Route
+        path="/cadastro-batismo"
+        element={<PublicBatismoRegistration />}
+      />
 
       {/* privado */}
       <Route
@@ -214,6 +220,7 @@ function AppContent() {
         <Route path="/dizimos-ofertas" element={<TithesOfferings />} /> {/* <- Dízimos e Ofertas (Pastor/Obreiro/Tesoureiro) */}
         <Route path="/financeiro" element={<Financial />} /> {/* <- Financeiro (Pastor/Obreiro/Tesoureiro) */}
         <Route path="/dizimistas" element={<PublicDizimistasView />} /> {/* <- Dizimistas (Pastor/Obreiro/Tesoureiro) */}
+        <Route path="/batizantes" element={<BatizantesView />} /> {/* <- Batizantes (Pastor/Obreiro/Discipulador/Líder) */}
         <Route path="/escalas" element={<Escalas />} /> {/* <- Escalas (Pastor/Discipulador/Líder) */}
         <Route path="/estatisticas" element={<Statistics />} />
         <Route path="/gerenciar" element={<ChurchManagement />} />
