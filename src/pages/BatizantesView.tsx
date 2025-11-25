@@ -14,7 +14,9 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Search, Users, Calendar, AlertCircle, Download } from "lucide-react";
+import { Loader2, Search, Users, Calendar, AlertCircle, Download, Sheet, Settings, CheckCircle2, XCircle } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { formatDateBR } from "@/lib/dateUtils";
 import {
   Table,
@@ -50,14 +52,160 @@ export function BatizantesView() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedLeader, setSelectedLeader] = useState<string>("all");
+  const [exportingToSheets, setExportingToSheets] = useState(false);
+  
+  // Configuração Google Sheets
+  const [sheetsConfig, setSheetsConfig] = useState<{
+    id: string;
+    sheet_id: string;
+    sheet_name: string;
+    enabled: boolean;
+  } | null>(null);
+  const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
+  const [configLoading, setConfigLoading] = useState(false);
+  const [newSheetId, setNewSheetId] = useState("");
+  const [newSheetName, setNewSheetName] = useState("Batizantes");
+  const [configEnabled, setConfigEnabled] = useState(true);
 
   useEffect(() => {
     if (user) {
       loadData();
+      loadSheetsConfig();
     } else {
       setLoading(false);
     }
   }, [user]);
+
+  // Carregar configuração do Google Sheets
+  const loadSheetsConfig = async () => {
+    try {
+      const { data, error } = await (supabase as any)
+        .from("google_sheets_config")
+        .select("*")
+        .single();
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+        console.error("Error loading sheets config:", error);
+        return;
+      }
+
+      if (data) {
+        setSheetsConfig(data as any);
+        setNewSheetId(data.sheet_id);
+        setNewSheetName(data.sheet_name);
+        setConfigEnabled(data.enabled);
+      }
+    } catch (err) {
+      console.error("Error:", err);
+    }
+  };
+
+  // Salvar configuração do Google Sheets
+  const saveSheetsConfig = async () => {
+    if (!newSheetId.trim()) {
+      toast({
+        title: "Erro",
+        description: "Por favor, informe o ID da planilha do Google Sheets.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setConfigLoading(true);
+
+      // Extrair o ID da planilha da URL se for uma URL completa
+      let sheetId = newSheetId.trim();
+      if (sheetId.includes('spreadsheets/d/')) {
+        const match = sheetId.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+        if (match) {
+          sheetId = match[1];
+        }
+      }
+
+      if (sheetsConfig) {
+        // Atualizar configuração existente
+        const { error } = await (supabase as any)
+          .from("google_sheets_config")
+          .update({
+            sheet_id: sheetId,
+            sheet_name: newSheetName.trim() || "Batizantes",
+            enabled: configEnabled,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", sheetsConfig.id);
+
+        if (error) throw error;
+      } else {
+        // Criar nova configuração
+        const { error } = await (supabase as any)
+          .from("google_sheets_config")
+          .insert({
+            sheet_id: sheetId,
+            sheet_name: newSheetName.trim() || "Batizantes",
+            enabled: configEnabled,
+          });
+
+        if (error) throw error;
+      }
+
+      await loadSheetsConfig();
+      setIsConfigDialogOpen(false);
+
+      toast({
+        title: "Sucesso",
+        description: "Configuração do Google Sheets salva com sucesso! Os dados serão sincronizados automaticamente.",
+      });
+
+      // Sincronizar imediatamente após salvar
+      await syncToGoogleSheets();
+    } catch (err: any) {
+      console.error("Error saving sheets config:", err);
+      toast({
+        title: "Erro",
+        description: err.message || "Erro ao salvar configuração. Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setConfigLoading(false);
+    }
+  };
+
+  // Sincronizar com Google Sheets
+  const syncToGoogleSheets = async () => {
+    if (!sheetsConfig?.enabled) {
+      toast({
+        title: "Aviso",
+        description: "A sincronização com Google Sheets está desabilitada.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setExportingToSheets(true);
+
+      const { data, error } = await supabase.functions.invoke('sync-batizantes-google-sheets', {
+        method: 'POST',
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Sucesso",
+        description: data?.message || "Dados sincronizados com o Google Sheets!",
+      });
+    } catch (err: any) {
+      console.error("Error syncing to Google Sheets:", err);
+      toast({
+        title: "Erro",
+        description: err.message || "Erro ao sincronizar com Google Sheets. Verifique se a Edge Function está configurada.",
+        variant: "destructive",
+      });
+    } finally {
+      setExportingToSheets(false);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -78,7 +226,7 @@ export function BatizantesView() {
       }
 
       // Carregar batizantes
-      const { data: batizantesData, error: batizantesError } = await supabase
+      const { data: batizantesData, error: batizantesError } = await (supabase as any)
         .from("batismo_registrations")
         .select(`
           id,
@@ -100,7 +248,7 @@ export function BatizantesView() {
       }
 
       // Buscar nomes dos líderes
-      const leaderIds = [...new Set((batizantesData || []).map((b: any) => b.lider_id))];
+      const leaderIds = [...new Set((batizantesData || []).map((b: any) => b.lider_id))] as string[];
       const { data: leadersDataForMap } = await supabase
         .from("profiles")
         .select("id, name")
@@ -191,6 +339,7 @@ export function BatizantesView() {
     });
   };
 
+
   // Verificar permissão de acesso
   const hasAccess = user && (user.role === "pastor" || user.role === "obreiro" || user.role === "discipulador" || user.role === "lider");
 
@@ -237,10 +386,61 @@ export function BatizantesView() {
                 Visualize e acompanhe os cadastros para o batismo
               </CardDescription>
             </div>
-            <Button onClick={handleExportExcel} variant="outline" className="w-full sm:w-auto">
-              <Download className="w-4 h-4 mr-2" />
-              Exportar Excel
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <Button onClick={handleExportExcel} variant="outline" className="w-full sm:w-auto">
+                <Download className="w-4 h-4 mr-2" />
+                Exportar Excel
+              </Button>
+              
+              {/* Status e Configuração do Google Sheets */}
+              <div className="flex items-center gap-2">
+                {sheetsConfig?.enabled ? (
+                  <Badge variant="default" className="bg-green-500">
+                    <CheckCircle2 className="w-3 h-3 mr-1" />
+                    Google Sheets Ativo
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary">
+                    <XCircle className="w-3 h-3 mr-1" />
+                    Google Sheets Inativo
+                  </Badge>
+                )}
+                
+                {(user?.role === "pastor" || user?.role === "obreiro") && (
+                  <Button
+                    onClick={() => setIsConfigDialogOpen(true)}
+                    variant="outline"
+                    size="sm"
+                    className="w-full sm:w-auto"
+                  >
+                    <Settings className="w-4 h-4 mr-2" />
+                    Configurar
+                  </Button>
+                )}
+                
+                {sheetsConfig?.enabled && (
+                  <Button
+                    onClick={syncToGoogleSheets}
+                    variant="default"
+                    size="sm"
+                    disabled={exportingToSheets}
+                    className="w-full sm:w-auto"
+                  >
+                    {exportingToSheets ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Sincronizando...
+                      </>
+                    ) : (
+                      <>
+                        <Sheet className="w-4 h-4 mr-2" />
+                        Sincronizar Agora
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+            </div>
           </div>
         </CardHeader>
       </Card>
@@ -411,6 +611,82 @@ export function BatizantesView() {
           )}
         </CardContent>
       </Card>
+
+      {/* Dialog de Configuração do Google Sheets */}
+      <Dialog open={isConfigDialogOpen} onOpenChange={setIsConfigDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Configurar Sincronização com Google Sheets</DialogTitle>
+            <DialogDescription>
+              Configure a sincronização automática. Os dados serão atualizados automaticamente na planilha quando novos batizantes forem cadastrados.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="sheet_id">ID da Planilha do Google Sheets</Label>
+              <Input
+                id="sheet_id"
+                placeholder="Cole a URL ou ID da planilha"
+                value={newSheetId}
+                onChange={(e) => setNewSheetId(e.target.value)}
+                className="min-h-[44px] touch-manipulation"
+              />
+              <p className="text-xs text-muted-foreground">
+                Exemplo: https://docs.google.com/spreadsheets/d/1ABC123.../edit ou apenas 1ABC123...
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="sheet_name">Nome da Aba na Planilha</Label>
+              <Input
+                id="sheet_name"
+                placeholder="Batizantes"
+                value={newSheetName}
+                onChange={(e) => setNewSheetName(e.target.value)}
+                className="min-h-[44px] touch-manipulation"
+              />
+              <p className="text-xs text-muted-foreground">
+                Nome da aba onde os dados serão sincronizados (padrão: "Batizantes")
+              </p>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="enabled"
+                checked={configEnabled}
+                onCheckedChange={(checked) => setConfigEnabled(checked as boolean)}
+              />
+              <Label htmlFor="enabled" className="cursor-pointer">
+                Habilitar sincronização automática
+              </Label>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsConfigDialogOpen(false)}
+              disabled={configLoading}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={saveSheetsConfig}
+              disabled={configLoading || !newSheetId.trim()}
+            >
+              {configLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                "Salvar Configuração"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
