@@ -204,11 +204,11 @@ function AppContent() {
         element={<PublicBatizantesView />}
       />
       <Route
-        path="/escalas-publicas"
+        path="/escalas"
         element={<PublicEscalasView />}
       />
       <Route
-        path="/escalas-publicas-editar"
+        path="/admin-escalas"
         element={<PublicEscalasEdit />}
       />
 
@@ -236,7 +236,7 @@ function AppContent() {
         <Route path="/financeiro" element={<Financial />} /> {/* <- Financeiro (Pastor/Obreiro/Tesoureiro) */}
         <Route path="/dizimistas" element={<PublicDizimistasView />} /> {/* <- Dizimistas (Pastor/Obreiro/Tesoureiro) */}
         <Route path="/batizantes" element={<BatizantesView />} /> {/* <- Batizantes (Pastor/Obreiro/Discipulador/Líder) */}
-        <Route path="/escalas" element={<Escalas />} /> {/* <- Escalas (Pastor/Discipulador/Líder) */}
+        <Route path="/escalas-privado" element={<Escalas />} /> {/* <- Escalas (Pastor/Discipulador/Líder) */}
         <Route path="/estatisticas" element={<Statistics />} />
         <Route path="/gerenciar" element={<ChurchManagement />} />
         <Route path="/perfil" element={<Profile />} />
