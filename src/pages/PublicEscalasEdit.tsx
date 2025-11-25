@@ -747,131 +747,145 @@ export function PublicEscalasEdit() {
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
-    setActiveId(null);
-
-    if (!over || !canEdit) return;
-
-    const escalaId = active.id as string;
-    const escala = escalas.find((e) => e.id === escalaId);
-    if (!escala) return;
-
-    // Verificar se a escala está bloqueada - não permitir arrastar escalas bloqueadas
-    if (escala.locked) {
-      toast({
-        title: "Escala bloqueada",
-        description: "Não é possível mover uma escala bloqueada. Desbloqueie-a primeiro.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Verificar se está tentando mover para uma área/dia diferente
-    const overId = over.id as string;
-    const parts = overId.split("|");
-    const targetArea = parts[0] as AreaServico;
-    const targetDia = parts[1] as "sabado" | "domingo";
-    const targetFuncaoLouvor = parts[2] as FuncaoLouvor | undefined;
-    const targetFuncaoConexao = parts[2] as FuncaoConexao | undefined;
-
-    // Se for louvor, precisa ter função
-    if (targetArea === "louvor" && !targetFuncaoLouvor) {
-      return; // Não pode mover para louvor sem função
-    }
-
-    // Se for conexão, precisa ter função
-    if (targetArea === "conexao" && !targetFuncaoConexao) {
-      return; // Não pode mover para conexão sem função
-    }
-
-    if (
-      escala.area === targetArea &&
-      escala.dia === targetDia &&
-      escala.funcao_louvor === targetFuncaoLouvor &&
-      escala.funcao_conexao === targetFuncaoConexao
-    ) {
-      return; // Mesma posição
-    }
-
-    // Verificar se o servo já está escalado no dia de destino em OUTRA escala
-    // (permitir mover a mesma escala de setor)
-    const alreadyScaled = escalas.some(
-      (e) =>
-        e.id !== escala.id && // Excluir a própria escala que está sendo movida
-        e.servo_id === escala.servo_id &&
-        e.dia === targetDia &&
-        e.semana_inicio === selectedWeek
-    );
-
-    if (alreadyScaled) {
-      toast({
-        title: "Erro",
-        description: "Este servo já está escalado para este dia em outro setor",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Atualizar escala - atualização otimista
-    const updateData: any = {
-      area: targetArea,
-      dia: targetDia,
-    };
-
-    // Se for louvor, atualizar função
-    if (targetArea === "louvor" && targetFuncaoLouvor) {
-      updateData.funcao_louvor = targetFuncaoLouvor;
-      updateData.funcao_conexao = null;
-    } else if (targetArea === "conexao" && targetFuncaoConexao) {
-      // Se for conexão, atualizar função
-      updateData.funcao_conexao = targetFuncaoConexao;
-      updateData.funcao_louvor = null;
-    } else {
-      // Se não for louvor nem conexão, remover funções
-      updateData.funcao_louvor = null;
-      updateData.funcao_conexao = null;
-    }
-
-    // Guardar o estado anterior para possível reversão
-    const previousEscala = escala;
-
-    // Atualização otimista - atualiza o estado imediatamente
-    setEscalas((prevEscalas) =>
-      prevEscalas.map((e) =>
-        e.id === escalaId
-          ? {
-              ...e,
-              area: targetArea,
-              dia: targetDia,
-              funcao_louvor: updateData.funcao_louvor,
-              funcao_conexao: updateData.funcao_conexao,
-            }
-          : e
-      )
-    );
-
     try {
-      const { error } = await supabase
-        .from("escalas")
-        .update(updateData)
-        .eq("id", escalaId);
+      const { active, over } = event;
+      setActiveId(null);
 
-      if (error) throw error;
+      if (!over || !canEdit) return;
 
-      // Sucesso silencioso - não precisa mostrar toast para cada movimento
-    } catch (error: any) {
-      console.error("Error updating escala:", error);
-      
-      // Reverter a atualização otimista em caso de erro
+      const escalaId = active.id as string;
+      const escala = escalas.find((e) => e.id === escalaId);
+      if (!escala) {
+        console.warn("Escala não encontrada:", escalaId);
+        return;
+      }
+
+      // Verificar se a escala está bloqueada - não permitir arrastar escalas bloqueadas
+      if (escala.locked) {
+        toast({
+          title: "Escala bloqueada",
+          description: "Não é possível mover uma escala bloqueada. Desbloqueie-a primeiro.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Verificar se está tentando mover para uma área/dia diferente
+      const overId = over.id as string;
+      const parts = overId.split("|");
+      const targetArea = parts[0] as AreaServico;
+      const targetDia = parts[1] as "sabado" | "domingo";
+      const targetFuncaoLouvor = parts[2] as FuncaoLouvor | undefined;
+      const targetFuncaoConexao = parts[2] as FuncaoConexao | undefined;
+
+      // Se for louvor, precisa ter função
+      if (targetArea === "louvor" && !targetFuncaoLouvor) {
+        return; // Não pode mover para louvor sem função
+      }
+
+      // Se for conexão, precisa ter função
+      if (targetArea === "conexao" && !targetFuncaoConexao) {
+        return; // Não pode mover para conexão sem função
+      }
+
+      if (
+        escala.area === targetArea &&
+        escala.dia === targetDia &&
+        escala.funcao_louvor === targetFuncaoLouvor &&
+        escala.funcao_conexao === targetFuncaoConexao
+      ) {
+        return; // Mesma posição
+      }
+
+      // Verificar se o servo já está escalado no dia de destino em OUTRA escala
+      // (permitir mover a mesma escala de setor)
+      const alreadyScaled = escalas.some(
+        (e) =>
+          e.id !== escala.id && // Excluir a própria escala que está sendo movida
+          e.servo_id === escala.servo_id &&
+          e.dia === targetDia &&
+          e.semana_inicio === selectedWeek
+      );
+
+      if (alreadyScaled) {
+        toast({
+          title: "Erro",
+          description: "Este servo já está escalado para este dia em outro setor",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Atualizar escala - atualização otimista
+      const updateData: any = {
+        area: targetArea,
+        dia: targetDia,
+      };
+
+      // Se for louvor, atualizar função
+      if (targetArea === "louvor" && targetFuncaoLouvor) {
+        updateData.funcao_louvor = targetFuncaoLouvor;
+        updateData.funcao_conexao = null;
+      } else if (targetArea === "conexao" && targetFuncaoConexao) {
+        // Se for conexão, atualizar função
+        updateData.funcao_conexao = targetFuncaoConexao;
+        updateData.funcao_louvor = null;
+      } else {
+        // Se não for louvor nem conexão, remover funções
+        updateData.funcao_louvor = null;
+        updateData.funcao_conexao = null;
+      }
+
+      // Guardar o estado anterior para possível reversão
+      const previousEscala = { ...escala };
+
+      // Atualização otimista - atualiza o estado imediatamente
       setEscalas((prevEscalas) =>
         prevEscalas.map((e) =>
-          e.id === escalaId ? previousEscala : e
+          e.id === escalaId
+            ? {
+                ...e,
+                area: targetArea,
+                dia: targetDia,
+                funcao_louvor: updateData.funcao_louvor,
+                funcao_conexao: updateData.funcao_conexao,
+              }
+            : e
         )
       );
-      
+
+      try {
+        const { error } = await supabase
+          .from("escalas")
+          .update(updateData)
+          .eq("id", escalaId);
+
+        if (error) throw error;
+
+        // Sucesso silencioso - não precisa mostrar toast para cada movimento
+      } catch (updateError: any) {
+        console.error("Error updating escala:", updateError);
+        
+        // Reverter a atualização otimista em caso de erro
+        setEscalas((prevEscalas) =>
+          prevEscalas.map((e) =>
+            e.id === escalaId ? previousEscala : e
+          )
+        );
+        
+        toast({
+          title: "Erro",
+          description: updateError?.message || "Erro ao atualizar escala",
+          variant: "destructive",
+        });
+      }
+    } catch (outerError: any) {
+      // Capturar qualquer erro não tratado para evitar tela branca
+      console.error("Erro não tratado em handleDragEnd:", outerError);
+      setActiveId(null);
       toast({
         title: "Erro",
-        description: error.message || "Erro ao atualizar escala",
+        description: "Ocorreu um erro ao mover a escala. Tente novamente.",
         variant: "destructive",
       });
     }
@@ -1867,28 +1881,16 @@ function EscalaItem({ escala, canEdit, onDelete, onLock }: EscalaItemProps) {
     opacity: isDragging ? 0.5 : 1,
   };
 
-  // No mobile: aplicar listeners ao item inteiro; no desktop: apenas ao ícone
-  // Mas excluir os botões da área de drag
+  // No mobile: aplicar listeners no container inteiro; no desktop: apenas no ícone
   const dragProps = isMobile && canEdit && !escala.locked 
     ? { ...attributes, ...listeners }
     : {};
-
-  // Handler para prevenir drag quando o toque for em botões
-  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLElement;
-    // Se o toque for em um botão ou dentro de um botão, não iniciar drag
-    if (target.closest('button')) {
-      e.stopPropagation();
-      return;
-    }
-  };
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      {...dragProps}
-      onTouchStart={isMobile && canEdit && !escala.locked ? handleTouchStart : undefined}
+      {...(isMobile && canEdit && !escala.locked ? dragProps : {})}
       className={`bg-card border rounded-md sm:rounded-lg p-1.5 sm:p-2 flex items-center justify-between group touch-manipulation ${
         escala.locked ? "opacity-75 cursor-not-allowed" : ""
       } ${canEdit && !escala.locked ? (isMobile ? "cursor-move" : "") : ""}`}
@@ -1896,7 +1898,7 @@ function EscalaItem({ escala, canEdit, onDelete, onLock }: EscalaItemProps) {
       <div className="flex items-center gap-1.5 sm:gap-2 flex-1 min-w-0">
         {canEdit && !escala.locked ? (
           isMobile ? (
-            // No mobile: apenas mostra o ícone visualmente, o drag é no item inteiro
+            // No mobile: apenas mostra o ícone visualmente, o drag é na área de conteúdo
             <div className="flex-shrink-0 pointer-events-none">
               <GripVertical className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
             </div>
@@ -1928,9 +1930,11 @@ function EscalaItem({ escala, canEdit, onDelete, onLock }: EscalaItemProps) {
       {canEdit && (
         <div 
           className="flex items-center gap-0.5 sm:gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+          style={{ pointerEvents: 'auto' }}
           onClick={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
           onTouchStart={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
         >
           <Button
             variant="ghost"
