@@ -177,9 +177,26 @@ serve(async (req) => {
     // Criar mapa de líderes que já preencheram
     const reportedLeaderIds = new Set((reports || []).map((r) => r.lider_id));
 
-    // Filtrar apenas líderes pendentes
+    // Verificar quais líderes já receberam lembrete nesta semana
+    const { data: remindersLog, error: logError } = await supabase
+      .from("weekly_reminders_log")
+      .select("lider_id")
+      .eq("week_start_date", weekStartDate);
+
+    if (logError) {
+      console.warn("Erro ao buscar log de lembretes:", logError);
+    }
+
+    const leadersJaEnviados = new Set<string>();
+    (remindersLog || []).forEach((log: any) => {
+      if (log.lider_id) leadersJaEnviados.add(log.lider_id);
+    });
+
+    // Filtrar apenas líderes pendentes que ainda não receberam lembrete
     const pendingLeaders = leaders.filter(
-      (leader) => !reportedLeaderIds.has(leader.id)
+      (leader) => 
+        !reportedLeaderIds.has(leader.id) && // Não preencheu relatório
+        !leadersJaEnviados.has(leader.id) // Não recebeu lembrete ainda
     );
 
     if (pendingLeaders.length === 0) {
@@ -252,6 +269,7 @@ serve(async (req) => {
               body: JSON.stringify({
                 type: "weekly_report_reminder",
                 leaders: leadersWithPhone.map((m) => ({
+                  lider_id: m.liderId,
                   name: m.liderName,
                   phone: m.liderPhone,
                   celula: m.celula,
@@ -288,21 +306,8 @@ serve(async (req) => {
       results.email.failed = 0;
     }
 
-    // Registrar histórico de lembretes enviados (opcional)
-    try {
-      await supabase.from("weekly_reminders_log").insert(
-        messages.map((m) => ({
-          lider_id: m.liderId,
-          week_start_date: weekStartDate,
-          sent_at: new Date().toISOString(),
-          sent_via_whatsapp: sendViaWhatsApp && !!m.liderPhone,
-          sent_via_email: sendViaEmail && !!m.liderEmail,
-        }))
-      );
-    } catch (error) {
-      // Ignorar erro se a tabela não existir
-      console.log("Tabela de log não encontrada, pulando registro");
-    }
+    // Nota: O registro no log será feito pelo N8N após o envio bem-sucedido
+    // Não registramos aqui para evitar duplicatas caso o N8N falhe
 
     const totalSent = results.whatsapp.sent + results.email.sent;
     const totalFailed = results.whatsapp.failed + results.email.failed;

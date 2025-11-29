@@ -245,10 +245,31 @@ serve(async (req) => {
       });
     });
 
-    // Gerar mensagens para cada servo
-    const servosToSend: Array<{ phone: string; message: string; name: string }> = [];
+    // Verificar quais servos já receberam lembrete nesta semana
+    const { data: remindersLog, error: logError } = await supabase
+      .from("escalas_reminders_log")
+      .select("servo_id")
+      .eq("semana_inicio", body.semana_inicio);
+
+    if (logError) {
+      console.warn("Erro ao buscar log de lembretes:", logError);
+    }
+
+    const servosJaEnviados = new Set<string>();
+    (remindersLog || []).forEach((log: any) => {
+      if (log.servo_id) servosJaEnviados.add(log.servo_id);
+    });
+
+    // Gerar mensagens para cada servo (apenas os que ainda não receberam)
+    const servosToSend: Array<{ phone: string; message: string; name: string; servo_id: string }> = [];
 
     servosEscalas.forEach((servo) => {
+      // Pular se já foi enviado
+      if (servosJaEnviados.has(servo.servo_id)) {
+        console.log(`Servo ${servo.servo_name} já recebeu lembrete para esta semana`);
+        return;
+      }
+
       if (!servo.servo_phone) {
         console.log(`Servo ${servo.servo_name} não tem telefone cadastrado`);
         return;
@@ -266,6 +287,7 @@ serve(async (req) => {
         phone,
         message,
         name: servo.servo_name,
+        servo_id: servo.servo_id,
       });
     });
 
@@ -309,6 +331,7 @@ serve(async (req) => {
       body: JSON.stringify({
         servos: servosToSend,
         semana_inicio: body.semana_inicio,
+        servos_ja_enviados: servosJaEnviados.size,
       }),
     });
 
