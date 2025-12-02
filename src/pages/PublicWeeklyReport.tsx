@@ -100,6 +100,8 @@ export function PublicWeeklyReport() {
 
   // Carregar lista de líderes
   useEffect(() => {
+    let isMounted = true;
+    
     const loadLeaders = async () => {
       try {
         const { data, error } = await supabase
@@ -108,32 +110,50 @@ export function PublicWeeklyReport() {
           .eq("role", "lider")
           .order("name");
 
+        if (!isMounted) return;
+
         if (error) {
           console.error("Error loading leaders:", error);
-          toast({
-            title: "Erro",
-            description: "Não foi possível carregar a lista de líderes.",
-            variant: "destructive",
-          });
+          if (isMounted) {
+            toast({
+              title: "Erro",
+              description: "Não foi possível carregar a lista de líderes.",
+              variant: "destructive",
+            });
+            setLoading(false);
+          }
           return;
         }
 
         // Filtrar líderes do modo Kids (excluir is_kids = true)
-        setLeaders((data || [])
-          .filter((l: any) => !l.is_kids) // Excluir líderes do modo Kids
-          .map((l: any) => ({
-            id: l.id,
-            name: l.name,
-            celula: l.celula || undefined,
-          })));
-      } catch (error) {
-        console.error("Error:", error);
-      } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLeaders((data || [])
+            .filter((l: any) => !l.is_kids) // Excluir líderes do modo Kids
+            .map((l: any) => ({
+              id: l.id,
+              name: l.name,
+              celula: l.celula || undefined,
+            })));
+          setLoading(false);
+        }
+      } catch (error: any) {
+        console.error("Error loading leaders:", error);
+        if (isMounted) {
+          toast({
+            title: "Erro",
+            description: error?.message || "Não foi possível carregar a lista de líderes.",
+            variant: "destructive",
+          });
+          setLoading(false);
+        }
       }
     };
 
     loadLeaders();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [toast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -386,29 +406,47 @@ export function PublicWeeklyReport() {
               <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
                 <div>
                   <Label htmlFor="leader" className="text-sm sm:text-base">Selecione seu nome *</Label>
-                  <Select value={selectedLeaderId} onValueChange={setSelectedLeaderId} required>
-                    <SelectTrigger 
-                      id="leader" 
-                      className="h-11 sm:h-10 text-sm sm:text-base touch-manipulation"
+                  {isMobile ? (
+                    // Usar select nativo no mobile para evitar problemas com Portal
+                    <select
+                      id="leader"
+                      value={selectedLeaderId}
+                      onChange={(e) => setSelectedLeaderId(e.target.value)}
+                      required
+                      className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 touch-manipulation"
                     >
-                      <SelectValue placeholder="Selecione seu nome..." />
-                    </SelectTrigger>
-                    <SelectContent 
-                      position={isMobile ? "item-aligned" : "popper"}
-                      className={isMobile ? "max-h-[60vh] z-[9999]" : "z-50"}
-                      sideOffset={isMobile ? 4 : 8}
-                    >
+                      <option value="">Selecione seu nome...</option>
                       {leaders.map((leader) => (
-                        <SelectItem 
-                          key={leader.id} 
-                          value={leader.id} 
-                          className="text-sm sm:text-base py-2.5 sm:py-1.5"
-                        >
+                        <option key={leader.id} value={leader.id}>
                           {leader.name} {leader.celula ? `- ${leader.celula}` : ""}
-                        </SelectItem>
+                        </option>
                       ))}
-                    </SelectContent>
-                  </Select>
+                    </select>
+                  ) : (
+                    <Select value={selectedLeaderId} onValueChange={setSelectedLeaderId} required>
+                      <SelectTrigger 
+                        id="leader" 
+                        className="h-11 sm:h-10 text-sm sm:text-base touch-manipulation"
+                      >
+                        <SelectValue placeholder="Selecione seu nome..." />
+                      </SelectTrigger>
+                      <SelectContent 
+                        position="popper"
+                        className="z-50"
+                        sideOffset={8}
+                      >
+                        {leaders.map((leader) => (
+                          <SelectItem 
+                            key={leader.id} 
+                            value={leader.id} 
+                            className="text-sm sm:text-base py-2.5 sm:py-1.5"
+                          >
+                            {leader.name} {leader.celula ? `- ${leader.celula}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                   {selectedLeader && selectedLeader.celula && (
                     <p className="text-xs sm:text-sm text-muted-foreground mt-1">
                       Célula: {selectedLeader.celula}
