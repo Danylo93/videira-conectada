@@ -82,22 +82,8 @@ export function PublicWeeklyReport() {
     const liderParam = searchParams.get("lider");
     
     if (dateParam) {
-      // Validar se a data está na semana atual
-      const selectedDate = new Date(dateParam + "T00:00:00");
-      if (selectedDate >= weekRange.start && selectedDate <= weekRange.end) {
-        setReportDate(dateParam);
-      } else {
-        // Se a data não está na semana atual, usar hoje
-        const today = new Date();
-        const year = today.getFullYear();
-        const month = String(today.getMonth() + 1).padStart(2, '0');
-        const day = String(today.getDate()).padStart(2, '0');
-        setReportDate(`${year}-${month}-${day}`);
-        toast({
-          title: "Aviso",
-          description: "Apenas datas da semana atual são permitidas. Data ajustada para hoje.",
-        });
-      }
+      // Permitir qualquer data (incluindo datas antigas)
+      setReportDate(dateParam);
     } else {
       // Se não tem data, usar hoje no fuso horário local (Brasil)
       const today = new Date();
@@ -436,26 +422,12 @@ export function PublicWeeklyReport() {
                     id="date"
                     type="date"
                     value={reportDate}
-                    onChange={(e) => {
-                      const selectedDate = new Date(e.target.value + "T00:00:00");
-                      // Validar se a data está na semana atual
-                      if (selectedDate >= weekRange.start && selectedDate <= weekRange.end) {
-                        setReportDate(e.target.value);
-                      } else {
-                        toast({
-                          title: "Data inválida",
-                          description: `Apenas datas da semana atual são permitidas (${formatDateBR(weekRange.start)} a ${formatDateBR(weekRange.end)})`,
-                          variant: "destructive",
-                        });
-                      }
-                    }}
-                    min={weekRange.startStr}
-                    max={weekRange.endStr}
+                    onChange={(e) => setReportDate(e.target.value)}
                     required
                     className="h-11 sm:h-10 text-sm sm:text-base touch-manipulation"
                   />
                   <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
-                    Semana atual: {formatDateBR(weekRange.start)} a {formatDateBR(weekRange.end)}
+                    Você pode preencher relatórios de qualquer data, incluindo datas passadas
                   </p>
                 </div>
 
