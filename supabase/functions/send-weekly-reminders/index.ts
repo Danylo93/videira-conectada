@@ -109,7 +109,7 @@ serve(async (req) => {
       );
     }
 
-    // Calcular início e fim da semana atual (segunda a domingo)
+    // Calcular janela do relatório (quinta a sábado) da semana atual
     const today = new Date();
     const dayOfWeekToday = today.getDay();
     const daysToMonday = dayOfWeekToday === 0 ? 6 : dayOfWeekToday - 1;
@@ -117,12 +117,14 @@ serve(async (req) => {
     const monday = new Date(today);
     monday.setDate(today.getDate() - daysToMonday);
     monday.setHours(0, 0, 0, 0);
-    const weekStartDate = monday.toISOString().split("T")[0];
 
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
-    sunday.setHours(23, 59, 59, 999);
-    const weekEndDate = sunday.toISOString().split("T")[0];
+    const thursday = new Date(monday);
+    thursday.setDate(monday.getDate() + 3);
+    const saturday = new Date(monday);
+    saturday.setDate(monday.getDate() + 5);
+
+    const weekStartDate = thursday.toISOString().split("T")[0];
+    const weekEndDate = saturday.toISOString().split("T")[0];
 
     // Buscar líderes
     let leadersQuery = supabase
@@ -177,26 +179,9 @@ serve(async (req) => {
     // Criar mapa de líderes que já preencheram
     const reportedLeaderIds = new Set((reports || []).map((r) => r.lider_id));
 
-    // Verificar quais líderes já receberam lembrete nesta semana
-    const { data: remindersLog, error: logError } = await supabase
-      .from("weekly_reminders_log")
-      .select("lider_id")
-      .eq("week_start_date", weekStartDate);
-
-    if (logError) {
-      console.warn("Erro ao buscar log de lembretes:", logError);
-    }
-
-    const leadersJaEnviados = new Set<string>();
-    (remindersLog || []).forEach((log: any) => {
-      if (log.lider_id) leadersJaEnviados.add(log.lider_id);
-    });
-
-    // Filtrar apenas líderes pendentes que ainda não receberam lembrete
+    // Filtrar apenas líderes pendentes (não preencheram relatório)
     const pendingLeaders = leaders.filter(
-      (leader) => 
-        !reportedLeaderIds.has(leader.id) && // Não preencheu relatório
-        !leadersJaEnviados.has(leader.id) // Não recebeu lembrete ainda
+      (leader) => !reportedLeaderIds.has(leader.id)
     );
 
     if (pendingLeaders.length === 0) {

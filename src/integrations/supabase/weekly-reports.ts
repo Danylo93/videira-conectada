@@ -10,10 +10,59 @@ export interface LeaderWeeklyReportStatus {
   reportDate?: string;
   membersCount?: number;
   frequentadoresCount?: number;
+  visitantesCount?: number;
   reportLink: string;
   fillLink: string; // Link direto para o líder preencher
   isKids?: boolean;
 }
+
+const allowedReportDays = new Set([4, 5, 6]); // quinta, sexta, sábado
+
+const parseDateInput = (value: string): Date | null => {
+  if (!value) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+};
+
+const formatDateInput = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const normalizeReportDate = (value: string) => {
+  const date = parseDateInput(value);
+  if (!date) return value;
+  const day = date.getDay();
+  if (allowedReportDays.has(day)) return value;
+  const adjusted = new Date(date);
+  if (day === 0) {
+    adjusted.setDate(date.getDate() - 1); // domingo -> sábado
+  } else {
+    adjusted.setDate(date.getDate() + (4 - day)); // seg a qua -> quinta
+  }
+  return formatDateInput(adjusted);
+};
+
+const getWeekMonday = (date: Date) => {
+  const day = date.getDay();
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(date);
+  monday.setDate(diff);
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+};
+
+const getReportWindow = (baseDate: Date) => {
+  const monday = getWeekMonday(baseDate);
+  const thursday = new Date(monday);
+  thursday.setDate(monday.getDate() + 3);
+  const saturday = new Date(monday);
+  saturday.setDate(monday.getDate() + 5);
+  return { start: thursday, end: saturday };
+};
 
 /**
  * Busca todos os líderes com status de relatório semanal para uma data específica
@@ -27,6 +76,12 @@ export async function getLeadersWeeklyReportStatus(
   pastorId?: string,
   isKids?: boolean
 ): Promise<LeaderWeeklyReportStatus[]> {
+  const baseDate = parseDateInput(reportDate) ?? new Date();
+  const reportWindow = getReportWindow(baseDate);
+  const reportStartDate = formatDateInput(reportWindow.start);
+  const reportEndDate = formatDateInput(reportWindow.end);
+  const reportDateForLink = normalizeReportDate(reportDate || reportStartDate);
+
   // Buscar todos os líderes
   let leadersQuery = supabase
     .from('profiles')
@@ -56,12 +111,13 @@ export async function getLeadersWeeklyReportStatus(
     return [];
   }
 
-  // Buscar relatórios da data específica
+  // Buscar relatórios da janela (quinta a sábado)
   const liderIds = leaders.map(l => l.id);
   const { data: reports, error: reportsError } = await supabase
     .from('cell_reports_weekly')
-    .select('lider_id, report_date, members_count, frequentadores_count')
-    .eq('report_date', reportDate)
+    .select('lider_id, report_date, members_count, frequentadores_count, visitantes_count')
+    .gte('report_date', reportStartDate)
+    .lte('report_date', reportEndDate)
     .in('lider_id', liderIds);
 
   if (reportsError) {
@@ -69,17 +125,37 @@ export async function getLeadersWeeklyReportStatus(
     throw reportsError;
   }
 
-  // Criar mapa de relatórios por líder
-  const reportsMap = new Map(
-    (reports || []).map(r => [
-      r.lider_id,
-      {
+  // Criar mapa de relatórios por líder (usar o mais recente da janela)
+  const reportsMap = new Map<string, {
+    reportDate: string;
+    membersCount: number;
+    frequentadoresCount: number;
+    visitantesCount: number;
+  }>();
+
+  (reports || []).forEach((r) => {
+    const existing = reportsMap.get(r.lider_id);
+    if (!existing) {
+      reportsMap.set(r.lider_id, {
         reportDate: r.report_date,
         membersCount: r.members_count,
         frequentadoresCount: r.frequentadores_count,
-      }
-    ])
-  );
+        visitantesCount: r.visitantes_count || 0,
+      });
+      return;
+    }
+
+    const currentDate = new Date(r.report_date);
+    const existingDate = new Date(existing.reportDate);
+    if (currentDate > existingDate) {
+      reportsMap.set(r.lider_id, {
+        reportDate: r.report_date,
+        membersCount: r.members_count,
+        frequentadoresCount: r.frequentadores_count,
+        visitantesCount: r.visitantes_count || 0,
+      });
+    }
+  });
 
   // Construir URL base (ajustar conforme necessário)
   const baseUrl = typeof window !== 'undefined' 
@@ -92,9 +168,9 @@ export async function getLeadersWeeklyReportStatus(
     const hasReport = !!report;
 
     // Link para o pastor ver (com seleção de líder)
-    const reportLink = `${baseUrl}/relatorios-semanal?lider=${leader.id}&date=${reportDate}`;
+    const reportLink = `${baseUrl}/relatorios-semanal?lider=${leader.id}&date=${reportDateForLink}`;
     // Link público para o líder preencher (versão pública, sem autenticação)
-    const fillLink = `${baseUrl}/preencher-relatorio?lider=${leader.id}&date=${reportDate}`;
+    const fillLink = `${baseUrl}/preencher-relatorio?lider=${leader.id}&date=${reportDateForLink}`;
 
     return {
       liderId: leader.id,
@@ -106,6 +182,7 @@ export async function getLeadersWeeklyReportStatus(
       reportDate: report?.reportDate,
       membersCount: report?.membersCount,
       frequentadoresCount: report?.frequentadoresCount,
+      visitantesCount: report?.visitantesCount,
       reportLink,
       fillLink,
       isKids: leader.is_kids || false,
@@ -123,17 +200,7 @@ export async function getCurrentWeekLeadersStatus(
   pastorId?: string,
   isKids?: boolean
 ): Promise<LeaderWeeklyReportStatus[]> {
-  // Calcular início da semana (segunda-feira)
-  const today = new Date();
-  const dayOfWeek = today.getDay(); // 0 = domingo, 1 = segunda, etc.
-  const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Ajuste para segunda-feira
-  
-  const monday = new Date(today);
-  monday.setDate(today.getDate() - daysToMonday);
-  monday.setHours(0, 0, 0, 0);
-
-  const reportDate = monday.toISOString().split('T')[0];
-
+  const reportDate = formatDateInput(new Date());
   return getLeadersWeeklyReportStatus(reportDate, pastorId, isKids);
 }
 

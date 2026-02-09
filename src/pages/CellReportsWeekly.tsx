@@ -69,6 +69,7 @@ interface WeeklyReport {
   reportDate: Date;
   membersCount: number;
   frequentadoresCount: number;
+  visitantesCount: number;
   observations?: string;
   createdAt: Date;
 }
@@ -89,6 +90,7 @@ export function CellReportsWeekly() {
   const [reportDate, setReportDate] = useState("");
   const [membersCount, setMembersCount] = useState<number>(0);
   const [frequentadoresCount, setFrequentadoresCount] = useState<number>(0);
+  const [visitantesCount, setVisitantesCount] = useState<number>(0);
   const [observations, setObservations] = useState("");
   const [editingReport, setEditingReport] = useState<WeeklyReport | null>(null);
   const [loading, setLoading] = useState(true);
@@ -98,8 +100,64 @@ export function CellReportsWeekly() {
   const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState("");
-  const [sortBy, setSortBy] = useState<"date" | "members" | "frequentadores" | "total">("date");
+  const [sortBy, setSortBy] = useState<"date" | "members" | "frequentadores" | "visitantes" | "total">("date");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+
+  const allowedReportDays = useMemo(() => new Set([4, 5, 6]), []);
+
+  const parseDateInput = (value: string): Date | null => {
+    if (!value) return null;
+    const [year, month, day] = value.split("-").map(Number);
+    if (!year || !month || !day) return null;
+    return new Date(year, month - 1, day);
+  };
+
+  const formatDateInput = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const normalizeReportDate = (value: string) => {
+    const date = parseDateInput(value);
+    if (!date) return value;
+    const day = date.getDay();
+    if (allowedReportDays.has(day)) return value;
+    const adjusted = new Date(date);
+    if (day === 0) {
+      adjusted.setDate(date.getDate() - 1); // Domingo -> SÃ¡bado
+    } else {
+      adjusted.setDate(date.getDate() + (4 - day)); // Seg a Qua -> Quinta
+    }
+    return formatDateInput(adjusted);
+  };
+
+  const isAllowedReportDate = (value: string) => {
+    const date = parseDateInput(value);
+    if (!date) return false;
+    return allowedReportDays.has(date.getDay());
+  };
+
+  const getDefaultReportDate = (baseDate: Date = new Date()) => {
+    return normalizeReportDate(formatDateInput(baseDate));
+  };
+
+  const handleReportDateChange = (value: string) => {
+    if (!value) {
+      setReportDate("");
+      return;
+    }
+    const normalized = normalizeReportDate(value);
+    if (normalized !== value) {
+      toast({
+        title: "Data invÃ¡lida",
+        description: "O relatÃ³rio semanal aceita apenas quinta, sexta ou sÃ¡bado.",
+        variant: "destructive",
+      });
+    }
+    setReportDate(normalized);
+  };
 
   // Filtros de semana
   const getWeekStart = (date: Date): Date => {
@@ -194,19 +252,19 @@ export function CellReportsWeekly() {
     const dateParam = searchParams.get('date');
     
     if (dateParam) {
-      setReportDate(dateParam);
-      
-      // Se for pastor e tiver parâmetro de líder, selecionar o líder
-      if (liderParam && user?.role === 'pastor') {
-        setSelectedLeaderId(liderParam);
-      }
-      
-      // Se for líder e tiver data, abrir o dialog de criação automaticamente
-      if (user?.role === 'lider' && !isCreateDialogOpen) {
-        setIsCreateDialogOpen(true);
-      }
-    } else if (liderParam && user?.role === 'pastor') {
+      setReportDate(normalizeReportDate(dateParam));
+    } else {
+      setReportDate(getDefaultReportDate());
+    }
+
+    // Se for pastor e tiver parâmetro de líder, selecionar o líder
+    if (liderParam && user?.role === 'pastor') {
       setSelectedLeaderId(liderParam);
+    }
+    
+    // Se for líder e tiver data, abrir o dialog de criação automaticamente
+    if (dateParam && user?.role === 'lider' && !isCreateDialogOpen) {
+      setIsCreateDialogOpen(true);
     }
   }, [searchParams, user, isCreateDialogOpen]);
 
@@ -341,6 +399,7 @@ export function CellReportsWeekly() {
         reportDate: new Date(report.report_date),
         membersCount: report.members_count || 0,
         frequentadoresCount: report.frequentadores_count || 0,
+        visitantesCount: report.visitantes_count || 0,
         observations: report.observations || undefined,
         createdAt: new Date(report.created_at),
       }));
@@ -370,7 +429,16 @@ export function CellReportsWeekly() {
       return;
     }
 
-    if (membersCount < 0 || frequentadoresCount < 0) {
+    if (!isAllowedReportDate(reportDate)) {
+      toast({
+        title: "Data inválida",
+        description: "O relatório semanal aceita apenas quinta, sexta ou sábado.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (membersCount < 0 || frequentadoresCount < 0 || visitantesCount < 0) {
       toast({
         title: "Erro",
         description: "As quantidades não podem ser negativas.",
@@ -402,12 +470,14 @@ export function CellReportsWeekly() {
           reportDate: new Date(fullReport.report_date),
           membersCount: fullReport.members_count || 0,
           frequentadoresCount: fullReport.frequentadores_count || 0,
+          visitantesCount: fullReport.visitantes_count || 0,
           observations: fullReport.observations || undefined,
           createdAt: new Date(fullReport.created_at),
         });
         setReportDate(fullReport.report_date);
         setMembersCount(fullReport.members_count || 0);
         setFrequentadoresCount(fullReport.frequentadores_count || 0);
+        setVisitantesCount(fullReport.visitantes_count || 0);
         setObservations(fullReport.observations || "");
         setIsCreateDialogOpen(false);
         setIsEditDialogOpen(true);
@@ -432,6 +502,7 @@ export function CellReportsWeekly() {
         report_date: reportDate,
         members_count: membersCount,
         frequentadores_count: frequentadoresCount,
+        visitantes_count: visitantesCount,
         observations: observations || null,
       },
     ]);
@@ -479,6 +550,7 @@ export function CellReportsWeekly() {
     setReportDate("");
     setMembersCount(0);
     setFrequentadoresCount(0);
+    setVisitantesCount(0);
     setObservations("");
 
     toast({ title: "Sucesso", description: "Relatório criado com sucesso!" });
@@ -489,6 +561,7 @@ export function CellReportsWeekly() {
     setReportDate(report.reportDate.toISOString().split("T")[0]);
     setMembersCount(report.membersCount);
     setFrequentadoresCount(report.frequentadoresCount);
+    setVisitantesCount(report.visitantesCount);
     setObservations(report.observations || "");
     setIsEditDialogOpen(true);
   };
@@ -496,7 +569,16 @@ export function CellReportsWeekly() {
   const handleUpdateReport = async () => {
     if (!user || !editingReport) return;
 
-    if (membersCount < 0 || frequentadoresCount < 0) {
+    if (!isAllowedReportDate(reportDate)) {
+      toast({
+        title: "Data inválida",
+        description: "O relatório semanal aceita apenas quinta, sexta ou sábado.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (membersCount < 0 || frequentadoresCount < 0 || visitantesCount < 0) {
       toast({
         title: "Erro",
         description: "As quantidades não podem ser negativas.",
@@ -511,6 +593,7 @@ export function CellReportsWeekly() {
         report_date: reportDate,
         members_count: membersCount,
         frequentadores_count: frequentadoresCount,
+        visitantes_count: visitantesCount,
         observations: observations || null,
       })
       .eq("id", editingReport.id);
@@ -550,6 +633,7 @@ export function CellReportsWeekly() {
     setReportDate("");
     setMembersCount(0);
     setFrequentadoresCount(0);
+    setVisitantesCount(0);
     setObservations("");
 
     toast({ title: "Sucesso", description: "Relatório atualizado com sucesso!" });
@@ -601,7 +685,7 @@ export function CellReportsWeekly() {
     
     setStatusLoading(true);
     try {
-      // Calcular início da semana (segunda-feira)
+      // Calcular janela do relatório (quinta a sábado) da semana atual
       const today = new Date();
       const dayOfWeek = today.getDay();
       const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
@@ -609,7 +693,14 @@ export function CellReportsWeekly() {
       const monday = new Date(today);
       monday.setDate(today.getDate() - daysToMonday);
       monday.setHours(0, 0, 0, 0);
-      const weekStartDate = monday.toISOString().split('T')[0];
+
+      const thursday = new Date(monday);
+      thursday.setDate(monday.getDate() + 3);
+      const saturday = new Date(monday);
+      saturday.setDate(monday.getDate() + 5);
+
+      const weekStartDate = thursday.toISOString().split('T')[0];
+      const weekEndDate = saturday.toISOString().split('T')[0];
 
       // Buscar relatórios de toda a semana (segunda a domingo)
       // Vamos buscar todos os líderes e verificar se têm relatório em qualquer dia da semana
@@ -636,15 +727,10 @@ export function CellReportsWeekly() {
         return;
       }
 
-      // Buscar todos os relatórios da semana (segunda a domingo)
-      const sunday = new Date(monday);
-      sunday.setDate(monday.getDate() + 6);
-      const weekEndDate = sunday.toISOString().split('T')[0];
-
       const liderIds = leaders.map(l => l.id);
       const { data: reports } = await supabase
         .from('cell_reports_weekly')
-        .select('lider_id, report_date, members_count, frequentadores_count')
+        .select('lider_id, report_date, members_count, frequentadores_count, visitantes_count')
         .in('lider_id', liderIds)
         .gte('report_date', weekStartDate)
         .lte('report_date', weekEndDate);
@@ -657,6 +743,7 @@ export function CellReportsWeekly() {
             reportDate: r.report_date,
             membersCount: r.members_count,
             frequentadoresCount: r.frequentadores_count,
+            visitantesCount: r.visitantes_count,
           }
         ])
       );
@@ -665,7 +752,7 @@ export function CellReportsWeekly() {
       const status: LeaderWeeklyReportStatus[] = leaders.map(leader => {
         const report = reportsMap.get(leader.id);
         const hasReport = !!report;
-        const reportDateForLink = report?.reportDate || weekStartDate;
+        const reportDateForLink = report?.reportDate || getDefaultReportDate();
 
         return {
           liderId: leader.id,
@@ -677,6 +764,7 @@ export function CellReportsWeekly() {
           reportDate: report?.reportDate,
           membersCount: report?.membersCount,
           frequentadoresCount: report?.frequentadoresCount,
+          visitantesCount: report?.visitantesCount,
           reportLink: `${baseUrl}/relatorios-semanal?lider=${leader.id}&date=${reportDateForLink}`,
           fillLink: `${baseUrl}/relatorios-semanal?date=${reportDateForLink}`,
           isKids: leader.is_kids || false,
@@ -760,7 +848,8 @@ export function CellReportsWeekly() {
       Data: formatDateBR(report.reportDate),
       Membros: report.membersCount,
       Frequentadores: report.frequentadoresCount,
-      Total: report.membersCount + report.frequentadoresCount,
+      Visitantes: report.visitantesCount,
+      Total: report.membersCount + report.frequentadoresCount + report.visitantesCount,
       Observações: report.observations || "",
       "Data de Criação": formatDateBR(report.createdAt),
     }));
@@ -788,7 +877,8 @@ export function CellReportsWeekly() {
         formatDateBR(report.reportDate).toLowerCase().includes(searchLower) ||
         (report.observations || "").toLowerCase().includes(searchLower) ||
         report.membersCount.toString().includes(searchLower) ||
-        report.frequentadoresCount.toString().includes(searchLower)
+        report.frequentadoresCount.toString().includes(searchLower) ||
+        report.visitantesCount.toString().includes(searchLower)
       );
     })
     .sort((a, b) => {
@@ -803,8 +893,11 @@ export function CellReportsWeekly() {
         case "frequentadores":
           comparison = a.frequentadoresCount - b.frequentadoresCount;
           break;
+        case "visitantes":
+          comparison = a.visitantesCount - b.visitantesCount;
+          break;
         case "total":
-          comparison = (a.membersCount + a.frequentadoresCount) - (b.membersCount + b.frequentadoresCount);
+          comparison = (a.membersCount + a.frequentadoresCount + a.visitantesCount) - (b.membersCount + b.frequentadoresCount + b.visitantesCount);
           break;
       }
       return sortOrder === "asc" ? comparison : -comparison;
@@ -819,7 +912,8 @@ export function CellReportsWeekly() {
       dateShort: report.reportDate.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
       membros: report.membersCount,
       frequentadores: report.frequentadoresCount,
-      total: report.membersCount + report.frequentadoresCount,
+      visitantes: report.visitantesCount,
+      total: report.membersCount + report.frequentadoresCount + report.visitantesCount,
     }));
 
   // Calcular estatísticas
@@ -829,15 +923,19 @@ export function CellReportsWeekly() {
         totalReports: 0,
         avgMembers: 0,
         avgFrequentadores: 0,
+        avgVisitantes: 0,
         avgTotal: 0,
         maxMembers: 0,
         maxFrequentadores: 0,
+        maxVisitantes: 0,
         maxTotal: 0,
         minMembers: 0,
         minFrequentadores: 0,
+        minVisitantes: 0,
         minTotal: 0,
         totalMembers: 0,
         totalFrequentadores: 0,
+        totalVisitantes: 0,
         totalParticipants: 0,
         growthRate: 0,
       };
@@ -845,26 +943,31 @@ export function CellReportsWeekly() {
 
     const members = reports.map((r) => r.membersCount);
     const frequentadores = reports.map((r) => r.frequentadoresCount);
-    const totals = reports.map((r) => r.membersCount + r.frequentadoresCount);
+    const visitantes = reports.map((r) => r.visitantesCount);
+    const totals = reports.map((r) => r.membersCount + r.frequentadoresCount + r.visitantesCount);
 
     const sortedReports = [...reports].sort((a, b) => a.reportDate.getTime() - b.reportDate.getTime());
-    const firstTotal = sortedReports[0].membersCount + sortedReports[0].frequentadoresCount;
-    const lastTotal = sortedReports[sortedReports.length - 1].membersCount + sortedReports[sortedReports.length - 1].frequentadoresCount;
+    const firstTotal = sortedReports[0].membersCount + sortedReports[0].frequentadoresCount + sortedReports[0].visitantesCount;
+    const lastTotal = sortedReports[sortedReports.length - 1].membersCount + sortedReports[sortedReports.length - 1].frequentadoresCount + sortedReports[sortedReports.length - 1].visitantesCount;
     const growthRate = firstTotal > 0 ? ((lastTotal - firstTotal) / firstTotal) * 100 : 0;
 
     return {
       totalReports: reports.length,
       avgMembers: Math.round(members.reduce((a, b) => a + b, 0) / members.length),
       avgFrequentadores: Math.round(frequentadores.reduce((a, b) => a + b, 0) / frequentadores.length),
+      avgVisitantes: Math.round(visitantes.reduce((a, b) => a + b, 0) / visitantes.length),
       avgTotal: Math.round(totals.reduce((a, b) => a + b, 0) / totals.length),
       maxMembers: Math.max(...members),
       maxFrequentadores: Math.max(...frequentadores),
+      maxVisitantes: Math.max(...visitantes),
       maxTotal: Math.max(...totals),
       minMembers: Math.min(...members),
       minFrequentadores: Math.min(...frequentadores),
+      minVisitantes: Math.min(...visitantes),
       minTotal: Math.min(...totals),
       totalMembers: members.reduce((a, b) => a + b, 0),
       totalFrequentadores: frequentadores.reduce((a, b) => a + b, 0),
+      totalVisitantes: visitantes.reduce((a, b) => a + b, 0),
       totalParticipants: totals.reduce((a, b) => a + b, 0),
       growthRate: Math.round(growthRate * 100) / 100,
     };
@@ -936,9 +1039,12 @@ export function CellReportsWeekly() {
                     id="date"
                     type="date"
                     value={reportDate}
-                    onChange={(e) => setReportDate(e.target.value)}
+                    onChange={(e) => handleReportDateChange(e.target.value)}
                     required
                   />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Somente quinta, sexta ou sábado.
+                  </p>
                 </div>
                 <div>
                   <Label htmlFor="members">Quantidade de Membros</Label>
@@ -959,6 +1065,17 @@ export function CellReportsWeekly() {
                     min="0"
                     value={frequentadoresCount}
                     onChange={(e) => setFrequentadoresCount(parseInt(e.target.value) || 0)}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="visitantes">Quantidade de Visitantes</Label>
+                  <Input
+                    id="visitantes"
+                    type="number"
+                    min="0"
+                    value={visitantesCount}
+                    onChange={(e) => setVisitantesCount(parseInt(e.target.value) || 0)}
                     required
                   />
                 </div>
@@ -1027,6 +1144,7 @@ export function CellReportsWeekly() {
                         <TableHead>Célula</TableHead>
                         <TableHead>Membros</TableHead>
                         <TableHead>Frequentadores</TableHead>
+                        <TableHead>Visitantes</TableHead>
                         <TableHead>Link</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -1049,6 +1167,9 @@ export function CellReportsWeekly() {
                           </TableCell>
                           <TableCell>
                             {status.hasReport ? status.frequentadoresCount : "-"}
+                          </TableCell>
+                          <TableCell>
+                            {status.hasReport ? status.visitantesCount : "-"}
                           </TableCell>
                           <TableCell>
                             <Button
@@ -1169,10 +1290,10 @@ export function CellReportsWeekly() {
                   {/* Gráfico de Evolução (Linha) */}
                   <Card>
                     <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <TrendingUp className="w-5 h-5" />
-                        Evolução de Membros e Frequentadores
-                      </CardTitle>
+                    <CardTitle className="flex items-center gap-2">
+                      <TrendingUp className="w-5 h-5" />
+                      Evolução de Membros, Frequentadores e Visitantes
+                    </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <ResponsiveContainer width="100%" height={300}>
@@ -1212,6 +1333,14 @@ export function CellReportsWeekly() {
                           />
                           <Line 
                             type="monotone" 
+                            dataKey="visitantes" 
+                            stroke="#ef4444" 
+                            strokeWidth={2}
+                            name="Visitantes"
+                            dot={{ r: 4 }}
+                          />
+                          <Line 
+                            type="monotone" 
                             dataKey="total" 
                             stroke="#10b981" 
                             strokeWidth={2}
@@ -1229,7 +1358,7 @@ export function CellReportsWeekly() {
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
                         <BarChart3 className="w-5 h-5" />
-                        Comparação de Membros e Frequentadores
+                        Comparação de Membros, Frequentadores e Visitantes
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -1254,13 +1383,14 @@ export function CellReportsWeekly() {
                           <Legend />
                           <Bar dataKey="membros" fill="#7c3aed" name="Membros" />
                           <Bar dataKey="frequentadores" fill="#f59e0b" name="Frequentadores" />
+                          <Bar dataKey="visitantes" fill="#ef4444" name="Visitantes" />
                         </BarChart>
                       </ResponsiveContainer>
                     </CardContent>
                   </Card>
 
                   {/* Resumo Estatístico */}
-                  <div className="grid gap-4 md:grid-cols-3">
+                  <div className="grid gap-4 md:grid-cols-4">
                     <Card>
                       <CardHeader className="pb-2">
                         <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -1296,6 +1426,22 @@ export function CellReportsWeekly() {
                     <Card>
                       <CardHeader className="pb-2">
                         <CardTitle className="text-sm font-medium text-muted-foreground">
+                          Média de Visitantes
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">
+                          {reports.length > 0
+                            ? Math.round(
+                                reports.reduce((sum, r) => sum + r.visitantesCount, 0) / reports.length
+                              )
+                            : 0}
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">
                           Média Total
                         </CardTitle>
                       </CardHeader>
@@ -1304,7 +1450,7 @@ export function CellReportsWeekly() {
                           {reports.length > 0
                             ? Math.round(
                                 reports.reduce(
-                                  (sum, r) => sum + r.membersCount + r.frequentadoresCount,
+                                  (sum, r) => sum + r.membersCount + r.frequentadoresCount + r.visitantesCount,
                                   0
                                 ) / reports.length
                               )
@@ -1335,6 +1481,7 @@ export function CellReportsWeekly() {
                             <TableHead>Data</TableHead>
                             <TableHead>Membros</TableHead>
                             <TableHead>Frequentadores</TableHead>
+                            <TableHead>Visitantes</TableHead>
                             <TableHead>Total</TableHead>
                             <TableHead>Observações</TableHead>
                             <TableHead className="text-right">Ações</TableHead>
@@ -1346,9 +1493,10 @@ export function CellReportsWeekly() {
                               <TableCell>{formatDateBR(report.reportDate)}</TableCell>
                               <TableCell>{report.membersCount}</TableCell>
                               <TableCell>{report.frequentadoresCount}</TableCell>
+                              <TableCell>{report.visitantesCount}</TableCell>
                               <TableCell>
                                 <Badge variant="outline">
-                                  {report.membersCount + report.frequentadoresCount}
+                                  {report.membersCount + report.frequentadoresCount + report.visitantesCount}
                                 </Badge>
                               </TableCell>
                               <TableCell className="max-w-xs truncate">
@@ -1428,15 +1576,18 @@ export function CellReportsWeekly() {
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <Label htmlFor="edit-date">Data</Label>
-                <Input
-                  id="edit-date"
-                  type="date"
-                  value={reportDate}
-                  onChange={(e) => setReportDate(e.target.value)}
-                  required
-                />
-              </div>
+              <Label htmlFor="edit-date">Data</Label>
+              <Input
+                id="edit-date"
+                type="date"
+                value={reportDate}
+                onChange={(e) => handleReportDateChange(e.target.value)}
+                required
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Somente quinta, sexta ou sábado.
+              </p>
+            </div>
               <div>
                 <Label htmlFor="edit-members">Quantidade de Membros</Label>
                 <Input
@@ -1508,9 +1659,12 @@ export function CellReportsWeekly() {
                   id="date"
                   type="date"
                   value={reportDate}
-                  onChange={(e) => setReportDate(e.target.value)}
+                  onChange={(e) => handleReportDateChange(e.target.value)}
                   required
                 />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Somente quinta, sexta ou sábado.
+                </p>
               </div>
               <div>
                 <Label htmlFor="members">Quantidade de Membros</Label>
@@ -1531,6 +1685,17 @@ export function CellReportsWeekly() {
                   min="0"
                   value={frequentadoresCount}
                   onChange={(e) => setFrequentadoresCount(parseInt(e.target.value) || 0)}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="visitantes">Quantidade de Visitantes</Label>
+                <Input
+                  id="visitantes"
+                  type="number"
+                  min="0"
+                  value={visitantesCount}
+                  onChange={(e) => setVisitantesCount(parseInt(e.target.value) || 0)}
                   required
                 />
               </div>
@@ -1644,7 +1809,7 @@ export function CellReportsWeekly() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <TrendingUp className="w-5 h-5" />
-                    Evolução de Membros e Frequentadores
+                    Evolução de Membros, Frequentadores e Visitantes
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -1685,6 +1850,14 @@ export function CellReportsWeekly() {
                       />
                       <Line 
                         type="monotone" 
+                        dataKey="visitantes" 
+                        stroke="#ef4444" 
+                        strokeWidth={2}
+                        name="Visitantes"
+                        dot={{ r: 4 }}
+                      />
+                      <Line 
+                        type="monotone" 
                         dataKey="total" 
                         stroke="#10b981" 
                         strokeWidth={2}
@@ -1702,7 +1875,7 @@ export function CellReportsWeekly() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <BarChart3 className="w-5 h-5" />
-                    Comparação de Membros e Frequentadores
+                    Comparação de Membros, Frequentadores e Visitantes
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -1727,13 +1900,14 @@ export function CellReportsWeekly() {
                       <Legend />
                       <Bar dataKey="membros" fill="#7c3aed" name="Membros" />
                       <Bar dataKey="frequentadores" fill="#f59e0b" name="Frequentadores" />
+                      <Bar dataKey="visitantes" fill="#ef4444" name="Visitantes" />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
               </Card>
 
               {/* Resumo Estatístico Detalhado */}
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
@@ -1759,6 +1933,20 @@ export function CellReportsWeekly() {
                     <div className="text-2xl font-bold">{stats.avgFrequentadores}</div>
                     <p className="text-xs text-muted-foreground mt-1">
                       Min: {stats.minFrequentadores} | Max: {stats.maxFrequentadores}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                      <Users className="w-4 h-4" />
+                      Média de Visitantes
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{stats.avgVisitantes}</div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Min: {stats.minVisitantes} | Max: {stats.maxVisitantes}
                     </p>
                   </CardContent>
                 </Card>
@@ -1799,7 +1987,7 @@ export function CellReportsWeekly() {
               </div>
 
               {/* Estatísticas Adicionais */}
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-4 md:grid-cols-4">
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -1818,6 +2006,16 @@ export function CellReportsWeekly() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold">{stats.totalFrequentadores}</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Total de Visitantes
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{stats.totalVisitantes}</div>
                   </CardContent>
                 </Card>
                 <Card>
@@ -1853,6 +2051,7 @@ export function CellReportsWeekly() {
                         <TableHead>Data</TableHead>
                         <TableHead>Membros</TableHead>
                         <TableHead>Frequentadores</TableHead>
+                        <TableHead>Visitantes</TableHead>
                         <TableHead>Total</TableHead>
                         <TableHead>Observações</TableHead>
                         <TableHead className="text-right">Ações</TableHead>
@@ -1864,9 +2063,10 @@ export function CellReportsWeekly() {
                           <TableCell>{formatDateBR(report.reportDate)}</TableCell>
                           <TableCell>{report.membersCount}</TableCell>
                           <TableCell>{report.frequentadoresCount}</TableCell>
+                          <TableCell>{report.visitantesCount}</TableCell>
                           <TableCell>
                             <Badge variant="outline">
-                              {report.membersCount + report.frequentadoresCount}
+                              {report.membersCount + report.frequentadoresCount + report.visitantesCount}
                             </Badge>
                           </TableCell>
                           <TableCell className="max-w-xs truncate">
@@ -1950,9 +2150,12 @@ export function CellReportsWeekly() {
                 id="edit-date"
                 type="date"
                 value={reportDate}
-                onChange={(e) => setReportDate(e.target.value)}
+                onChange={(e) => handleReportDateChange(e.target.value)}
                 required
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                Somente quinta, sexta ou sábado.
+              </p>
             </div>
             <div>
               <Label htmlFor="edit-members">Quantidade de Membros</Label>
@@ -1973,6 +2176,28 @@ export function CellReportsWeekly() {
                 min="0"
                 value={frequentadoresCount}
                 onChange={(e) => setFrequentadoresCount(parseInt(e.target.value) || 0)}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-visitantes">Quantidade de Visitantes</Label>
+              <Input
+                id="edit-visitantes"
+                type="number"
+                min="0"
+                value={visitantesCount}
+                onChange={(e) => setVisitantesCount(parseInt(e.target.value) || 0)}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-visitantes">Quantidade de Visitantes</Label>
+              <Input
+                id="edit-visitantes"
+                type="number"
+                min="0"
+                value={visitantesCount}
+                onChange={(e) => setVisitantesCount(parseInt(e.target.value) || 0)}
                 required
               />
             </div>

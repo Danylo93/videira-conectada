@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -25,7 +27,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { CheckCircle2, AlertCircle } from "lucide-react";
+import { CheckCircle2, AlertCircle, CalendarIcon } from "lucide-react";
 import logoVideira from "@/assets/logo-videira.png";
 import { formatDateBR } from "@/lib/dateUtils";
 
@@ -45,12 +47,70 @@ export function PublicWeeklyReport() {
   const [reportDate, setReportDate] = useState("");
   const [membersCount, setMembersCount] = useState<number>(0);
   const [frequentadoresCount, setFrequentadoresCount] = useState<number>(0);
+  const [visitantesCount, setVisitantesCount] = useState<number>(0);
   const [observations, setObservations] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [existingReport, setExistingReport] = useState<any>(null);
   const [showUpdateDialog, setShowUpdateDialog] = useState(false);
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+
+  const allowedReportDays = new Set([4, 5, 6]); // quinta, sexta, sábado
+
+  const parseDateInput = (value: string): Date | null => {
+    if (!value) return null;
+    const [year, month, day] = value.split("-").map(Number);
+    if (!year || !month || !day) return null;
+    return new Date(year, month - 1, day);
+  };
+
+  const formatDateInput = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const normalizeReportDate = (value: string) => {
+    const date = parseDateInput(value);
+    if (!date) return value;
+    const day = date.getDay();
+    if (allowedReportDays.has(day)) return value;
+    const adjusted = new Date(date);
+    if (day === 0) {
+      adjusted.setDate(date.getDate() - 1); // domingo -> sábado
+    } else {
+      adjusted.setDate(date.getDate() + (4 - day)); // seg a qua -> quinta
+    }
+    return formatDateInput(adjusted);
+  };
+
+  const isAllowedReportDate = (value: string) => {
+    const date = parseDateInput(value);
+    if (!date) return false;
+    return allowedReportDays.has(date.getDay());
+  };
+
+  const getDefaultReportDate = (baseDate: Date = new Date()) => {
+    return normalizeReportDate(formatDateInput(baseDate));
+  };
+
+  const handleReportDateChange = (value: string) => {
+    if (!value) {
+      setReportDate("");
+      return;
+    }
+    const normalized = normalizeReportDate(value);
+    if (normalized !== value) {
+      toast({
+        title: "Data inválida",
+        description: "O relatório semanal aceita apenas quinta, sexta ou sábado.",
+        variant: "destructive",
+      });
+    }
+    setReportDate(normalized);
+  };
 
   // Calcular início e fim da semana atual (segunda a domingo)
   const getCurrentWeekRange = () => {
@@ -82,15 +142,9 @@ export function PublicWeeklyReport() {
     const liderParam = searchParams.get("lider");
     
     if (dateParam) {
-      // Permitir qualquer data (incluindo datas antigas)
-      setReportDate(dateParam);
+      setReportDate(normalizeReportDate(dateParam));
     } else {
-      // Se não tem data, usar hoje no fuso horário local (Brasil)
-      const today = new Date();
-      const year = today.getFullYear();
-      const month = String(today.getMonth() + 1).padStart(2, '0');
-      const day = String(today.getDate()).padStart(2, '0');
-      setReportDate(`${year}-${month}-${day}`);
+      setReportDate(getDefaultReportDate());
     }
     
     if (liderParam) {
@@ -177,7 +231,16 @@ export function PublicWeeklyReport() {
       return;
     }
 
-    if (membersCount < 0 || frequentadoresCount < 0) {
+    if (!isAllowedReportDate(reportDate)) {
+      toast({
+        title: "Data inválida",
+        description: "O relatório semanal aceita apenas quinta, sexta ou sábado.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (membersCount < 0 || frequentadoresCount < 0 || visitantesCount < 0) {
       toast({
         title: "Erro",
         description: "As quantidades não podem ser negativas.",
@@ -197,7 +260,7 @@ export function PublicWeeklyReport() {
       // Verificar se já existe um relatório para a data EXATA selecionada
       const { data: existing, error: checkError } = await (supabase
         .from("cell_reports_weekly" as any)
-        .select("id, members_count, frequentadores_count, observations, report_date")
+        .select("id, members_count, frequentadores_count, visitantes_count, observations, report_date")
         .eq("lider_id", selectedLeaderId)
         .eq("report_date", dateToCheck)
         .maybeSingle() as any);
@@ -265,6 +328,7 @@ export function PublicWeeklyReport() {
           .update({
             members_count: membersCount,
             frequentadores_count: frequentadoresCount,
+            visitantes_count: visitantesCount,
             observations: observations || null,
           })
           .eq("id", existingId) as any);
@@ -288,6 +352,7 @@ export function PublicWeeklyReport() {
               report_date: reportDate, // Usar diretamente, já está no formato correto
               members_count: membersCount,
               frequentadores_count: frequentadoresCount,
+              visitantes_count: visitantesCount,
               observations: observations || null,
             },
           ] as any) as any);
@@ -307,9 +372,10 @@ export function PublicWeeklyReport() {
       // Limpar formulário após 3 segundos
       setTimeout(() => {
         setSelectedLeaderId("");
-        setReportDate(new Date().toISOString().split("T")[0]);
+        setReportDate(getDefaultReportDate());
         setMembersCount(0);
         setFrequentadoresCount(0);
+        setVisitantesCount(0);
         setObservations("");
         setSubmitted(false);
         setExistingReport(null);
@@ -340,6 +406,7 @@ export function PublicWeeklyReport() {
     if (existingReport) {
       setMembersCount(existingReport.members_count || 0);
       setFrequentadoresCount(existingReport.frequentadores_count || 0);
+      setVisitantesCount(existingReport.visitantes_count || 0);
       setObservations(existingReport.observations || "");
     }
     
@@ -348,6 +415,7 @@ export function PublicWeeklyReport() {
   };
 
   const selectedLeader = leaders.find(l => l.id === selectedLeaderId);
+  const selectedReportDate = parseDateInput(reportDate) || undefined;
 
   if (loading) {
     return (
@@ -456,16 +524,34 @@ export function PublicWeeklyReport() {
 
                 <div>
                   <Label htmlFor="date" className="text-sm sm:text-base">Data da Reunião *</Label>
-                  <Input
-                    id="date"
-                    type="date"
-                    value={reportDate}
-                    onChange={(e) => setReportDate(e.target.value)}
-                    required
-                    className="h-11 sm:h-10 text-sm sm:text-base touch-manipulation"
-                  />
+                  <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        id="date"
+                        type="button"
+                        variant="outline"
+                        className={`h-11 sm:h-10 w-full justify-start text-left text-sm sm:text-base touch-manipulation ${!reportDate ? "text-muted-foreground" : ""}`}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {reportDate ? formatDateBR(reportDate) : "Selecione a data"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={selectedReportDate}
+                        onSelect={(date) => {
+                          if (!date) return;
+                          handleReportDateChange(formatDateInput(date));
+                          setIsDatePickerOpen(false);
+                        }}
+                        disabled={(date) => !allowedReportDays.has(date.getDay())}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
                   <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
-                    Você pode preencher relatórios de qualquer data, incluindo datas passadas
+                    Somente quinta, sexta ou sábado (relatório semanal)
                   </p>
                 </div>
 
@@ -492,6 +578,21 @@ export function PublicWeeklyReport() {
                     min="0"
                     value={frequentadoresCount}
                     onChange={(e) => setFrequentadoresCount(parseInt(e.target.value) || 0)}
+                    required
+                    placeholder="0"
+                    className="h-11 sm:h-10 text-sm sm:text-base touch-manipulation"
+                    inputMode="numeric"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="visitantes" className="text-sm sm:text-base">Quantidade de Visitantes *</Label>
+                  <Input
+                    id="visitantes"
+                    type="number"
+                    min="0"
+                    value={visitantesCount}
+                    onChange={(e) => setVisitantesCount(parseInt(e.target.value) || 0)}
                     required
                     placeholder="0"
                     className="h-11 sm:h-10 text-sm sm:text-base touch-manipulation"
@@ -555,6 +656,7 @@ export function PublicWeeklyReport() {
                 <ul className="list-disc list-inside mt-2 space-y-1 text-left">
                   <li>Membros: {existingReport?.members_count || 0}</li>
                   <li>Frequentadores: {existingReport?.frequentadores_count || 0}</li>
+                  <li>Visitantes: {existingReport?.visitantes_count || 0}</li>
                   {existingReport?.observations && (
                     <li>Observações: {existingReport.observations}</li>
                   )}

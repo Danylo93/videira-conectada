@@ -47,39 +47,6 @@
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict"
-          },
-          "conditions": [
-            {
-              "id": "nao-enviado",
-              "leftValue": "={{ JSON.parse($json.body || '[]').length }}",
-              "rightValue": 0,
-              "operator": {
-                "type": "number",
-                "operation": "equals",
-                "singleValue": true
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "20f8b768-fd30-467a-a7bf-b76dbf2f5c58",
-      "name": "Se NÃO foi enviado",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [
-        -288,
-        32
-      ]
-    },
-    {
-      "parameters": {
         "mode": "runOnceForEachItem",
         "jsCode": "// Obter dados do item anterior (formatar mensagem)\nconst formatarItem = $('Formatar Mensagem').item.json;\n\n// Aguardar 90 segundos antes de enviar\nawait new Promise(resolve => setTimeout(resolve, 90000));\n\nreturn {\n  json: formatarItem\n};"
       },
@@ -106,86 +73,6 @@
         608,
         32
       ]
-    },
-    {
-      "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ { \"success\": false, \"message\": \"Líder {{ $json.name || $('Formatar Mensagem').item.json.name }} já recebeu lembrete para esta semana\", \"skipped\": true } }}",
-        "options": {}
-      },
-      "id": "8467e54f-46a1-4d5c-9b82-754af0370cda",
-      "name": "Responder (Já Enviado)",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1,
-      "position": [
-        -64,
-        240
-      ]
-    },
-    {
-      "parameters": {
-        "method": "GET",
-        "url": "={{ $env.SUPABASE_URL }}/rest/v1/weekly_reminders_log?lider_id=eq.{{ $json.lider_id }}&week_start_date=eq.{{ $json.week_start_date }}&select=*",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "apikey",
-              "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        -512,
-        32
-      ],
-      "id": "a3210976-e016-4d29-88e6-349bd70c66b7",
-      "name": "Get a row",
-      "credentials": {}
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "={{ $env.SUPABASE_URL }}/rest/v1/weekly_reminders_log",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "apikey",
-              "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
-            },
-            {
-              "name": "Authorization",
-              "value": "Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
-            },
-            {
-              "name": "Prefer",
-              "value": "return=representation"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"lider_id\": \"{{ $('Formatar Mensagem').item.json.lider_id }}\",\n  \"week_start_date\": \"{{ $('Formatar Mensagem').item.json.week_start_date }}\",\n  \"sent_via_whatsapp\": true\n}",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        368,
-        80
-      ],
-      "id": "a2f314b6-0eb0-4543-ac3c-fe503ebe1c64",
-      "name": "Update a row",
-      "credentials": {}
     },
     {
       "parameters": {
@@ -239,25 +126,7 @@
       "main": [
         [
           {
-            "node": "Get a row",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Se NÃO foi enviado": {
-      "main": [
-        [
-          {
             "node": "Aguardar 90 segundos",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Responder (Já Enviado)",
             "type": "main",
             "index": 0
           }
@@ -275,29 +144,7 @@
         ]
       ]
     },
-    "Get a row": {
-      "main": [
-        [
-          {
-            "node": "Se NÃO foi enviado",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Enviar texto1": {
-      "main": [
-        [
-          {
-            "node": "Update a row",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Update a row": {
       "main": [
         [
           {

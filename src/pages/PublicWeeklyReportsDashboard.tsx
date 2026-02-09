@@ -33,6 +33,7 @@ interface LeaderStatus {
   hasReport: boolean;
   membersCount?: number;
   frequentadoresCount?: number;
+  visitantesCount?: number;
   reportDate?: string;
 }
 
@@ -65,6 +66,14 @@ export function PublicWeeklyReportsDashboard() {
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekStart.getDate() + 6);
     return { start: weekStart, end: weekEnd };
+  };
+
+  const getReportWindow = (weekStart: Date) => {
+    const thursday = new Date(weekStart);
+    thursday.setDate(weekStart.getDate() + 3);
+    const saturday = new Date(weekStart);
+    saturday.setDate(weekStart.getDate() + 5);
+    return { start: thursday, end: saturday };
   };
 
   // Gerar semanas por mês (a partir da primeira semana de novembro de 2025, apenas semanas passadas e atual)
@@ -155,8 +164,9 @@ export function PublicWeeklyReportsDashboard() {
         throw new Error("Semana selecionada não encontrada");
       }
 
-      const weekStart = selectedWeek.start.toISOString().split("T")[0];
-      const weekEnd = selectedWeek.end.toISOString().split("T")[0];
+      const reportWindow = getReportWindow(selectedWeek.start);
+      const weekStart = reportWindow.start.toISOString().split("T")[0];
+      const weekEnd = reportWindow.end.toISOString().split("T")[0];
 
       setWeekStartDate(weekStart);
       setWeekEndDate(weekEnd);
@@ -220,7 +230,8 @@ export function PublicWeeklyReportsDashboard() {
       name: leader.liderName.split(" ")[0],
       membros: leader.membersCount || 0,
       frequentadores: leader.frequentadoresCount || 0,
-      total: (leader.membersCount || 0) + (leader.frequentadoresCount || 0),
+      visitantes: leader.visitantesCount || 0,
+      total: (leader.membersCount || 0) + (leader.frequentadoresCount || 0) + (leader.visitantesCount || 0),
     }))
     .sort((a, b) => b.total - a.total); // Ordenar por total decrescente
 
@@ -232,8 +243,12 @@ export function PublicWeeklyReportsDashboard() {
   const totalFrequentadores = leadersStatus
     .filter((l) => l.hasReport)
     .reduce((sum, l) => sum + (l.frequentadoresCount || 0), 0);
+
+  const totalVisitantes = leadersStatus
+    .filter((l) => l.hasReport)
+    .reduce((sum, l) => sum + (l.visitantesCount || 0), 0);
   
-  const totalParticipants = totalMembers + totalFrequentadores;
+  const totalParticipants = totalMembers + totalFrequentadores + totalVisitantes;
 
   const totalLeaders = leadersStatus.length;
   const filledCount = leadersStatus.filter((l) => l.hasReport).length;
@@ -424,20 +439,20 @@ export function PublicWeeklyReportsDashboard() {
           </Card>
         </div>
 
-        {/* Gráfico de Membros e Frequentadores */}
+        {/* Gráfico de Membros, Frequentadores e Visitantes */}
         {membersFrequentadoresData.length > 0 && (
           <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base md:text-lg">
               <Users className="w-4 h-4 md:w-5 md:h-5" />
-              Membros e Frequentadores por Líder
+              Membros, Frequentadores e Visitantes por Líder
             </CardTitle>
             <CardDescription className="text-xs md:text-sm">
               Distribuição de participantes baseada nos relatórios preenchidos
             </CardDescription>
           </CardHeader>
             <CardContent>
-              <div className="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
+              <div className="mb-4 grid grid-cols-1 sm:grid-cols-4 gap-3 md:gap-4">
                 <div className="text-center p-3 md:p-4 bg-purple-50 rounded-lg border border-purple-200">
                   <p className="text-xs md:text-sm text-muted-foreground mb-1">Total de Membros</p>
                   <p className="text-xl md:text-2xl font-bold text-purple-700">{totalMembers}</p>
@@ -445,6 +460,10 @@ export function PublicWeeklyReportsDashboard() {
                 <div className="text-center p-3 md:p-4 bg-orange-50 rounded-lg border border-orange-200">
                   <p className="text-xs md:text-sm text-muted-foreground mb-1">Total de Frequentadores</p>
                   <p className="text-xl md:text-2xl font-bold text-orange-700">{totalFrequentadores}</p>
+                </div>
+                <div className="text-center p-3 md:p-4 bg-red-50 rounded-lg border border-red-200">
+                  <p className="text-xs md:text-sm text-muted-foreground mb-1">Total de Visitantes</p>
+                  <p className="text-xl md:text-2xl font-bold text-red-700">{totalVisitantes}</p>
                 </div>
                 <div className="text-center p-3 md:p-4 bg-green-50 rounded-lg border border-green-200">
                   <p className="text-xs md:text-sm text-muted-foreground mb-1">Total de Participantes</p>
@@ -476,6 +495,7 @@ export function PublicWeeklyReportsDashboard() {
                     <Legend wrapperStyle={{ fontSize: "12px" }} />
                     <Bar dataKey="membros" fill="#7c3aed" name="Membros" />
                     <Bar dataKey="frequentadores" fill="#f59e0b" name="Frequentadores" />
+                    <Bar dataKey="visitantes" fill="#ef4444" name="Visitantes" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -523,13 +543,17 @@ export function PublicWeeklyReportsDashboard() {
                             <p className="text-xs md:text-sm text-muted-foreground">Membros</p>
                             <p className="font-semibold text-sm md:text-base">{leader.membersCount || 0}</p>
                           </div>
-                          <div className="text-center sm:text-right">
-                            <p className="text-xs md:text-sm text-muted-foreground">Frequentadores</p>
-                            <p className="font-semibold text-sm md:text-base">{leader.frequentadoresCount || 0}</p>
-                          </div>
-                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs whitespace-nowrap">
-                            Preenchido
-                          </Badge>
+                        <div className="text-center sm:text-right">
+                          <p className="text-xs md:text-sm text-muted-foreground">Frequentadores</p>
+                          <p className="font-semibold text-sm md:text-base">{leader.frequentadoresCount || 0}</p>
+                        </div>
+                        <div className="text-center sm:text-right">
+                          <p className="text-xs md:text-sm text-muted-foreground">Visitantes</p>
+                          <p className="font-semibold text-sm md:text-base">{leader.visitantesCount || 0}</p>
+                        </div>
+                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs whitespace-nowrap">
+                          Preenchido
+                        </Badge>
                         </>
                       ) : (
                         <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200 text-xs whitespace-nowrap ml-auto sm:ml-0">

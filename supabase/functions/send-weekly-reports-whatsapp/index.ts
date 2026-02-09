@@ -40,7 +40,7 @@ serve(async (req) => {
       throw new Error("pastorId é obrigatório");
     }
 
-    // Calcular início da semana (segunda-feira)
+    // Calcular janela do relatório (quinta a sábado) da semana atual
     const today = new Date();
     const dayOfWeek = today.getDay();
     const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
@@ -48,7 +48,13 @@ serve(async (req) => {
     const monday = new Date(today);
     monday.setDate(today.getDate() - daysToMonday);
     monday.setHours(0, 0, 0, 0);
-    const weekStartDate = monday.toISOString().split("T")[0];
+
+    const thursday = new Date(monday);
+    thursday.setDate(monday.getDate() + 3);
+    const saturday = new Date(monday);
+    saturday.setDate(monday.getDate() + 5);
+
+    const weekStartDate = thursday.toISOString().split("T")[0];
 
     // Buscar líderes do pastor
     let leadersQuery = supabase
@@ -84,10 +90,8 @@ serve(async (req) => {
       );
     }
 
-    // Buscar relatórios da semana (segunda a domingo)
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
-    const weekEndDate = sunday.toISOString().split("T")[0];
+    // Buscar relatórios da janela (quinta a sábado)
+    const weekEndDate = saturday.toISOString().split("T")[0];
 
     const liderIds = leaders.map((l) => l.id);
     const { data: reports, error: reportsError } = await supabase

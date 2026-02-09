@@ -21,10 +21,59 @@ interface LeaderWeeklyReportStatus {
   reportDate?: string;
   membersCount?: number;
   frequentadoresCount?: number;
+  visitantesCount?: number;
   reportLink: string;
   fillLink: string; // Link direto para o líder preencher
   isKids?: boolean;
 }
+
+const allowedReportDays = new Set([4, 5, 6]); // quinta, sexta, sábado
+
+const parseDateInput = (value: string): Date | null => {
+  if (!value) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(Date.UTC(year, month - 1, day));
+};
+
+const formatDateInput = (date: Date) => {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const normalizeReportDate = (value: string) => {
+  const date = parseDateInput(value);
+  if (!date) return value;
+  const day = date.getUTCDay();
+  if (allowedReportDays.has(day)) return value;
+  const adjusted = new Date(date);
+  if (day === 0) {
+    adjusted.setUTCDate(date.getUTCDate() - 1); // domingo -> sábado
+  } else {
+    adjusted.setUTCDate(date.getUTCDate() + (4 - day)); // seg a qua -> quinta
+  }
+  return formatDateInput(adjusted);
+};
+
+const getWeekMondayUTC = (date: Date) => {
+  const day = date.getUTCDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const monday = new Date(date);
+  monday.setUTCDate(date.getUTCDate() + diff);
+  monday.setUTCHours(0, 0, 0, 0);
+  return monday;
+};
+
+const getReportWindowUTC = (baseDate: Date) => {
+  const monday = getWeekMondayUTC(baseDate);
+  const thursday = new Date(monday);
+  thursday.setUTCDate(monday.getUTCDate() + 3);
+  const saturday = new Date(monday);
+  saturday.setUTCDate(monday.getUTCDate() + 5);
+  return { start: thursday, end: saturday };
+};
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -60,18 +109,18 @@ serve(async (req) => {
     const pastorId = requestBody?.pastor_id || url.searchParams.get("pastor_id");
     const isKids = requestBody?.is_kids === true || requestBody?.is_kids === "true" || url.searchParams.get("is_kids") === "true";
 
-    // Se não houver data, usar início da semana atual (segunda-feira)
-    let targetDate = reportDate;
-    if (!targetDate) {
-      const today = new Date();
-      const dayOfWeek = today.getDay();
-      const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-      
-      const monday = new Date(today);
-      monday.setDate(today.getDate() - daysToMonday);
-      monday.setHours(0, 0, 0, 0);
-      targetDate = monday.toISOString().split("T")[0];
+    const baseDate = reportDate ? parseDateInput(reportDate) : null;
+    if (reportDate && !baseDate) {
+      throw new Error(`Data inválida: ${reportDate}`);
     }
+
+    const effectiveBaseDate = baseDate ?? new Date();
+    const reportWindow = getReportWindowUTC(effectiveBaseDate);
+    const reportStartDate = formatDateInput(reportWindow.start);
+    const reportEndDate = formatDateInput(reportWindow.end);
+    const reportDateForLink = reportDate
+      ? normalizeReportDate(reportDate)
+      : normalizeReportDate(formatDateInput(effectiveBaseDate));
 
     // Buscar todos os líderes
     let leadersQuery = supabase
@@ -105,25 +154,15 @@ serve(async (req) => {
       );
     }
 
-    // Buscar relatórios de toda a semana (segunda a domingo)
+    // Buscar relatórios da janela (quinta a sábado)
     const liderIds = leaders.map((l) => l.id);
-    
-    // Calcular fim da semana (domingo)
-    // Garantir que targetDate está no formato correto
-    const mondayDate = new Date(targetDate);
-    if (isNaN(mondayDate.getTime())) {
-      throw new Error(`Data inválida: ${targetDate}`);
-    }
-    const sunday = new Date(mondayDate);
-    sunday.setDate(mondayDate.getDate() + 6);
-    const weekEndDate = sunday.toISOString().split("T")[0];
     
     const { data: reports, error: reportsError } = await supabase
       .from("cell_reports_weekly")
-      .select("lider_id, report_date, members_count, frequentadores_count")
+      .select("lider_id, report_date, members_count, frequentadores_count, visitantes_count")
       .in("lider_id", liderIds)
-      .gte("report_date", targetDate)
-      .lte("report_date", weekEndDate);
+      .gte("report_date", reportStartDate)
+      .lte("report_date", reportEndDate);
 
     if (reportsError) {
       throw reportsError;
@@ -135,6 +174,7 @@ serve(async (req) => {
       reportDate: string;
       membersCount: number;
       frequentadoresCount: number;
+      visitantesCount: number;
     }>();
     
     (reports || []).forEach((r: any) => {
@@ -145,6 +185,7 @@ serve(async (req) => {
           reportDate: r.report_date,
           membersCount: r.members_count || 0,
           frequentadoresCount: r.frequentadores_count || 0,
+          visitantesCount: r.visitantes_count || 0,
         });
       } else {
         // Comparar datas para pegar o mais recente
@@ -152,10 +193,11 @@ serve(async (req) => {
         const currentDate = new Date(r.report_date);
         if (currentDate > existingDate) {
           reportsMap.set(r.lider_id, {
-            reportDate: r.report_date,
-            membersCount: r.members_count || 0,
-            frequentadoresCount: r.frequentadores_count || 0,
-          });
+          reportDate: r.report_date,
+          membersCount: r.members_count || 0,
+          frequentadoresCount: r.frequentadores_count || 0,
+          visitantesCount: r.visitantes_count || 0,
+        });
         }
       }
     });
@@ -169,9 +211,9 @@ serve(async (req) => {
       const hasReport = !!report;
 
       // Link para o pastor ver (com seleção de líder)
-      const reportLink = `${baseUrl}/relatorios-semanal?lider=${leader.id}&date=${targetDate}`;
+      const reportLink = `${baseUrl}/relatorios-semanal?lider=${leader.id}&date=${reportDateForLink}`;
       // Link público para o líder preencher (versão pública, sem autenticação)
-      const fillLink = `${baseUrl}/preencher-relatorio?lider=${leader.id}&date=${targetDate}`;
+      const fillLink = `${baseUrl}/preencher-relatorio?lider=${leader.id}&date=${reportDateForLink}`;
 
       return {
         liderId: leader.id,
@@ -183,6 +225,7 @@ serve(async (req) => {
         reportDate: report?.reportDate,
         membersCount: report?.membersCount,
         frequentadoresCount: report?.frequentadoresCount,
+        visitantesCount: report?.visitantesCount,
         reportLink,
         fillLink,
         isKids: leader.is_kids || false,
