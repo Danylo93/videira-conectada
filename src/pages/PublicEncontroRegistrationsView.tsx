@@ -37,6 +37,7 @@ interface Leader {
 interface EncounterRegistration {
   id: string;
   nome_completo: string;
+  funcao: "equipe" | "encontrista";
   discipulador_id: string;
   lider_id: string;
   discipulador_name: string;
@@ -50,6 +51,7 @@ export function PublicEncontroRegistrationsView() {
   const [leaders, setLeaders] = useState<Leader[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedFuncao, setSelectedFuncao] = useState("all");
   const [selectedDiscipulador, setSelectedDiscipulador] = useState("all");
   const [selectedLeader, setSelectedLeader] = useState("all");
 
@@ -79,9 +81,11 @@ export function PublicEncontroRegistrationsView() {
 
       const matchesLeader = selectedLeader === "all" || item.lider_id === selectedLeader;
 
-      return matchesSearch && matchesDiscipulador && matchesLeader;
+      const matchesFuncao = selectedFuncao === "all" || item.funcao === selectedFuncao;
+
+      return matchesSearch && matchesDiscipulador && matchesLeader && matchesFuncao;
     });
-  }, [registrations, searchTerm, selectedDiscipulador, selectedLeader]);
+  }, [registrations, searchTerm, selectedDiscipulador, selectedLeader, selectedFuncao]);
 
   const stats = useMemo(() => {
     return {
@@ -113,6 +117,7 @@ export function PublicEncontroRegistrationsView() {
         .select(`
           id,
           nome_completo,
+          funcao,
           discipulador_id,
           lider_id,
           created_at,
@@ -129,6 +134,7 @@ export function PublicEncontroRegistrationsView() {
       const formatted: EncounterRegistration[] = (registrationsData || []).map((item: any) => ({
         id: item.id,
         nome_completo: item.nome_completo,
+        funcao: item.funcao || "encontrista",
         discipulador_id: item.discipulador_id,
         lider_id: item.lider_id,
         discipulador_name: item.discipulador?.name || "Nao informado",
@@ -167,10 +173,10 @@ export function PublicEncontroRegistrationsView() {
             <img src={logoVideira} alt="Videira Sao Miguel" className="h-16 sm:h-20 w-auto" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
-            Acompanhamento dos Encontristas
+            Acompanhamento de Encontro com Deus
           </h1>
           <p className="text-sm sm:text-base text-gray-600">
-            Visualize as inscricoes confirmadas para o encontro
+            Visualize as inscricoes confirmadas para o Encontro com Deus
           </p>
         </div>
 
@@ -206,7 +212,7 @@ export function PublicEncontroRegistrationsView() {
             <CardTitle className="text-lg sm:text-xl">Filtros</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="space-y-2">
                 <label htmlFor="search" className="text-sm font-medium">
                   Buscar
@@ -222,6 +228,31 @@ export function PublicEncontroRegistrationsView() {
                     className="pl-10 min-h-[44px] touch-manipulation text-sm sm:text-base"
                   />
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="funcao" className="text-sm font-medium">
+                  Funcao
+                </label>
+                <Select value={selectedFuncao} onValueChange={setSelectedFuncao}>
+                  <SelectTrigger
+                    id="funcao"
+                    className="min-h-[44px] touch-manipulation text-sm sm:text-base"
+                  >
+                    <SelectValue placeholder="Todas" />
+                  </SelectTrigger>
+                  <SelectContent position="item-aligned" className="z-[9999]">
+                    <SelectItem value="all" className="min-h-[44px] touch-manipulation">
+                      Todas
+                    </SelectItem>
+                    <SelectItem value="encontrista" className="min-h-[44px] touch-manipulation">
+                      Encontrista
+                    </SelectItem>
+                    <SelectItem value="equipe" className="min-h-[44px] touch-manipulation">
+                      Equipe
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
@@ -314,6 +345,7 @@ export function PublicEncontroRegistrationsView() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="min-w-[220px]">Nome Completo</TableHead>
+                      <TableHead className="min-w-[130px]">Funcao</TableHead>
                       <TableHead className="min-w-[180px]">Discipulador</TableHead>
                       <TableHead className="min-w-[180px]">Lider</TableHead>
                       <TableHead className="min-w-[150px]">Data de Cadastro</TableHead>
@@ -323,6 +355,11 @@ export function PublicEncontroRegistrationsView() {
                     {filteredRegistrations.map((item) => (
                       <TableRow key={item.id}>
                         <TableCell className="font-medium">{item.nome_completo}</TableCell>
+                        <TableCell>
+                          <Badge variant={item.funcao === "equipe" ? "default" : "secondary"}>
+                            {item.funcao === "equipe" ? "Equipe" : "Encontrista"}
+                          </Badge>
+                        </TableCell>
                         <TableCell>{item.discipulador_name}</TableCell>
                         <TableCell>{item.lider_name}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">
@@ -355,3 +392,4 @@ export function PublicEncontroRegistrationsView() {
     </div>
   );
 }
+

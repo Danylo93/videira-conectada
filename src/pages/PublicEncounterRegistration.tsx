@@ -33,6 +33,7 @@ export function PublicEncounterRegistration() {
   const [discipuladores, setDiscipuladores] = useState<Discipulador[]>([]);
   const [leaders, setLeaders] = useState<Leader[]>([]);
   const [nomeCompleto, setNomeCompleto] = useState("");
+  const [funcao, setFuncao] = useState<"equipe" | "encontrista">("encontrista");
   const [discipuladorId, setDiscipuladorId] = useState("");
   const [liderId, setLiderId] = useState("");
   const [loading, setLoading] = useState(true);
@@ -137,6 +138,7 @@ export function PublicEncounterRegistration() {
 
       const { error } = await (supabase as any).from("encounter_registrations").insert({
         nome_completo: nomeCompleto.trim(),
+        funcao,
         discipulador_id: discipuladorId,
         lider_id: liderId,
       });
@@ -168,6 +170,7 @@ export function PublicEncounterRegistration() {
       });
 
       setNomeCompleto("");
+      setFuncao("encontrista");
       setDiscipuladorId("");
       setLiderId("");
     } catch (error: any) {
@@ -213,6 +216,7 @@ export function PublicEncounterRegistration() {
                 onClick={() => {
                   setSubmitted(false);
                   setNomeCompleto("");
+                  setFuncao("encontrista");
                   setDiscipuladorId("");
                   setLiderId("");
                 }}
@@ -235,10 +239,10 @@ export function PublicEncounterRegistration() {
               <img src={logoVideira} alt="Videira Conectada" className="h-14 sm:h-16 md:h-20" />
             </div>
             <CardTitle className="text-lg sm:text-xl md:text-2xl lg:text-3xl">
-              Inscrição Encontro com Deus | São Miguel
+              Inscricao para Encontro com Deus
             </CardTitle>
             <CardDescription className="text-xs sm:text-sm md:text-base mt-2">
-              Dias 13,14 e 15 de março
+              Preencha os dados abaixo para confirmar sua inscricao
             </CardDescription>
           </CardHeader>
           <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
@@ -258,6 +262,38 @@ export function PublicEncounterRegistration() {
                   autoComplete="name"
                   autoCapitalize="words"
                 />
+              </div>
+
+              <div>
+                <Label htmlFor="funcao" className="text-sm sm:text-base">
+                  Funcao <span className="text-red-500">*</span>
+                </Label>
+                <Select
+                  value={funcao}
+                  onValueChange={(value: "equipe" | "encontrista") => setFuncao(value)}
+                  required
+                >
+                  <SelectTrigger
+                    id="funcao"
+                    className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
+                  >
+                    <SelectValue placeholder="Selecione a funcao" />
+                  </SelectTrigger>
+                  <SelectContent position="popper" sideOffset={4} className="z-[9999]">
+                    <SelectItem
+                      value="encontrista"
+                      className="min-h-[44px] touch-manipulation text-sm"
+                    >
+                      Encontrista
+                    </SelectItem>
+                    <SelectItem
+                      value="equipe"
+                      className="min-h-[44px] touch-manipulation text-sm"
+                    >
+                      Equipe
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div>
@@ -357,3 +393,4 @@ export function PublicEncounterRegistration() {
     </div>
   );
 }
+

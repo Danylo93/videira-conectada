@@ -18,6 +18,7 @@ async function syncToGoogleSheets(
     .select(`
       id,
       nome_completo,
+      funcao,
       discipulador_id,
       lider_id,
       created_at,
@@ -30,9 +31,10 @@ async function syncToGoogleSheets(
     throw new Error(`Error fetching encounter registrations: ${error.message}`);
   }
 
-  const headers = ["Nome Completo", "Discipulador", "Lider", "Data de Cadastro"];
+  const headers = ["Nome Completo", "Funcao", "Discipulador", "Lider", "Data de Cadastro"];
   const rows = (registrations || []).map((item: any) => [
     item.nome_completo || "",
+    item.funcao || "encontrista",
     item.discipulador?.name || "Nao informado",
     item.lider?.name || "Nao informado",
     item.created_at ? new Date(item.created_at).toLocaleDateString("pt-BR") : "",
@@ -52,7 +54,7 @@ async function syncToGoogleSheets(
   const payload = {
     sheet_id: sheetId,
     sheet_name: sheetName,
-    range: `${sheetName}!A1:D${rows.length + 1}`,
+    range: `${sheetName}!A1:E${rows.length + 1}`,
     values,
     action: "update",
   };
