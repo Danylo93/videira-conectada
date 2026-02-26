@@ -33,6 +33,8 @@ interface ProfileLookup {
   role: string;
 }
 
+const ENCOUNTER_DATES = "13, 14 e 15/03";
+
 export function PublicEncounterRegistration() {
   const { toast } = useToast();
 
@@ -286,11 +288,16 @@ export function PublicEncounterRegistration() {
               <img src={logoVideira} alt="Videira Conectada" className="h-14 sm:h-16 md:h-20" />
             </div>
             <CardTitle className="text-lg sm:text-xl md:text-2xl lg:text-3xl">
-              Inscricao para Encontro com Deus
+              Inscrição para Encontro com Deus
             </CardTitle>
             <CardDescription className="text-xs sm:text-sm md:text-base mt-2">
-              Preencha os dados abaixo para confirmar sua inscricao
+              Preencha os dados abaixo para confirmar sua inscrição
             </CardDescription>
+            <div className="mt-3 sm:mt-4 bg-gradient-to-r from-blue-100 to-purple-100 p-3 sm:p-4 rounded-lg">
+              <p className="font-semibold text-blue-700 text-sm sm:text-base md:text-lg">
+                Dias: {ENCOUNTER_DATES} - Sítio Videira Mairiporã
+              </p>
+            </div>
           </CardHeader>
           <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
             <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5 md:space-y-6">
