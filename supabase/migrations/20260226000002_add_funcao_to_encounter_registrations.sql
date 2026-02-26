@@ -1,7 +1,7 @@
 -- Add funcao to public encounter registrations
 ALTER TABLE public.encounter_registrations
 ADD COLUMN IF NOT EXISTS funcao TEXT NOT NULL DEFAULT 'encontrista'
-CHECK (funcao IN ('equipe', 'encontrista'));
+CHECK (funcao IN ('equipe', 'encontrista', 'discipulador'));
 
 -- Keep existing records consistent
 UPDATE public.encounter_registrations

@@ -37,7 +37,7 @@ interface Leader {
 interface EncounterRegistration {
   id: string;
   nome_completo: string;
-  funcao: "equipe" | "encontrista";
+  funcao: "equipe" | "encontrista" | "discipulador";
   discipulador_id: string;
   lider_id: string;
   discipulador_name: string;
@@ -251,6 +251,9 @@ export function PublicEncontroRegistrationsView() {
                     <SelectItem value="equipe" className="min-h-[44px] touch-manipulation">
                       Equipe
                     </SelectItem>
+                    <SelectItem value="discipulador" className="min-h-[44px] touch-manipulation">
+                      Discipulador
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -356,8 +359,20 @@ export function PublicEncontroRegistrationsView() {
                       <TableRow key={item.id}>
                         <TableCell className="font-medium">{item.nome_completo}</TableCell>
                         <TableCell>
-                          <Badge variant={item.funcao === "equipe" ? "default" : "secondary"}>
-                            {item.funcao === "equipe" ? "Equipe" : "Encontrista"}
+                          <Badge
+                            variant={
+                              item.funcao === "equipe"
+                                ? "default"
+                                : item.funcao === "discipulador"
+                                  ? "outline"
+                                  : "secondary"
+                            }
+                          >
+                            {item.funcao === "equipe"
+                              ? "Equipe"
+                              : item.funcao === "discipulador"
+                                ? "Discipulador"
+                                : "Encontrista"}
                           </Badge>
                         </TableCell>
                         <TableCell>{item.discipulador_name}</TableCell>

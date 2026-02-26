@@ -27,15 +27,23 @@ interface Leader {
   discipulador_uuid?: string | null;
 }
 
+interface ProfileLookup {
+  id: string;
+  name: string;
+  role: string;
+}
+
 export function PublicEncounterRegistration() {
   const { toast } = useToast();
 
   const [discipuladores, setDiscipuladores] = useState<Discipulador[]>([]);
   const [leaders, setLeaders] = useState<Leader[]>([]);
   const [nomeCompleto, setNomeCompleto] = useState("");
-  const [funcao, setFuncao] = useState<"equipe" | "encontrista">("encontrista");
+  const [funcao, setFuncao] = useState<"equipe" | "encontrista" | "discipulador">("encontrista");
   const [discipuladorId, setDiscipuladorId] = useState("");
   const [liderId, setLiderId] = useState("");
+  const [pastorChristianId, setPastorChristianId] = useState("");
+  const [pastorChristianName, setPastorChristianName] = useState("Pastor Christian");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -91,6 +99,27 @@ export function PublicEncounterRegistration() {
 
       setDiscipuladores(discipuladoresData || []);
       setLeaders(leadersData || []);
+
+      const { data: pastorCandidates, error: pastorError } = await (supabase as any)
+        .from("profiles")
+        .select("id, name, role")
+        .ilike("name", "%christian%")
+        .order("name");
+
+      if (pastorError) {
+        console.error("Error loading Pastor Christian profile:", pastorError);
+      } else {
+        const candidates = (pastorCandidates || []) as ProfileLookup[];
+        const pastorChristian =
+          candidates.find((p) => p.name?.trim().toLowerCase() === "pastor christian") ||
+          candidates.find((p) => p.role === "pastor") ||
+          null;
+
+        if (pastorChristian) {
+          setPastorChristianId(pastorChristian.id);
+          setPastorChristianName(pastorChristian.name);
+        }
+      }
     } catch (error) {
       console.error(error);
       toast({
@@ -115,22 +144,40 @@ export function PublicEncounterRegistration() {
       return;
     }
 
-    if (!discipuladorId) {
-      toast({
-        title: "Erro",
-        description: "Selecione um discipulador.",
-        variant: "destructive",
-      });
-      return;
-    }
+    let selectedDiscipuladorId = discipuladorId;
+    let selectedLiderId = liderId;
 
-    if (!liderId) {
-      toast({
-        title: "Erro",
-        description: "Selecione um lider.",
-        variant: "destructive",
-      });
-      return;
+    if (funcao === "discipulador") {
+      if (!pastorChristianId) {
+        toast({
+          title: "Erro",
+          description:
+            "Nao foi possivel localizar o perfil padrao de Pastor Christian. Contate a administracao.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      selectedDiscipuladorId = pastorChristianId;
+      selectedLiderId = pastorChristianId;
+    } else {
+      if (!discipuladorId) {
+        toast({
+          title: "Erro",
+          description: "Selecione um discipulador.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!liderId) {
+        toast({
+          title: "Erro",
+          description: "Selecione um lider.",
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     try {
@@ -139,8 +186,8 @@ export function PublicEncounterRegistration() {
       const { error } = await (supabase as any).from("encounter_registrations").insert({
         nome_completo: nomeCompleto.trim(),
         funcao,
-        discipulador_id: discipuladorId,
-        lider_id: liderId,
+        discipulador_id: selectedDiscipuladorId,
+        lider_id: selectedLiderId,
       });
 
       if (error) {
@@ -270,7 +317,13 @@ export function PublicEncounterRegistration() {
                 </Label>
                 <Select
                   value={funcao}
-                  onValueChange={(value: "equipe" | "encontrista") => setFuncao(value)}
+                  onValueChange={(value: "equipe" | "encontrista" | "discipulador") => {
+                    setFuncao(value);
+                    if (value === "discipulador") {
+                      setDiscipuladorId("");
+                      setLiderId("");
+                    }
+                  }}
                   required
                 >
                   <SelectTrigger
@@ -292,81 +345,112 @@ export function PublicEncounterRegistration() {
                     >
                       Equipe
                     </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="discipulador" className="text-sm sm:text-base">
-                  Discipulador <span className="text-red-500">*</span>
-                </Label>
-                <Select
-                  value={discipuladorId}
-                  onValueChange={(value) => {
-                    setDiscipuladorId(value);
-                    setLiderId("");
-                  }}
-                  required
-                >
-                  <SelectTrigger
-                    id="discipulador"
-                    className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
-                  >
-                    <SelectValue placeholder="Selecione seu discipulador" />
-                  </SelectTrigger>
-                  <SelectContent position="popper" sideOffset={4} className="z-[9999] max-h-[50vh]">
-                    {discipuladores.map((discipulador) => (
-                      <SelectItem
-                        key={discipulador.id}
-                        value={discipulador.id}
-                        className="min-h-[44px] touch-manipulation text-sm"
-                      >
-                        {discipulador.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="lider" className="text-sm sm:text-base">
-                  Lider <span className="text-red-500">*</span>
-                </Label>
-                {discipuladorId && filteredLeaders.length === 0 ? (
-                  <div className="mt-1 p-3 border border-amber-500 rounded-md bg-amber-50">
-                    <p className="text-sm text-amber-700">
-                      Nenhum lider vinculado ao discipulador selecionado.
-                    </p>
-                  </div>
-                ) : (
-                  <Select value={liderId} onValueChange={setLiderId} required>
-                    <SelectTrigger
-                      id="lider"
-                      className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
-                      disabled={!discipuladorId || filteredLeaders.length === 0}
+                    <SelectItem
+                      value="discipulador"
+                      className="min-h-[44px] touch-manipulation text-sm"
                     >
-                      <SelectValue
-                        placeholder={
-                          !discipuladorId
-                            ? "Selecione primeiro o discipulador"
-                            : "Selecione seu lider"
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent position="popper" sideOffset={4} className="z-[9999] max-h-[50vh]">
-                      {filteredLeaders.map((leader) => (
-                        <SelectItem
-                          key={leader.id}
-                          value={leader.id}
-                          className="min-h-[44px] touch-manipulation text-sm"
-                        >
-                          {leader.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
+                      Discipulador
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
+
+              {funcao === "discipulador" ? (
+                <div>
+                  <Label htmlFor="pastor-bloqueado" className="text-sm sm:text-base">
+                    Pastor
+                  </Label>
+                  <Input
+                    id="pastor-bloqueado"
+                    value={pastorChristianName}
+                    disabled
+                    readOnly
+                    className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation bg-muted"
+                  />
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <Label htmlFor="discipulador" className="text-sm sm:text-base">
+                      Discipulador <span className="text-red-500">*</span>
+                    </Label>
+                    <Select
+                      value={discipuladorId}
+                      onValueChange={(value) => {
+                        setDiscipuladorId(value);
+                        setLiderId("");
+                      }}
+                      required
+                    >
+                      <SelectTrigger
+                        id="discipulador"
+                        className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
+                      >
+                        <SelectValue placeholder="Selecione seu discipulador" />
+                      </SelectTrigger>
+                      <SelectContent
+                        position="popper"
+                        sideOffset={4}
+                        className="z-[9999] max-h-[50vh]"
+                      >
+                        {discipuladores.map((discipulador) => (
+                          <SelectItem
+                            key={discipulador.id}
+                            value={discipulador.id}
+                            className="min-h-[44px] touch-manipulation text-sm"
+                          >
+                            {discipulador.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="lider" className="text-sm sm:text-base">
+                      Lider <span className="text-red-500">*</span>
+                    </Label>
+                    {discipuladorId && filteredLeaders.length === 0 ? (
+                      <div className="mt-1 p-3 border border-amber-500 rounded-md bg-amber-50">
+                        <p className="text-sm text-amber-700">
+                          Nenhum lider vinculado ao discipulador selecionado.
+                        </p>
+                      </div>
+                    ) : (
+                      <Select value={liderId} onValueChange={setLiderId} required>
+                        <SelectTrigger
+                          id="lider"
+                          className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
+                          disabled={!discipuladorId || filteredLeaders.length === 0}
+                        >
+                          <SelectValue
+                            placeholder={
+                              !discipuladorId
+                                ? "Selecione primeiro o discipulador"
+                                : "Selecione seu lider"
+                            }
+                          />
+                        </SelectTrigger>
+                        <SelectContent
+                          position="popper"
+                          sideOffset={4}
+                          className="z-[9999] max-h-[50vh]"
+                        >
+                          {filteredLeaders.map((leader) => (
+                            <SelectItem
+                              key={leader.id}
+                              value={leader.id}
+                              className="min-h-[44px] touch-manipulation text-sm"
+                            >
+                              {leader.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                </>
+              )}
 
               <Button
                 type="submit"

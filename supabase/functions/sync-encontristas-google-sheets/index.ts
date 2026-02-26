@@ -34,7 +34,11 @@ async function syncToGoogleSheets(
   const headers = ["Nome Completo", "Funcao", "Discipulador", "Lider", "Data de Cadastro"];
   const rows = (registrations || []).map((item: any) => [
     item.nome_completo || "",
-    item.funcao || "encontrista",
+    item.funcao === "equipe"
+      ? "Equipe"
+      : item.funcao === "discipulador"
+        ? "Discipulador"
+        : "Encontrista",
     item.discipulador?.name || "Nao informado",
     item.lider?.name || "Nao informado",
     item.created_at ? new Date(item.created_at).toLocaleDateString("pt-BR") : "",
