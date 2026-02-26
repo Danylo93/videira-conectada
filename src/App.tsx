@@ -22,6 +22,8 @@ import { PublicDizimistaRegistration } from "@/pages/PublicDizimistaRegistration
 import { PublicDizimistasView } from "@/pages/PublicDizimistasView";
 import { PublicBatismoRegistration } from "@/pages/PublicBatismoRegistration";
 import { PublicBatizantesView } from "@/pages/PublicBatizantesView";
+import { PublicEncounterRegistration } from "@/pages/PublicEncounterRegistration";
+import { PublicEncontroRegistrationsView } from "@/pages/PublicEncontroRegistrationsView";
 import { PublicEscalasView } from "@/pages/PublicEscalasView";
 import { PublicEscalasEdit } from "@/pages/PublicEscalasEdit";
 import { BatizantesView } from "@/pages/BatizantesView";
@@ -205,6 +207,14 @@ function AppContent() {
       <Route
         path="/acompanhamento-batismo"
         element={<PublicBatizantesView />}
+      />
+      <Route
+        path="/cadastro-encontro"
+        element={<PublicEncounterRegistration />}
+      />
+      <Route
+        path="/acompanhamento-encontro"
+        element={<PublicEncontroRegistrationsView />}
       />
       <Route
         path="/escalas"
