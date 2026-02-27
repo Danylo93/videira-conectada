@@ -304,7 +304,7 @@ export function PublicEncounterRegistration() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 p-3 sm:p-4 md:p-6 lg:p-8 safe-area-inset">
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-3xl xl:max-w-4xl mx-auto">
         <Card className="border-2">
           <CardHeader className="text-center px-4 sm:px-6 pt-4 sm:pt-6">
             <div className="flex justify-center mb-3 sm:mb-4">
@@ -362,7 +362,12 @@ export function PublicEncounterRegistration() {
                   >
                     <SelectValue placeholder="Selecione a funcao" />
                   </SelectTrigger>
-                  <SelectContent position="popper" sideOffset={4} className="z-[9999]">
+                  <SelectContent
+                    position="popper"
+                    sideOffset={4}
+                    collisionPadding={8}
+                    className="z-[9999] w-[var(--radix-select-trigger-width)] max-h-[42svh] sm:max-h-72 md:max-h-80"
+                  >
                     <SelectItem
                       value="encontrista"
                       className="min-h-[44px] touch-manipulation text-sm"
@@ -421,7 +426,8 @@ export function PublicEncounterRegistration() {
                       <SelectContent
                         position="popper"
                         sideOffset={4}
-                        className="z-[9999] max-h-[50vh]"
+                        collisionPadding={8}
+                        className="z-[9999] w-[var(--radix-select-trigger-width)] max-h-[42svh] sm:max-h-72 md:max-h-80"
                       >
                         {discipuladores.map((discipulador) => (
                           <SelectItem
@@ -464,7 +470,8 @@ export function PublicEncounterRegistration() {
                         <SelectContent
                           position="popper"
                           sideOffset={4}
-                          className="z-[9999] max-h-[50vh]"
+                          collisionPadding={8}
+                          className="z-[9999] w-[var(--radix-select-trigger-width)] max-h-[42svh] sm:max-h-72 md:max-h-80"
                         >
                           {filteredLeaders.map((leader) => (
                             <SelectItem
