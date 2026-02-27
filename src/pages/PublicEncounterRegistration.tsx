@@ -63,6 +63,28 @@ export function PublicEncounterRegistration() {
     );
   }, [leaders, discipuladorId]);
 
+  const resolveDefaultPastor = async (): Promise<ProfileLookup | null> => {
+    const { data: pastorsData, error: pastorsError } = await (supabase as any)
+      .from("profiles")
+      .select("id, name, role, is_kids")
+      .eq("role", "pastor")
+      .or("is_kids.is.null,is_kids.eq.false")
+      .order("name");
+
+    if (pastorsError) {
+      console.error("Error loading pastors:", pastorsError);
+      return null;
+    }
+
+    const pastors = (pastorsData || []) as ProfileLookup[];
+    if (pastors.length === 0) return null;
+
+    const preferred =
+      pastors.find((p) => p.name?.toLowerCase().includes("christian")) || pastors[0];
+
+    return preferred;
+  };
+
   const loadData = async () => {
     try {
       setLoading(true);
@@ -102,25 +124,10 @@ export function PublicEncounterRegistration() {
       setDiscipuladores(discipuladoresData || []);
       setLeaders(leadersData || []);
 
-      const { data: pastorCandidates, error: pastorError } = await (supabase as any)
-        .from("profiles")
-        .select("id, name, role")
-        .ilike("name", "%christian%")
-        .order("name");
-
-      if (pastorError) {
-        console.error("Error loading Pastor Christian profile:", pastorError);
-      } else {
-        const candidates = (pastorCandidates || []) as ProfileLookup[];
-        const pastorChristian =
-          candidates.find((p) => p.name?.trim().toLowerCase() === "pastor christian") ||
-          candidates.find((p) => p.role === "pastor") ||
-          null;
-
-        if (pastorChristian) {
-          setPastorChristianId(pastorChristian.id);
-          setPastorChristianName(pastorChristian.name);
-        }
+      const defaultPastor = await resolveDefaultPastor();
+      if (defaultPastor) {
+        setPastorChristianId(defaultPastor.id);
+        setPastorChristianName(defaultPastor.name);
       }
     } catch (error) {
       console.error(error);
@@ -150,18 +157,34 @@ export function PublicEncounterRegistration() {
     let selectedLiderId = liderId;
 
     if (funcao === "discipulador") {
-      if (!pastorChristianId) {
+      let resolvedPastorId = pastorChristianId;
+      let resolvedPastorName = pastorChristianName;
+
+      if (!resolvedPastorId) {
+        const defaultPastor = await resolveDefaultPastor();
+        if (defaultPastor) {
+          resolvedPastorId = defaultPastor.id;
+          resolvedPastorName = defaultPastor.name;
+          setPastorChristianId(defaultPastor.id);
+          setPastorChristianName(defaultPastor.name);
+        }
+      }
+
+      if (!resolvedPastorId) {
         toast({
           title: "Erro",
           description:
-            "Nao foi possivel localizar o perfil padrao de Pastor Christian. Contate a administracao.",
+            "Nao foi possivel localizar um pastor cadastrado para usar como padrao. Contate a administracao.",
           variant: "destructive",
         });
         return;
       }
 
-      selectedDiscipuladorId = pastorChristianId;
-      selectedLiderId = pastorChristianId;
+      selectedDiscipuladorId = resolvedPastorId;
+      selectedLiderId = resolvedPastorId;
+      if (resolvedPastorName !== pastorChristianName) {
+        setPastorChristianName(resolvedPastorName);
+      }
     } else {
       if (!discipuladorId) {
         toast({
