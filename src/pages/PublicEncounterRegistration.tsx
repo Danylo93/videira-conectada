@@ -115,7 +115,7 @@ export function PublicEncounterRegistration() {
       if (leadersError) {
         toast({
           title: "Erro",
-          description: "Erro ao carregar lideres. Tente novamente.",
+          description: "Erro ao carregar líderes. Tente novamente.",
           variant: "destructive",
         });
         return;
@@ -174,7 +174,7 @@ export function PublicEncounterRegistration() {
         toast({
           title: "Erro",
           description:
-            "Nao foi possivel localizar um pastor cadastrado para usar como padrao. Contate a administracao.",
+            "Não foi possível localizar um pastor cadastrado para usar como padrão. Contate a administração.",
           variant: "destructive",
         });
         return;
@@ -198,7 +198,7 @@ export function PublicEncounterRegistration() {
       if (!liderId) {
         toast({
           title: "Erro",
-          description: "Selecione um lider.",
+          description: "Selecione um líder.",
           variant: "destructive",
         });
         return;
@@ -218,7 +218,7 @@ export function PublicEncounterRegistration() {
       if (error) {
         toast({
           title: "Erro",
-          description: error.message || "Nao foi possivel concluir a inscricao.",
+          description: error.message || "Não foi possível concluir a inscrição.",
           variant: "destructive",
         });
         return;
@@ -238,7 +238,7 @@ export function PublicEncounterRegistration() {
       setSubmitted(true);
       toast({
         title: "Sucesso",
-        description: "Inscricao realizada com sucesso.",
+        description: "Inscrição realizada com sucesso.",
       });
 
       setNomeCompleto("");
@@ -249,7 +249,7 @@ export function PublicEncounterRegistration() {
       console.error(error);
       toast({
         title: "Erro",
-        description: error.message || "Nao foi possivel concluir a inscricao.",
+        description: error.message || "Não foi possível concluir a inscrição.",
         variant: "destructive",
       });
     } finally {
@@ -279,7 +279,7 @@ export function PublicEncounterRegistration() {
           <CardContent className="pt-6">
             <div className="text-center">
               <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
-              <h2 className="text-2xl font-bold mb-2">Inscricao confirmada</h2>
+              <h2 className="text-2xl font-bold mb-2">Inscrição confirmada</h2>
               <p className="text-muted-foreground mb-6">
                 Seu nome foi registrado para o encontro.
               </p>
@@ -293,7 +293,7 @@ export function PublicEncounterRegistration() {
                   setLiderId("");
                 }}
               >
-                Fazer nova inscricao
+                Fazer nova inscrição
               </Button>
             </div>
           </CardContent>
@@ -343,7 +343,7 @@ export function PublicEncounterRegistration() {
 
               <div>
                 <Label htmlFor="funcao" className="text-sm sm:text-base">
-                  Funcao <span className="text-red-500">*</span>
+                  Função <span className="text-red-500">*</span>
                 </Label>
                 <Select
                   value={funcao}
@@ -360,7 +360,7 @@ export function PublicEncounterRegistration() {
                     id="funcao"
                     className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
                   >
-                    <SelectValue placeholder="Selecione a funcao" />
+                    <SelectValue placeholder="Selecione a função" />
                   </SelectTrigger>
                   <SelectContent
                     position="popper"
@@ -444,12 +444,12 @@ export function PublicEncounterRegistration() {
 
                   <div>
                     <Label htmlFor="lider" className="text-sm sm:text-base">
-                      Lider <span className="text-red-500">*</span>
+                      Líder <span className="text-red-500">*</span>
                     </Label>
                     {discipuladorId && filteredLeaders.length === 0 ? (
                       <div className="mt-1 p-3 border border-amber-500 rounded-md bg-amber-50">
                         <p className="text-sm text-amber-700">
-                          Nenhum lider vinculado ao discipulador selecionado.
+                          Nenhum líder vinculado ao discipulador selecionado.
                         </p>
                       </div>
                     ) : (
@@ -463,7 +463,7 @@ export function PublicEncounterRegistration() {
                             placeholder={
                               !discipuladorId
                                 ? "Selecione primeiro o discipulador"
-                                : "Selecione seu lider"
+                                : "Selecione seu líder"
                             }
                           />
                         </SelectTrigger>
@@ -503,7 +503,7 @@ export function PublicEncounterRegistration() {
                 ) : (
                   <>
                     <Users className="mr-2 h-4 w-4" />
-                    Confirmar Inscricao
+                    Confirmar Inscrição
                   </>
                 )}
               </Button>

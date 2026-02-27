@@ -10,6 +10,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { useToast } from "@/hooks/use-toast";
 import { Calendar, Loader2, Search, Users } from "lucide-react";
 import logoVideira from "@/assets/logo-videira.png";
 import { formatDateBR } from "@/lib/dateUtils";
@@ -42,14 +44,18 @@ interface EncounterRegistration {
   lider_id: string;
   discipulador_name: string;
   lider_name: string;
+  ja_pagou: boolean;
+  presenca_confirmada: boolean;
   created_at: string;
 }
 
 export function PublicEncontroRegistrationsView() {
+  const { toast } = useToast();
   const [registrations, setRegistrations] = useState<EncounterRegistration[]>([]);
   const [discipuladores, setDiscipuladores] = useState<Discipulador[]>([]);
   const [leaders, setLeaders] = useState<Leader[]>([]);
   const [loading, setLoading] = useState(true);
+  const [updatingFields, setUpdatingFields] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedFuncao, setSelectedFuncao] = useState("all");
   const [selectedDiscipulador, setSelectedDiscipulador] = useState("all");
@@ -120,6 +126,8 @@ export function PublicEncontroRegistrationsView() {
           funcao,
           discipulador_id,
           lider_id,
+          ja_pagou,
+          presenca_confirmada,
           created_at,
           discipulador:profiles!encounter_registrations_discipulador_id_fkey(name),
           lider:profiles!encounter_registrations_lider_id_fkey(name)
@@ -137,8 +145,10 @@ export function PublicEncontroRegistrationsView() {
         funcao: item.funcao || "encontrista",
         discipulador_id: item.discipulador_id,
         lider_id: item.lider_id,
-        discipulador_name: item.discipulador?.name || "Nao informado",
-        lider_name: item.lider?.name || "Nao informado",
+        discipulador_name: item.discipulador?.name || "Não informado",
+        lider_name: item.lider?.name || "Não informado",
+        ja_pagou: !!item.ja_pagou,
+        presenca_confirmada: !!item.presenca_confirmada,
         created_at: item.created_at,
       }));
 
@@ -151,6 +161,55 @@ export function PublicEncontroRegistrationsView() {
       setLoading(false);
     }
   };
+
+  const updateRegistrationStatus = async (
+    registrationId: string,
+    field: "ja_pagou" | "presenca_confirmada",
+    value: boolean
+  ) => {
+    const fieldKey = `${registrationId}:${field}`;
+    setUpdatingFields((prev) => {
+      const next = new Set(prev);
+      next.add(fieldKey);
+      return next;
+    });
+
+    try {
+      const { error } = await (supabase as any)
+        .from("encounter_registrations")
+        .update({ [field]: value })
+        .eq("id", registrationId);
+
+      if (error) {
+        toast({
+          title: "Erro",
+          description: "Não foi possível atualizar o status.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setRegistrations((prev) =>
+        prev.map((item) => (item.id === registrationId ? { ...item, [field]: value } : item))
+      );
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível atualizar o status.",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingFields((prev) => {
+        const next = new Set(prev);
+        next.delete(fieldKey);
+        return next;
+      });
+    }
+  };
+
+  const isUpdatingField = (registrationId: string, field: "ja_pagou" | "presenca_confirmada") =>
+    updatingFields.has(`${registrationId}:${field}`);
 
   if (loading) {
     return (
@@ -170,13 +229,13 @@ export function PublicEncontroRegistrationsView() {
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-6 sm:mb-8">
           <div className="flex justify-center mb-4">
-            <img src={logoVideira} alt="Videira Sao Miguel" className="h-16 sm:h-20 w-auto" />
+            <img src={logoVideira} alt="Videira São Miguel" className="h-16 sm:h-20 w-auto" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
             Acompanhamento de Encontro com Deus
           </h1>
           <p className="text-sm sm:text-base text-gray-600">
-            Visualize as inscricoes confirmadas para o Encontro com Deus
+            Visualize as inscrições confirmadas para o Encontro com Deus
           </p>
         </div>
 
@@ -222,7 +281,7 @@ export function PublicEncontroRegistrationsView() {
                   <Input
                     id="search"
                     type="text"
-                    placeholder="Nome, discipulador ou lider..."
+                    placeholder="Nome, discipulador ou líder..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10 min-h-[44px] touch-manipulation text-sm sm:text-base"
@@ -232,7 +291,7 @@ export function PublicEncontroRegistrationsView() {
 
               <div className="space-y-2">
                 <label htmlFor="funcao" className="text-sm font-medium">
-                  Funcao
+                  Função
                 </label>
                 <Select value={selectedFuncao} onValueChange={setSelectedFuncao}>
                   <SelectTrigger
@@ -294,7 +353,7 @@ export function PublicEncontroRegistrationsView() {
 
               <div className="space-y-2">
                 <label htmlFor="lider" className="text-sm font-medium">
-                  Lider
+                  Líder
                 </label>
                 <Select value={selectedLeader} onValueChange={setSelectedLeader}>
                   <SelectTrigger
@@ -329,7 +388,7 @@ export function PublicEncontroRegistrationsView() {
               Lista de Encontristas ({filteredRegistrations.length})
             </CardTitle>
             <CardDescription>
-              Atualizada em tempo real a partir das inscricoes
+              Atualizada em tempo real a partir das inscrições
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -348,9 +407,11 @@ export function PublicEncontroRegistrationsView() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="min-w-[220px]">Nome Completo</TableHead>
-                      <TableHead className="min-w-[130px]">Funcao</TableHead>
+                      <TableHead className="min-w-[130px]">Função</TableHead>
                       <TableHead className="min-w-[180px]">Discipulador</TableHead>
-                      <TableHead className="min-w-[180px]">Lider</TableHead>
+                      <TableHead className="min-w-[180px]">Líder</TableHead>
+                      <TableHead className="min-w-[170px]">Pagamento</TableHead>
+                      <TableHead className="min-w-[170px]">Presença</TableHead>
                       <TableHead className="min-w-[150px]">Data de Cadastro</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -377,6 +438,40 @@ export function PublicEncontroRegistrationsView() {
                         </TableCell>
                         <TableCell>{item.discipulador_name}</TableCell>
                         <TableCell>{item.lider_name}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Switch
+                              checked={item.ja_pagou}
+                              onCheckedChange={(checked) =>
+                                updateRegistrationStatus(item.id, "ja_pagou", checked)
+                              }
+                              disabled={isUpdatingField(item.id, "ja_pagou")}
+                              aria-label={`Atualizar pagamento de ${item.nome_completo}`}
+                            />
+                            <span className="text-sm">{item.ja_pagou ? "Pago" : "Pendente"}</span>
+                            {isUpdatingField(item.id, "ja_pagou") ? (
+                              <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                            ) : null}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Switch
+                              checked={item.presenca_confirmada}
+                              onCheckedChange={(checked) =>
+                                updateRegistrationStatus(item.id, "presenca_confirmada", checked)
+                              }
+                              disabled={isUpdatingField(item.id, "presenca_confirmada")}
+                              aria-label={`Atualizar presença de ${item.nome_completo}`}
+                            />
+                            <span className="text-sm">
+                              {item.presenca_confirmada ? "Confirmada" : "Pendente"}
+                            </span>
+                            {isUpdatingField(item.id, "presenca_confirmada") ? (
+                              <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                            ) : null}
+                          </div>
+                        </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           <div className="flex items-center gap-1">
                             <Calendar className="w-3 h-3" />
@@ -394,13 +489,13 @@ export function PublicEncontroRegistrationsView() {
 
         <div className="mt-6 sm:mt-8 text-center">
           <p className="text-sm text-muted-foreground mb-4">
-            Ainda nao fez sua inscricao para o encontro?
+            Ainda não fez sua inscrição para o encontro?
           </p>
           <a
             href="/cadastro-encontro"
             className="inline-block px-6 py-3 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors min-h-[48px] touch-manipulation text-sm sm:text-base"
           >
-            Fazer Inscricao
+            Fazer Inscrição
           </a>
         </div>
       </div>

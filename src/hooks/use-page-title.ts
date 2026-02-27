@@ -32,12 +32,20 @@ const PAGE_INFO: Record<string, PageInfo> = {
     description: "Acompanhamento de candidatos ao batismo da Igreja Videira São Miguel",
   },
   "/cadastro-encontro": {
-    title: "Inscricao para Encontro com Deus - Videira São Miguel",
-    description: "Inscricao para o Encontro com Deus da Igreja Videira São Miguel",
+    title: "Inscrição para Encontro com Deus - Videira São Miguel",
+    description: "Inscrição para o Encontro com Deus da Igreja Videira São Miguel",
   },
   "/acompanhamento-encontro": {
     title: "Acompanhamento de Encontro com Deus - Videira São Miguel",
-    description: "Acompanhamento das inscricoes do Encontro com Deus da Igreja Videira São Miguel",
+    description: "Acompanhamento das inscrições do Encontro com Deus da Igreja Videira São Miguel",
+  },
+  "/cadastro-encontro-kids": {
+    title: "Inscrição Encontro Kids - Videira São Miguel",
+    description: "Inscrição para o Encontro Kids da Igreja Videira São Miguel",
+  },
+  "/acompanhamento-encontro-kids": {
+    title: "Acompanhamento Encontro Kids - Videira São Miguel",
+    description: "Acompanhamento das inscrições do Encontro Kids da Igreja Videira São Miguel",
   },
   "/batizantes": {
     title: "Batizantes - Videira São Miguel",
