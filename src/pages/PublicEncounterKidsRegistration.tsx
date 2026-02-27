@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,8 +27,15 @@ interface Leader {
   discipulador_uuid?: string | null;
 }
 
+interface ProfileLookup {
+  id: string;
+  name: string;
+  role: string;
+}
+
 const KIDS_DATE = "07/03";
 const KIDS_TIME = "08:30 as 14:30hs";
+const DEFAULT_PASTORA_KIDS_NAME = "Pastora Tainá";
 
 const normalizeText = (value: string) =>
   value
@@ -44,10 +51,15 @@ export function PublicEncounterKidsRegistration() {
   const [leaders, setLeaders] = useState<Leader[]>([]);
 
   const [nomeCompleto, setNomeCompleto] = useState("");
+  const [funcao, setFuncao] = useState<"encontrista" | "equipe" | "discipuladora">(
+    "encontrista"
+  );
   const [idade, setIdade] = useState("");
   const [nomeResponsavel, setNomeResponsavel] = useState("");
   const [discipuladoraId, setDiscipuladoraId] = useState("");
   const [liderNome, setLiderNome] = useState("");
+  const [pastoraKidsId, setPastoraKidsId] = useState("");
+  const [pastoraKidsName, setPastoraKidsName] = useState(DEFAULT_PASTORA_KIDS_NAME);
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -65,6 +77,44 @@ export function PublicEncounterKidsRegistration() {
         leader.discipulador_uuid === discipuladoraId
     );
   }, [leaders, discipuladoraId]);
+
+  const resolveDefaultPastoraKids = async (): Promise<ProfileLookup | null> => {
+    const { data: pastorsData, error: pastorsError } = await (supabase as any)
+      .from("profiles")
+      .select("id, name, role, is_kids")
+      .eq("role", "pastor")
+      .eq("is_kids", true)
+      .order("name");
+
+    if (pastorsError) {
+      console.error("Error loading kids pastors:", pastorsError);
+      return null;
+    }
+
+    let pastors = (pastorsData || []) as ProfileLookup[];
+
+    if (pastors.length === 0) {
+      const { data: fallbackPastorsData, error: fallbackError } = await (supabase as any)
+        .from("profiles")
+        .select("id, name, role")
+        .eq("role", "pastor")
+        .order("name");
+
+      if (fallbackError) {
+        console.error("Error loading fallback pastors:", fallbackError);
+        return null;
+      }
+
+      pastors = (fallbackPastorsData || []) as ProfileLookup[];
+    }
+
+    if (pastors.length === 0) return null;
+
+    const preferred =
+      pastors.find((p) => normalizeText(p.name || "").includes("taina")) || null;
+
+    return preferred;
+  };
 
   const loadData = async () => {
     try {
@@ -96,7 +146,7 @@ export function PublicEncounterKidsRegistration() {
       if (leadersError) {
         toast({
           title: "Erro",
-          description: "Erro ao carregar líderes.",
+          description: "Erro ao carregar lideres.",
           variant: "destructive",
         });
         return;
@@ -104,6 +154,11 @@ export function PublicEncounterKidsRegistration() {
 
       setDiscipuladoras(discipuladorasData || []);
       setLeaders(leadersData || []);
+
+      const defaultPastora = await resolveDefaultPastoraKids();
+      if (defaultPastora) {
+        setPastoraKidsId(defaultPastora.id);
+      }
     } catch (error) {
       console.error(error);
       toast({
@@ -119,36 +174,97 @@ export function PublicEncounterKidsRegistration() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!nomeCompleto.trim() || !idade.trim() || !nomeResponsavel.trim() || !discipuladoraId || !liderNome.trim()) {
+    if (!nomeCompleto.trim()) {
       toast({
         title: "Erro",
-        description: "Preencha todos os campos obrigatórios.",
+        description: "Preencha os campos obrigatorios.",
         variant: "destructive",
       });
       return;
     }
 
-    const idadeValue = Number.parseInt(idade, 10);
-    if (Number.isNaN(idadeValue) || idadeValue < 0 || idadeValue > 17) {
+    if (funcao === "encontrista" && !nomeResponsavel.trim()) {
       toast({
         title: "Erro",
-        description: "Informe uma idade válida entre 0 e 17 anos.",
+        description: "Preencha o nome do responsavel.",
         variant: "destructive",
       });
       return;
     }
 
-    const selectedLeader = filteredLeaders.find(
-      (leader) => normalizeText(leader.name) === normalizeText(liderNome)
-    );
+    let idadeValue: number | null = null;
+    if (funcao === "encontrista") {
+      if (!idade.trim()) {
+        toast({
+          title: "Erro",
+          description: "Preencha a idade.",
+          variant: "destructive",
+        });
+        return;
+      }
 
-    if (!selectedLeader) {
-      toast({
-        title: "Erro",
-        description: "Líder não encontrado para a discipuladora selecionada.",
-        variant: "destructive",
-      });
-      return;
+      const parsedIdade = Number.parseInt(idade, 10);
+      if (Number.isNaN(parsedIdade) || parsedIdade < 0 || parsedIdade > 17) {
+        toast({
+          title: "Erro",
+          description: "Informe uma idade valida entre 0 e 17 anos.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      idadeValue = parsedIdade;
+    }
+
+    let selectedDiscipuladoraId = discipuladoraId;
+    let selectedLiderId = "";
+
+    if (funcao === "discipuladora") {
+      let resolvedPastoraId = pastoraKidsId;
+
+      if (!resolvedPastoraId) {
+        const defaultPastora = await resolveDefaultPastoraKids();
+        if (defaultPastora) {
+          resolvedPastoraId = defaultPastora.id;
+          setPastoraKidsId(defaultPastora.id);
+        }
+      }
+
+      if (!resolvedPastoraId) {
+        toast({
+          title: "Erro",
+          description: "Nao foi possivel localizar o perfil da Pastora Taina.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      selectedDiscipuladoraId = resolvedPastoraId;
+      selectedLiderId = resolvedPastoraId;
+    } else {
+      if (!discipuladoraId || !liderNome.trim()) {
+        toast({
+          title: "Erro",
+          description: "Selecione discipuladora e lider.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const selectedLeader = filteredLeaders.find(
+        (leader) => normalizeText(leader.name) === normalizeText(liderNome)
+      );
+
+      if (!selectedLeader) {
+        toast({
+          title: "Erro",
+          description: "Lider nao encontrado para a discipuladora selecionada.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      selectedLiderId = selectedLeader.id;
     }
 
     try {
@@ -156,16 +272,17 @@ export function PublicEncounterKidsRegistration() {
 
       const { error } = await (supabase as any).from("encounter_kids_registrations").insert({
         nome_completo: nomeCompleto.trim(),
+        funcao,
         idade: idadeValue,
-        nome_responsavel: nomeResponsavel.trim(),
-        discipuladora_id: discipuladoraId,
-        lider_id: selectedLeader.id,
+        nome_responsavel: funcao === "encontrista" ? nomeResponsavel.trim() : "",
+        discipuladora_id: selectedDiscipuladoraId,
+        lider_id: selectedLiderId,
       });
 
       if (error) {
         toast({
           title: "Erro",
-          description: error.message || "Não foi possível concluir a inscrição.",
+          description: error.message || "Nao foi possivel concluir a inscricao.",
           variant: "destructive",
         });
         return;
@@ -174,10 +291,11 @@ export function PublicEncounterKidsRegistration() {
       setSubmitted(true);
       toast({
         title: "Sucesso",
-        description: "Inscrição Kids realizada com sucesso.",
+        description: "Inscricao Kids realizada com sucesso.",
       });
 
       setNomeCompleto("");
+      setFuncao("encontrista");
       setIdade("");
       setNomeResponsavel("");
       setDiscipuladoraId("");
@@ -186,7 +304,7 @@ export function PublicEncounterKidsRegistration() {
       console.error(error);
       toast({
         title: "Erro",
-        description: error.message || "Não foi possível concluir a inscrição.",
+        description: error.message || "Nao foi possivel concluir a inscricao.",
         variant: "destructive",
       });
     } finally {
@@ -213,7 +331,7 @@ export function PublicEncounterKidsRegistration() {
         <Card className="w-full max-w-md">
           <CardContent className="pt-6 text-center">
             <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold mb-2">Inscrição confirmada</h2>
+            <h2 className="text-2xl font-bold mb-2">Inscricao confirmada</h2>
             <p className="text-muted-foreground mb-6">
               Cadastro do Encontro Kids realizado com sucesso.
             </p>
@@ -222,13 +340,14 @@ export function PublicEncounterKidsRegistration() {
               onClick={() => {
                 setSubmitted(false);
                 setNomeCompleto("");
+                setFuncao("encontrista");
                 setIdade("");
                 setNomeResponsavel("");
                 setDiscipuladoraId("");
                 setLiderNome("");
               }}
             >
-              Fazer nova inscrição
+              Fazer nova inscricao
             </Button>
           </CardContent>
         </Card>
@@ -245,14 +364,14 @@ export function PublicEncounterKidsRegistration() {
               <img src={logoKids} alt="Videira Kids" className="h-14 sm:h-16 md:h-20 rounded-md" />
             </div>
             <CardTitle className="text-lg sm:text-xl md:text-2xl lg:text-3xl">
-              Inscrição Encontro Kids
+              Inscricao Encontro Kids
             </CardTitle>
             <CardDescription className="text-xs sm:text-sm md:text-base mt-2">
-              Preencha os dados abaixo para confirmar a inscrição
+              Preencha os dados abaixo para confirmar a inscricao
             </CardDescription>
             <div className="mt-3 sm:mt-4 bg-gradient-to-r from-cyan-100 to-blue-100 p-3 sm:p-4 rounded-lg">
               <p className="font-semibold text-cyan-700 text-sm sm:text-base md:text-lg">
-                Dia: {KIDS_DATE} - Horário: {KIDS_TIME}
+                Dia: {KIDS_DATE} - Horario: {KIDS_TIME}
               </p>
             </div>
           </CardHeader>
@@ -275,55 +394,25 @@ export function PublicEncounterKidsRegistration() {
               </div>
 
               <div>
-                <Label htmlFor="idade" className="text-sm sm:text-base">
-                  Idade <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="idade"
-                  type="number"
-                  min={0}
-                  max={17}
-                  inputMode="numeric"
-                  value={idade}
-                  onChange={(e) => setIdade(e.target.value)}
-                  placeholder="Digite a idade"
-                  required
-                  className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="nomeResponsavel" className="text-sm sm:text-base">
-                  Nome do responsável <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="nomeResponsavel"
-                  type="text"
-                  value={nomeResponsavel}
-                  onChange={(e) => setNomeResponsavel(e.target.value)}
-                  placeholder="Digite o nome do responsável"
-                  required
-                  className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="discipuladora" className="text-sm sm:text-base">
-                  Discipuladora <span className="text-red-500">*</span>
+                <Label htmlFor="funcao" className="text-sm sm:text-base">
+                  Funcao <span className="text-red-500">*</span>
                 </Label>
                 <Select
-                  value={discipuladoraId}
-                  onValueChange={(value) => {
-                    setDiscipuladoraId(value);
-                    setLiderNome("");
+                  value={funcao}
+                  onValueChange={(value: "encontrista" | "equipe" | "discipuladora") => {
+                    setFuncao(value);
+                    if (value === "discipuladora") {
+                      setDiscipuladoraId("");
+                      setLiderNome("");
+                    }
                   }}
                   required
                 >
                   <SelectTrigger
-                    id="discipuladora"
+                    id="funcao"
                     className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
                   >
-                    <SelectValue placeholder="Selecione a discipuladora" />
+                    <SelectValue placeholder="Selecione a funcao" />
                   </SelectTrigger>
                   <SelectContent
                     position="popper"
@@ -331,53 +420,144 @@ export function PublicEncounterKidsRegistration() {
                     collisionPadding={8}
                     className="z-[9999] w-[var(--radix-select-trigger-width)] max-h-[42svh] sm:max-h-72 md:max-h-80"
                   >
-                    {discipuladoras.map((discipuladora) => (
-                      <SelectItem
-                        key={discipuladora.id}
-                        value={discipuladora.id}
-                        className="min-h-[44px] touch-manipulation text-sm"
-                      >
-                        {discipuladora.name}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="encontrista" className="min-h-[44px] touch-manipulation text-sm">
+                      Encontrista
+                    </SelectItem>
+                    <SelectItem value="equipe" className="min-h-[44px] touch-manipulation text-sm">
+                      Equipe
+                    </SelectItem>
+                    <SelectItem value="discipuladora" className="min-h-[44px] touch-manipulation text-sm">
+                      Discipuladora
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              <div>
-                <Label htmlFor="lider" className="text-sm sm:text-base">
-                  Líder <span className="text-red-500">*</span>
-                </Label>
-                {discipuladoraId && filteredLeaders.length === 0 ? (
-                  <div className="mt-1 p-3 border border-amber-500 rounded-md bg-amber-50">
-                    <p className="text-sm text-amber-700">
-                      Nenhum líder vinculado à discipuladora selecionada.
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    <Input
-                      id="lider"
-                      value={liderNome}
-                      onChange={(e) => setLiderNome(e.target.value)}
-                      list="kids-leaders-options"
-                      placeholder={
-                        !discipuladoraId
-                          ? "Selecione primeiro a discipuladora"
-                          : "Digite o nome do líder"
-                      }
-                      disabled={!discipuladoraId}
+              {funcao === "encontrista" ? (
+                <div>
+                  <Label htmlFor="idade" className="text-sm sm:text-base">
+                    Idade <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="idade"
+                    type="number"
+                    min={0}
+                    max={17}
+                    inputMode="numeric"
+                    value={idade}
+                    onChange={(e) => setIdade(e.target.value)}
+                    placeholder="Digite a idade"
+                    required
+                    className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
+                  />
+                </div>
+              ) : null}
+
+              {funcao === "encontrista" ? (
+                <div>
+                  <Label htmlFor="nomeResponsavel" className="text-sm sm:text-base">
+                    Nome do responsavel <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="nomeResponsavel"
+                    type="text"
+                    value={nomeResponsavel}
+                    onChange={(e) => setNomeResponsavel(e.target.value)}
+                    placeholder="Digite o nome do responsavel"
+                    required
+                    className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
+                  />
+                </div>
+              ) : null}
+
+              {funcao === "discipuladora" ? (
+                <div>
+                  <Label htmlFor="pastora-kids" className="text-sm sm:text-base">
+                    Pastora
+                  </Label>
+                  <Input
+                    id="pastora-kids"
+                    value={pastoraKidsName}
+                    disabled
+                    readOnly
+                    className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation bg-muted"
+                  />
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <Label htmlFor="discipuladora" className="text-sm sm:text-base">
+                      Discipuladora <span className="text-red-500">*</span>
+                    </Label>
+                    <Select
+                      value={discipuladoraId}
+                      onValueChange={(value) => {
+                        setDiscipuladoraId(value);
+                        setLiderNome("");
+                      }}
                       required
-                      className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
-                    />
-                    <datalist id="kids-leaders-options">
-                      {filteredLeaders.map((leader) => (
-                        <option key={leader.id} value={leader.name} />
-                      ))}
-                    </datalist>
-                  </>
-                )}
-              </div>
+                    >
+                      <SelectTrigger
+                        id="discipuladora"
+                        className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
+                      >
+                        <SelectValue placeholder="Selecione a discipuladora" />
+                      </SelectTrigger>
+                      <SelectContent
+                        position="popper"
+                        sideOffset={4}
+                        collisionPadding={8}
+                        className="z-[9999] w-[var(--radix-select-trigger-width)] max-h-[42svh] sm:max-h-72 md:max-h-80"
+                      >
+                        {discipuladoras.map((discipuladora) => (
+                          <SelectItem
+                            key={discipuladora.id}
+                            value={discipuladora.id}
+                            className="min-h-[44px] touch-manipulation text-sm"
+                          >
+                            {discipuladora.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="lider" className="text-sm sm:text-base">
+                      Lider <span className="text-red-500">*</span>
+                    </Label>
+                    {discipuladoraId && filteredLeaders.length === 0 ? (
+                      <div className="mt-1 p-3 border border-amber-500 rounded-md bg-amber-50">
+                        <p className="text-sm text-amber-700">
+                          Nenhum lider vinculado a discipuladora selecionada.
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        <Input
+                          id="lider"
+                          value={liderNome}
+                          onChange={(e) => setLiderNome(e.target.value)}
+                          list="kids-leaders-options"
+                          placeholder={
+                            !discipuladoraId
+                              ? "Selecione primeiro a discipuladora"
+                              : "Digite o nome do lider"
+                          }
+                          disabled={!discipuladoraId}
+                          required
+                          className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
+                        />
+                        <datalist id="kids-leaders-options">
+                          {filteredLeaders.map((leader) => (
+                            <option key={leader.id} value={leader.name} />
+                          ))}
+                        </datalist>
+                      </>
+                    )}
+                  </div>
+                </>
+              )}
 
               <Button
                 type="submit"
@@ -393,7 +573,7 @@ export function PublicEncounterKidsRegistration() {
                 ) : (
                   <>
                     <Users className="mr-2 h-4 w-4" />
-                    Confirmar inscrição
+                    Confirmar inscricao
                   </>
                 )}
               </Button>
