@@ -1,6 +1,28 @@
 {
   "rewrites": [
     {
+      "source": "/cadastro-encontro-kids",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/cadastro-encontro-kids.html"
+    },
+    {
+      "source": "/acompanhamento-encontro-kids",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/acompanhamento-encontro-kids.html"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
