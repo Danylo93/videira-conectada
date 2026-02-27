@@ -28,7 +28,7 @@ interface Leader {
 }
 
 const KIDS_DATE = "07/03";
-const KIDS_TIME = "08:30 as 14h";
+const KIDS_TIME = "08:30 as 14:30hs";
 
 const normalizeText = (value: string) =>
   value
