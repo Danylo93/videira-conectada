@@ -158,6 +158,28 @@ export function PublicEncounterRegistration() {
     }
   };
 
+  const syncEncounterSheetInBackground = () => {
+    // Sync must not impact UX on mobile/public page.
+    setTimeout(() => {
+      void (async () => {
+        try {
+          const { error: syncError } = await supabase.functions.invoke(
+            "sync-encontristas-google-sheets",
+            {
+              method: "POST",
+            }
+          );
+
+          if (syncError) {
+            console.error("Encounter sync warning:", syncError);
+          }
+        } catch (syncError) {
+          console.error("Encounter sync warning:", syncError);
+        }
+      })();
+    }, 0);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -241,17 +263,6 @@ export function PublicEncounterRegistration() {
         return;
       }
 
-      const { error: syncError } = await supabase.functions.invoke(
-        "sync-encontristas-google-sheets",
-        {
-          method: "POST",
-        }
-      );
-
-      if (syncError) {
-        console.error("Encounter sync warning:", syncError);
-      }
-
       setSubmitted(true);
       toast({
         title: "Sucesso",
@@ -262,6 +273,8 @@ export function PublicEncounterRegistration() {
       setFuncao("encontrista");
       setDiscipuladorId("");
       setLiderId("");
+
+      syncEncounterSheetInBackground();
     } catch (error: any) {
       console.error(error);
       toast({
