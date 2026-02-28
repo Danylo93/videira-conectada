@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -12,7 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar, Loader2, Search, Users } from "lucide-react";
+import { Calendar, Loader2, Search, Trash2, Users } from "lucide-react";
 import logoVideira from "@/assets/logo-videira.png";
 import { formatDateBR } from "@/lib/dateUtils";
 import {
@@ -56,6 +57,7 @@ export function PublicEncontroRegistrationsView() {
   const [leaders, setLeaders] = useState<Leader[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingFields, setUpdatingFields] = useState<Set<string>>(new Set());
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedFuncao, setSelectedFuncao] = useState("all");
   const [selectedDiscipulador, setSelectedDiscipulador] = useState("all");
@@ -210,6 +212,54 @@ export function PublicEncontroRegistrationsView() {
 
   const isUpdatingField = (registrationId: string, field: "ja_pagou" | "presenca_confirmada") =>
     updatingFields.has(`${registrationId}:${field}`);
+
+  const deleteRegistration = async (registrationId: string, nomeCompleto: string) => {
+    const confirmed = window.confirm(
+      `Deseja realmente excluir o registro de "${nomeCompleto}"?\n\nEssa ação não pode ser desfeita.`
+    );
+    if (!confirmed) return;
+
+    setDeletingIds((prev) => {
+      const next = new Set(prev);
+      next.add(registrationId);
+      return next;
+    });
+
+    try {
+      const { error } = await (supabase as any)
+        .from("encounter_registrations")
+        .delete()
+        .eq("id", registrationId);
+
+      if (error) {
+        toast({
+          title: "Erro",
+          description: "Não foi possível excluir o registro.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setRegistrations((prev) => prev.filter((item) => item.id !== registrationId));
+      toast({
+        title: "Sucesso",
+        description: "Registro excluído com sucesso.",
+      });
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível excluir o registro.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(registrationId);
+        return next;
+      });
+    }
+  };
 
   if (loading) {
     return (
@@ -413,6 +463,7 @@ export function PublicEncontroRegistrationsView() {
                       <TableHead className="min-w-[170px]">Pagamento</TableHead>
                       <TableHead className="min-w-[170px]">Presença</TableHead>
                       <TableHead className="min-w-[150px]">Data de Cadastro</TableHead>
+                      <TableHead className="min-w-[110px]">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -477,6 +528,21 @@ export function PublicEncontroRegistrationsView() {
                             <Calendar className="w-3 h-3" />
                             {formatDateBR(new Date(item.created_at))}
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => deleteRegistration(item.id, item.nome_completo)}
+                            disabled={deletingIds.has(item.id)}
+                          >
+                            {deletingIds.has(item.id) ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}
