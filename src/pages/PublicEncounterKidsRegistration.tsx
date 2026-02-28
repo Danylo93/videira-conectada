@@ -217,7 +217,8 @@ export function PublicEncounterKidsRegistration() {
     }
 
     let selectedDiscipuladoraId = discipuladoraId;
-    let selectedLiderId = "";
+    let selectedLiderId: string | null = null;
+    let selectedLiderNome = "";
 
     if (funcao === "discipuladora") {
       let resolvedPastoraId = pastoraKidsId;
@@ -241,6 +242,7 @@ export function PublicEncounterKidsRegistration() {
 
       selectedDiscipuladoraId = resolvedPastoraId;
       selectedLiderId = resolvedPastoraId;
+      selectedLiderNome = DEFAULT_PASTORA_KIDS_NAME;
     } else {
       if (!discipuladoraId || !liderNome.trim()) {
         toast({
@@ -251,20 +253,11 @@ export function PublicEncounterKidsRegistration() {
         return;
       }
 
-      const selectedLeader = filteredLeaders.find(
+      const matchedLeader = filteredLeaders.find(
         (leader) => normalizeText(leader.name) === normalizeText(liderNome)
       );
-
-      if (!selectedLeader) {
-        toast({
-          title: "Erro",
-          description: "Lider nao encontrado para a discipuladora selecionada.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      selectedLiderId = selectedLeader.id;
+      selectedLiderId = matchedLeader?.id ?? null;
+      selectedLiderNome = liderNome.trim();
     }
 
     try {
@@ -277,6 +270,7 @@ export function PublicEncounterKidsRegistration() {
         nome_responsavel: funcao === "encontrista" ? nomeResponsavel.trim() : "",
         discipuladora_id: selectedDiscipuladoraId,
         lider_id: selectedLiderId,
+        lider_nome: selectedLiderNome,
       });
 
       if (error) {

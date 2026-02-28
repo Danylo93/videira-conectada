@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,15 +30,23 @@ interface KidsRegistration {
   idade: number | null;
   nome_responsavel: string;
   discipuladora_id: string;
-  lider_id: string;
+  lider_id: string | null;
   discipuladora_name: string;
   lider_name: string;
+  lider_filter_key: string;
   participacao_confirmada: boolean;
   created_at: string;
 }
 
 const KIDS_DATE = "07/03";
 const KIDS_TIME = "08:30 as 14:30hs";
+
+const normalizeText = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 
 export function PublicEncounterKidsRegistrationsView() {
   const { toast } = useToast();
@@ -74,8 +82,8 @@ export function PublicEncounterKidsRegistrationsView() {
 
     const map = new Map<string, string>();
     scoped.forEach((item) => {
-      if (item.lider_id && item.lider_name) {
-        map.set(item.lider_id, item.lider_name);
+      if (item.lider_filter_key && item.lider_name) {
+        map.set(item.lider_filter_key, item.lider_name);
       }
     });
 
@@ -105,7 +113,7 @@ export function PublicEncounterKidsRegistrationsView() {
       const matchesDiscipuladora =
         selectedDiscipuladora === "all" || item.discipuladora_id === selectedDiscipuladora;
 
-      const matchesLeader = selectedLeader === "all" || item.lider_id === selectedLeader;
+      const matchesLeader = selectedLeader === "all" || item.lider_filter_key === selectedLeader;
 
       return matchesSearch && matchesDiscipuladora && matchesLeader;
     });
@@ -131,6 +139,7 @@ export function PublicEncounterKidsRegistrationsView() {
           nome_responsavel,
           discipuladora_id,
           lider_id,
+          lider_nome,
           participacao_confirmada,
           created_at,
           discipuladora:profiles!encounter_kids_registrations_discipuladora_id_fkey(name),
@@ -149,9 +158,13 @@ export function PublicEncounterKidsRegistrationsView() {
         idade: item.idade,
         nome_responsavel: item.nome_responsavel,
         discipuladora_id: item.discipuladora_id,
-        lider_id: item.lider_id,
-        discipuladora_name: item.discipuladora?.name || "Não informado",
-        lider_name: item.lider?.name || "Não informado",
+        lider_id: item.lider_id ?? null,
+        discipuladora_name: item.discipuladora?.name || "NÃ£o informado",
+        lider_name: item.lider?.name || item.lider_nome || "Nao informado",
+        lider_filter_key:
+          item.lider_id
+            ? `id:${item.lider_id}`
+            : `nome:${normalizeText(item.lider?.name || item.lider_nome || "Nao informado")}`,
         participacao_confirmada: !!item.participacao_confirmada,
         created_at: item.created_at,
       }));
@@ -180,7 +193,7 @@ export function PublicEncounterKidsRegistrationsView() {
       if (error) {
         toast({
           title: "Erro",
-          description: "Não foi possível atualizar a confirmação.",
+          description: "NÃ£o foi possÃ­vel atualizar a confirmaÃ§Ã£o.",
           variant: "destructive",
         });
         return;
@@ -197,7 +210,7 @@ export function PublicEncounterKidsRegistrationsView() {
       console.error(error);
       toast({
         title: "Erro",
-        description: "Não foi possível atualizar a confirmação.",
+        description: "NÃ£o foi possÃ­vel atualizar a confirmaÃ§Ã£o.",
         variant: "destructive",
       });
     } finally {
@@ -263,7 +276,7 @@ export function PublicEncounterKidsRegistrationsView() {
         <Card className="w-full max-w-md">
           <CardContent className="pt-6 flex flex-col items-center justify-center space-y-4">
             <Loader2 className="h-8 w-8 animate-spin text-cyan-600" />
-            <p className="text-sm text-muted-foreground">Carregando inscrições Kids...</p>
+            <p className="text-sm text-muted-foreground">Carregando inscriÃ§Ãµes Kids...</p>
           </CardContent>
         </Card>
       </div>
@@ -291,7 +304,7 @@ export function PublicEncounterKidsRegistrationsView() {
               <div className="flex items-center gap-2 text-cyan-700">
                 <Calendar className="h-5 w-5" />
                 <span className="font-semibold">
-                  Data: {KIDS_DATE} | Horário: {KIDS_TIME}
+                  Data: {KIDS_DATE} | HorÃ¡rio: {KIDS_TIME}
                 </span>
               </div>
             </div>
@@ -338,7 +351,7 @@ export function PublicEncounterKidsRegistrationsView() {
                   <Input
                     id="search"
                     type="text"
-                    placeholder="Nome, responsável, discipuladora ou líder..."
+                    placeholder="Nome, responsÃ¡vel, discipuladora ou lÃ­der..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10 min-h-[44px] touch-manipulation text-sm sm:text-base"
@@ -382,7 +395,7 @@ export function PublicEncounterKidsRegistrationsView() {
 
               <div className="space-y-2">
                 <label htmlFor="lider" className="text-sm font-medium">
-                  Líder
+                  LÃ­der
                 </label>
                 <Select value={selectedLeader} onValueChange={setSelectedLeader}>
                   <SelectTrigger
@@ -416,7 +429,7 @@ export function PublicEncounterKidsRegistrationsView() {
             <CardTitle className="text-lg sm:text-xl">
               Lista de Inscritos Kids ({filteredRegistrations.length})
             </CardTitle>
-            <CardDescription>Acompanhamento público das inscrições</CardDescription>
+            <CardDescription>Acompanhamento pÃºblico das inscriÃ§Ãµes</CardDescription>
           </CardHeader>
           <CardContent>
             {filteredRegistrations.length === 0 ? (
@@ -501,12 +514,12 @@ export function PublicEncounterKidsRegistrationsView() {
                     <TableRow>
                       <TableHead className="min-w-[210px]">Nome Completo</TableHead>
                       <TableHead className="min-w-[90px]">Idade</TableHead>
-                      <TableHead className="min-w-[210px]">Nome do Responsável</TableHead>
+                      <TableHead className="min-w-[210px]">Nome do ResponsÃ¡vel</TableHead>
                       <TableHead className="min-w-[170px]">Discipuladora</TableHead>
-                      <TableHead className="min-w-[170px]">Líder</TableHead>
-                      <TableHead className="min-w-[180px]">Participação</TableHead>
+                      <TableHead className="min-w-[170px]">LÃ­der</TableHead>
+                      <TableHead className="min-w-[180px]">ParticipaÃ§Ã£o</TableHead>
                       <TableHead className="min-w-[150px]">Data de Cadastro</TableHead>
-                      <TableHead className="min-w-[110px]">Ações</TableHead>
+                      <TableHead className="min-w-[110px]">AÃ§Ãµes</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -523,7 +536,7 @@ export function PublicEncounterKidsRegistrationsView() {
                               checked={item.participacao_confirmada}
                               onCheckedChange={(checked) => updateParticipation(item.id, checked)}
                               disabled={updatingIds.has(item.id)}
-                              aria-label={`Atualizar participação de ${item.nome_completo}`}
+                              aria-label={`Atualizar participaÃ§Ã£o de ${item.nome_completo}`}
                             />
                             <span className="text-sm">
                               {item.participacao_confirmada ? "Confirmada" : "Pendente"}
@@ -562,12 +575,12 @@ export function PublicEncounterKidsRegistrationsView() {
         </Card>
 
         <div className="mt-6 sm:mt-8 text-center">
-          <p className="text-sm text-muted-foreground mb-4">Quer fazer uma nova inscrição Kids?</p>
+          <p className="text-sm text-muted-foreground mb-4">Quer fazer uma nova inscriÃ§Ã£o Kids?</p>
           <a
             href="/cadastro-encontro-kids"
             className="inline-block px-6 py-3 bg-cyan-600 text-white rounded-lg font-medium hover:bg-cyan-700 transition-colors min-h-[48px] touch-manipulation text-sm sm:text-base"
           >
-            Fazer inscrição Kids
+            Fazer inscriÃ§Ã£o Kids
           </a>
         </div>
       </div>

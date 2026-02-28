@@ -1,0 +1,55 @@
+name: CI/CD Develop
+
+on:
+  # push:
+  #   branches:
+  #     - stage
+  pull_request:
+    branches:
+      - stage
+
+jobs:
+  CI:
+    name: Continuous Integration
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 22.11.0
+
+      - name: Install dependencies
+        run: npm install --force
+
+  
+  
+  CD:
+    name: Continuous Delivery
+    runs-on: ubuntu-latest
+    needs: CI
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 22.11.0
+
+      - name: Install correct eas-cli version
+        run: npm install -g eas-cli@3.15.1
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: 3.15.1
+          packager: npm
+          token: ${{ secrets.EAS_EXPO_TOKEN }}
+
+      - name: Build
+        run: eas build --platform android --profile preview --non-interactive --no-wait

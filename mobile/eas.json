@@ -1,0 +1,36 @@
+{
+  "cli": {
+    "version": ">=3.15.1"
+  },
+  "build": {
+    "preview": {
+      "android": {
+        "releaseChannel": "development",
+        "buildType": "apk"
+      }
+    },
+    "development": {
+      "android": {
+        "releaseChannel": "development",
+        "buildType": "apk",
+        "resourceClass": "large",
+        "env": {
+          "EAS_BUILD_APP_AUTH_REDIRECT_SCHEME": "celularelatorio"
+        }
+      }
+    },
+    "production": {
+      "android": {
+        "releaseChannel": "production",
+        "buildType": "app-bundle",
+        "resourceClass": "large",
+        "env": {
+          "EAS_BUILD_APP_AUTH_REDIRECT_SCHEME": "celularelatorio"
+        }
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}
