@@ -39,7 +39,7 @@ interface KidsRegistration {
 }
 
 const KIDS_DATE = "07/03";
-const KIDS_TIME = "08:30 as 14:30hs";
+const KIDS_TIME = "08:30 às 14:30hs";
 
 const normalizeText = (value: string) =>
   value
@@ -159,12 +159,12 @@ export function PublicEncounterKidsRegistrationsView() {
         nome_responsavel: item.nome_responsavel,
         discipuladora_id: item.discipuladora_id,
         lider_id: item.lider_id ?? null,
-        discipuladora_name: item.discipuladora?.name || "NÃ£o informado",
-        lider_name: item.lider?.name || item.lider_nome || "Nao informado",
+        discipuladora_name: item.discipuladora?.name || "Não informado",
+        lider_name: item.lider?.name || item.lider_nome || "Não informado",
         lider_filter_key:
           item.lider_id
             ? `id:${item.lider_id}`
-            : `nome:${normalizeText(item.lider?.name || item.lider_nome || "Nao informado")}`,
+            : `nome:${normalizeText(item.lider?.name || item.lider_nome || "Não informado")}`,
         participacao_confirmada: !!item.participacao_confirmada,
         created_at: item.created_at,
       }));
@@ -193,7 +193,7 @@ export function PublicEncounterKidsRegistrationsView() {
       if (error) {
         toast({
           title: "Erro",
-          description: "NÃ£o foi possÃ­vel atualizar a confirmaÃ§Ã£o.",
+          description: "Não foi possível atualizar a confirmação.",
           variant: "destructive",
         });
         return;
@@ -210,7 +210,7 @@ export function PublicEncounterKidsRegistrationsView() {
       console.error(error);
       toast({
         title: "Erro",
-        description: "NÃ£o foi possÃ­vel atualizar a confirmaÃ§Ã£o.",
+        description: "Não foi possível atualizar a confirmação.",
         variant: "destructive",
       });
     } finally {
@@ -224,7 +224,7 @@ export function PublicEncounterKidsRegistrationsView() {
 
   const deleteRegistration = async (registrationId: string, nomeCompleto: string) => {
     const confirmed = window.confirm(
-      `Deseja realmente excluir o registro de "${nomeCompleto}"?\n\nEssa acao nao pode ser desfeita.`
+      `Deseja realmente excluir o registro de "${nomeCompleto}"?\n\nEssa ação não pode ser desfeita.`
     );
     if (!confirmed) return;
 
@@ -243,7 +243,7 @@ export function PublicEncounterKidsRegistrationsView() {
       if (error) {
         toast({
           title: "Erro",
-          description: "Nao foi possivel excluir o registro.",
+          description: "Não foi possível excluir o registro.",
           variant: "destructive",
         });
         return;
@@ -252,13 +252,13 @@ export function PublicEncounterKidsRegistrationsView() {
       setRegistrations((prev) => prev.filter((item) => item.id !== registrationId));
       toast({
         title: "Sucesso",
-        description: "Registro excluido com sucesso.",
+        description: "Registro excluído com sucesso.",
       });
     } catch (error) {
       console.error(error);
       toast({
         title: "Erro",
-        description: "Nao foi possivel excluir o registro.",
+        description: "Não foi possível excluir o registro.",
         variant: "destructive",
       });
     } finally {
@@ -276,7 +276,7 @@ export function PublicEncounterKidsRegistrationsView() {
         <Card className="w-full max-w-md">
           <CardContent className="pt-6 flex flex-col items-center justify-center space-y-4">
             <Loader2 className="h-8 w-8 animate-spin text-cyan-600" />
-            <p className="text-sm text-muted-foreground">Carregando inscriÃ§Ãµes Kids...</p>
+            <p className="text-sm text-muted-foreground">Carregando inscrições Kids...</p>
           </CardContent>
         </Card>
       </div>
@@ -304,7 +304,7 @@ export function PublicEncounterKidsRegistrationsView() {
               <div className="flex items-center gap-2 text-cyan-700">
                 <Calendar className="h-5 w-5" />
                 <span className="font-semibold">
-                  Data: {KIDS_DATE} | HorÃ¡rio: {KIDS_TIME}
+                  Data: {KIDS_DATE} | Horário: {KIDS_TIME}
                 </span>
               </div>
             </div>
@@ -351,7 +351,7 @@ export function PublicEncounterKidsRegistrationsView() {
                   <Input
                     id="search"
                     type="text"
-                    placeholder="Nome, responsÃ¡vel, discipuladora ou lÃ­der..."
+                    placeholder="Nome, responsável, discipuladora ou líder..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10 min-h-[44px] touch-manipulation text-sm sm:text-base"
@@ -395,7 +395,7 @@ export function PublicEncounterKidsRegistrationsView() {
 
               <div className="space-y-2">
                 <label htmlFor="lider" className="text-sm font-medium">
-                  LÃ­der
+                  Líder
                 </label>
                 <Select value={selectedLeader} onValueChange={setSelectedLeader}>
                   <SelectTrigger
@@ -429,7 +429,7 @@ export function PublicEncounterKidsRegistrationsView() {
             <CardTitle className="text-lg sm:text-xl">
               Lista de Inscritos Kids ({filteredRegistrations.length})
             </CardTitle>
-            <CardDescription>Acompanhamento pÃºblico das inscriÃ§Ãµes</CardDescription>
+            <CardDescription>Acompanhamento público das inscrições</CardDescription>
           </CardHeader>
           <CardContent>
             {filteredRegistrations.length === 0 ? (
@@ -456,7 +456,7 @@ export function PublicEncounterKidsRegistrationsView() {
                           <span>{item.idade ?? "-"}</span>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">Responsavel: </span>
+                          <span className="text-muted-foreground">Responsável: </span>
                           <span>{item.nome_responsavel}</span>
                         </div>
                         <div>
@@ -464,13 +464,13 @@ export function PublicEncounterKidsRegistrationsView() {
                           <span>{item.discipuladora_name}</span>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">Lider: </span>
+                          <span className="text-muted-foreground">Líder: </span>
                           <span>{item.lider_name}</span>
                         </div>
                       </div>
                       <div className="mt-4 flex items-center justify-between rounded-md bg-muted/40 p-3">
                         <div className="min-w-0">
-                          <p className="text-sm font-medium">Participacao</p>
+                          <p className="text-sm font-medium">Participação</p>
                           <p className="text-xs text-muted-foreground">
                             {item.participacao_confirmada ? "Confirmada" : "Pendente"}
                           </p>
@@ -483,7 +483,7 @@ export function PublicEncounterKidsRegistrationsView() {
                             checked={item.participacao_confirmada}
                             onCheckedChange={(checked) => updateParticipation(item.id, checked)}
                             disabled={updatingIds.has(item.id)}
-                            aria-label={`Atualizar participacao de ${item.nome_completo}`}
+                            aria-label={`Atualizar participação de ${item.nome_completo}`}
                           />
                         </div>
                       </div>
@@ -514,12 +514,12 @@ export function PublicEncounterKidsRegistrationsView() {
                     <TableRow>
                       <TableHead className="min-w-[210px]">Nome Completo</TableHead>
                       <TableHead className="min-w-[90px]">Idade</TableHead>
-                      <TableHead className="min-w-[210px]">Nome do ResponsÃ¡vel</TableHead>
+                      <TableHead className="min-w-[210px]">Nome do Responsável</TableHead>
                       <TableHead className="min-w-[170px]">Discipuladora</TableHead>
-                      <TableHead className="min-w-[170px]">LÃ­der</TableHead>
-                      <TableHead className="min-w-[180px]">ParticipaÃ§Ã£o</TableHead>
+                      <TableHead className="min-w-[170px]">Líder</TableHead>
+                      <TableHead className="min-w-[180px]">Participação</TableHead>
                       <TableHead className="min-w-[150px]">Data de Cadastro</TableHead>
-                      <TableHead className="min-w-[110px]">AÃ§Ãµes</TableHead>
+                      <TableHead className="min-w-[110px]">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -536,7 +536,7 @@ export function PublicEncounterKidsRegistrationsView() {
                               checked={item.participacao_confirmada}
                               onCheckedChange={(checked) => updateParticipation(item.id, checked)}
                               disabled={updatingIds.has(item.id)}
-                              aria-label={`Atualizar participaÃ§Ã£o de ${item.nome_completo}`}
+                              aria-label={`Atualizar participação de ${item.nome_completo}`}
                             />
                             <span className="text-sm">
                               {item.participacao_confirmada ? "Confirmada" : "Pendente"}
@@ -575,12 +575,12 @@ export function PublicEncounterKidsRegistrationsView() {
         </Card>
 
         <div className="mt-6 sm:mt-8 text-center">
-          <p className="text-sm text-muted-foreground mb-4">Quer fazer uma nova inscriÃ§Ã£o Kids?</p>
+          <p className="text-sm text-muted-foreground mb-4">Quer fazer uma nova inscrição Kids?</p>
           <a
             href="/cadastro-encontro-kids"
             className="inline-block px-6 py-3 bg-cyan-600 text-white rounded-lg font-medium hover:bg-cyan-700 transition-colors min-h-[48px] touch-manipulation text-sm sm:text-base"
           >
-            Fazer inscriÃ§Ã£o Kids
+            Fazer inscrição Kids
           </a>
         </div>
       </div>

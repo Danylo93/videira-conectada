@@ -34,7 +34,7 @@ interface ProfileLookup {
 }
 
 const KIDS_DATE = "07/03";
-const KIDS_TIME = "08:30 as 14:30hs";
+const KIDS_TIME = "08:30 às 14:30hs";
 const DEFAULT_PASTORA_KIDS_NAME = "Pastora Tainá";
 
 const normalizeText = (value: string) =>
@@ -146,7 +146,7 @@ export function PublicEncounterKidsRegistration() {
       if (leadersError) {
         toast({
           title: "Erro",
-          description: "Erro ao carregar lideres.",
+          description: "Erro ao carregar líderes.",
           variant: "destructive",
         });
         return;
@@ -177,7 +177,7 @@ export function PublicEncounterKidsRegistration() {
     if (!nomeCompleto.trim()) {
       toast({
         title: "Erro",
-        description: "Preencha os campos obrigatorios.",
+        description: "Preencha os campos obrigatórios.",
         variant: "destructive",
       });
       return;
@@ -186,7 +186,7 @@ export function PublicEncounterKidsRegistration() {
     if (funcao === "encontrista" && !nomeResponsavel.trim()) {
       toast({
         title: "Erro",
-        description: "Preencha o nome do responsavel.",
+        description: "Preencha o nome do responsável.",
         variant: "destructive",
       });
       return;
@@ -207,7 +207,7 @@ export function PublicEncounterKidsRegistration() {
       if (Number.isNaN(parsedIdade) || parsedIdade < 0 || parsedIdade > 17) {
         toast({
           title: "Erro",
-          description: "Informe uma idade valida entre 0 e 17 anos.",
+          description: "Informe uma idade válida entre 0 e 17 anos.",
           variant: "destructive",
         });
         return;
@@ -234,7 +234,7 @@ export function PublicEncounterKidsRegistration() {
       if (!resolvedPastoraId) {
         toast({
           title: "Erro",
-          description: "Nao foi possivel localizar o perfil da Pastora Taina.",
+          description: "Não foi possível localizar o perfil da Pastora Tainá.",
           variant: "destructive",
         });
         return;
@@ -247,7 +247,7 @@ export function PublicEncounterKidsRegistration() {
       if (!discipuladoraId || !liderNome.trim()) {
         toast({
           title: "Erro",
-          description: "Selecione discipuladora e lider.",
+          description: "Selecione discipuladora e líder.",
           variant: "destructive",
         });
         return;
@@ -276,7 +276,7 @@ export function PublicEncounterKidsRegistration() {
       if (error) {
         toast({
           title: "Erro",
-          description: error.message || "Nao foi possivel concluir a inscricao.",
+          description: error.message || "Não foi possível concluir a inscrição.",
           variant: "destructive",
         });
         return;
@@ -285,7 +285,7 @@ export function PublicEncounterKidsRegistration() {
       setSubmitted(true);
       toast({
         title: "Sucesso",
-        description: "Inscricao Kids realizada com sucesso.",
+        description: "Inscrição Kids realizada com sucesso.",
       });
 
       setNomeCompleto("");
@@ -298,7 +298,7 @@ export function PublicEncounterKidsRegistration() {
       console.error(error);
       toast({
         title: "Erro",
-        description: error.message || "Nao foi possivel concluir a inscricao.",
+        description: error.message || "Não foi possível concluir a inscrição.",
         variant: "destructive",
       });
     } finally {
@@ -325,7 +325,7 @@ export function PublicEncounterKidsRegistration() {
         <Card className="w-full max-w-md">
           <CardContent className="pt-6 text-center">
             <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold mb-2">Inscricao confirmada</h2>
+            <h2 className="text-2xl font-bold mb-2">Inscrição confirmada</h2>
             <p className="text-muted-foreground mb-6">
               Cadastro do Encontro Kids realizado com sucesso.
             </p>
@@ -341,7 +341,7 @@ export function PublicEncounterKidsRegistration() {
                 setLiderNome("");
               }}
             >
-              Fazer nova inscricao
+              Fazer nova inscrição
             </Button>
           </CardContent>
         </Card>
@@ -358,14 +358,14 @@ export function PublicEncounterKidsRegistration() {
               <img src={logoKids} alt="Videira Kids" className="h-14 sm:h-16 md:h-20 rounded-md" />
             </div>
             <CardTitle className="text-lg sm:text-xl md:text-2xl lg:text-3xl">
-              Inscricao Encontro Kids
+              Inscrição Encontro Kids
             </CardTitle>
             <CardDescription className="text-xs sm:text-sm md:text-base mt-2">
-              Preencha os dados abaixo para confirmar a inscricao
+              Preencha os dados abaixo para confirmar a inscrição
             </CardDescription>
             <div className="mt-3 sm:mt-4 bg-gradient-to-r from-cyan-100 to-blue-100 p-3 sm:p-4 rounded-lg">
               <p className="font-semibold text-cyan-700 text-sm sm:text-base md:text-lg">
-                Dia: {KIDS_DATE} - Horario: {KIDS_TIME}
+                Dia: {KIDS_DATE} - Horário: {KIDS_TIME}
               </p>
             </div>
           </CardHeader>
@@ -389,7 +389,7 @@ export function PublicEncounterKidsRegistration() {
 
               <div>
                 <Label htmlFor="funcao" className="text-sm sm:text-base">
-                  Funcao <span className="text-red-500">*</span>
+                  Função <span className="text-red-500">*</span>
                 </Label>
                 <Select
                   value={funcao}
@@ -406,7 +406,7 @@ export function PublicEncounterKidsRegistration() {
                     id="funcao"
                     className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
                   >
-                    <SelectValue placeholder="Selecione a funcao" />
+                    <SelectValue placeholder="Selecione a função" />
                   </SelectTrigger>
                   <SelectContent
                     position="popper"
@@ -450,14 +450,14 @@ export function PublicEncounterKidsRegistration() {
               {funcao === "encontrista" ? (
                 <div>
                   <Label htmlFor="nomeResponsavel" className="text-sm sm:text-base">
-                    Nome do responsavel <span className="text-red-500">*</span>
+                    Nome do responsável <span className="text-red-500">*</span>
                   </Label>
                   <Input
                     id="nomeResponsavel"
                     type="text"
                     value={nomeResponsavel}
                     onChange={(e) => setNomeResponsavel(e.target.value)}
-                    placeholder="Digite o nome do responsavel"
+                    placeholder="Digite o nome do responsável"
                     required
                     className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
                   />
@@ -518,12 +518,12 @@ export function PublicEncounterKidsRegistration() {
 
                   <div>
                     <Label htmlFor="lider" className="text-sm sm:text-base">
-                      Lider <span className="text-red-500">*</span>
+                      Líder <span className="text-red-500">*</span>
                     </Label>
                     {discipuladoraId && filteredLeaders.length === 0 ? (
                       <div className="mt-1 p-3 border border-amber-500 rounded-md bg-amber-50">
                         <p className="text-sm text-amber-700">
-                          Nenhum lider vinculado a discipuladora selecionada.
+                          Nenhum líder vinculado à discipuladora selecionada.
                         </p>
                       </div>
                     ) : (
@@ -536,7 +536,7 @@ export function PublicEncounterKidsRegistration() {
                           placeholder={
                             !discipuladoraId
                               ? "Selecione primeiro a discipuladora"
-                              : "Digite o nome do lider"
+                              : "Digite o nome do líder"
                           }
                           disabled={!discipuladoraId}
                           required
@@ -567,7 +567,7 @@ export function PublicEncounterKidsRegistration() {
                 ) : (
                   <>
                     <Users className="mr-2 h-4 w-4" />
-                    Confirmar inscricao
+                    Confirmar inscrição
                   </>
                 )}
               </Button>
