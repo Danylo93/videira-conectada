@@ -4,13 +4,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { CheckCircle2, Loader2, Users } from "lucide-react";
 import logoKids from "@/assets/logo-kids.jpg";
@@ -64,26 +57,9 @@ export function PublicEncounterKidsRegistration() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [useNativeMobileSelects, setUseNativeMobileSelects] = useState(false);
 
   useEffect(() => {
     loadData();
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
-
-    const query = window.matchMedia("(max-width: 768px), (pointer: coarse)");
-    const update = () => setUseNativeMobileSelects(query.matches);
-    update();
-
-    if (typeof query.addEventListener === "function") {
-      query.addEventListener("change", update);
-      return () => query.removeEventListener("change", update);
-    }
-
-    query.addListener(update);
-    return () => query.removeListener(update);
   }, []);
 
   const filteredLeaders = useMemo(() => {
@@ -408,59 +384,24 @@ export function PublicEncounterKidsRegistration() {
                 <Label htmlFor="funcao" className="text-sm sm:text-base">
                   Função <span className="text-red-500">*</span>
                 </Label>
-                {useNativeMobileSelects ? (
-                  <select
-                    id="funcao"
-                    value={funcao}
-                    onChange={(e) => {
-                      const value = e.target.value as "encontrista" | "equipe" | "discipuladora";
-                      setFuncao(value);
-                      if (value === "discipuladora") {
-                        setDiscipuladoraId("");
-                        setLiderNome("");
-                      }
-                    }}
-                    required
-                    className="mt-1 flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm sm:text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring touch-manipulation"
-                  >
-                    <option value="encontrista">Encontrista</option>
-                    <option value="equipe">Equipe</option>
-                    <option value="discipuladora">Discipuladora</option>
-                  </select>
-                ) : (
-                  <Select
-                    value={funcao}
-                    onValueChange={(value: "encontrista" | "equipe" | "discipuladora") => {
-                      setFuncao(value);
-                      if (value === "discipuladora") {
-                        setDiscipuladoraId("");
-                        setLiderNome("");
-                      }
-                    }}
-                    required
-                  >
-                    <SelectTrigger
-                      id="funcao"
-                      className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
-                    >
-                      <SelectValue placeholder="Selecione a função" />
-                    </SelectTrigger>
-                    <SelectContent
-                      position="item-aligned"
-                      className="z-[9999] w-[var(--radix-select-trigger-width)] max-h-[42svh] sm:max-h-72 md:max-h-80"
-                    >
-                      <SelectItem value="encontrista" className="min-h-[44px] touch-manipulation text-sm">
-                        Encontrista
-                      </SelectItem>
-                      <SelectItem value="equipe" className="min-h-[44px] touch-manipulation text-sm">
-                        Equipe
-                      </SelectItem>
-                      <SelectItem value="discipuladora" className="min-h-[44px] touch-manipulation text-sm">
-                        Discipuladora
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
+                <select
+                  id="funcao"
+                  value={funcao}
+                  onChange={(e) => {
+                    const value = e.target.value as "encontrista" | "equipe" | "discipuladora";
+                    setFuncao(value);
+                    if (value === "discipuladora") {
+                      setDiscipuladoraId("");
+                      setLiderNome("");
+                    }
+                  }}
+                  required
+                  className="mt-1 flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm sm:text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring touch-manipulation"
+                >
+                  <option value="encontrista">Encontrista</option>
+                  <option value="equipe">Equipe</option>
+                  <option value="discipuladora">Discipuladora</option>
+                </select>
               </div>
 
               {funcao === "encontrista" ? (
@@ -519,55 +460,23 @@ export function PublicEncounterKidsRegistration() {
                     <Label htmlFor="discipuladora" className="text-sm sm:text-base">
                       Discipuladora <span className="text-red-500">*</span>
                     </Label>
-                    {useNativeMobileSelects ? (
-                      <select
-                        id="discipuladora"
-                        value={discipuladoraId}
-                        onChange={(e) => {
-                          setDiscipuladoraId(e.target.value);
-                          setLiderNome("");
-                        }}
-                        required
-                        className="mt-1 flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm sm:text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring touch-manipulation"
-                      >
-                        <option value="">Selecione a discipuladora</option>
-                        {discipuladoras.map((discipuladora) => (
-                          <option key={discipuladora.id} value={discipuladora.id}>
-                            {discipuladora.name}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <Select
-                        value={discipuladoraId}
-                        onValueChange={(value) => {
-                          setDiscipuladoraId(value);
-                          setLiderNome("");
-                        }}
-                        required
-                      >
-                        <SelectTrigger
-                          id="discipuladora"
-                          className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
-                        >
-                          <SelectValue placeholder="Selecione a discipuladora" />
-                        </SelectTrigger>
-                        <SelectContent
-                          position="item-aligned"
-                          className="z-[9999] w-[var(--radix-select-trigger-width)] max-h-[42svh] sm:max-h-72 md:max-h-80"
-                        >
-                          {discipuladoras.map((discipuladora) => (
-                            <SelectItem
-                              key={discipuladora.id}
-                              value={discipuladora.id}
-                              className="min-h-[44px] touch-manipulation text-sm"
-                            >
-                              {discipuladora.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
+                    <select
+                      id="discipuladora"
+                      value={discipuladoraId}
+                      onChange={(e) => {
+                        setDiscipuladoraId(e.target.value);
+                        setLiderNome("");
+                      }}
+                      required
+                      className="mt-1 flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm sm:text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring touch-manipulation"
+                    >
+                      <option value="">Selecione a discipuladora</option>
+                      {discipuladoras.map((discipuladora) => (
+                        <option key={discipuladora.id} value={discipuladora.id}>
+                          {discipuladora.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div>
