@@ -10,6 +10,7 @@ export interface User {
   pastorId?: string; // Para Discipuladores
   celula?: string; // Para Líderes
   isTesoureiro?: boolean; // Indica se o usuário tem função de tesoureiro
+  isCursoCoordenador?: boolean; // Coordenação do Trilho do Vencedor
   createdAt: Date;
 }
 

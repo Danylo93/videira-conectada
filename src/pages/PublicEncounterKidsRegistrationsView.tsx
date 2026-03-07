@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar, Loader2, Search, Trash2, Users } from "lucide-react";
+import { Calendar, Download, Loader2, Search, Trash2, Users } from "lucide-react";
 import logoKids from "@/assets/logo-kids.jpg";
 import { formatDateBR } from "@/lib/dateUtils";
 import {
@@ -23,6 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import * as XLSX from "xlsx";
 
 interface KidsRegistration {
   id: string;
@@ -125,6 +126,48 @@ export function PublicEncounterKidsRegistrationsView() {
       filtered: filteredRegistrations.length,
     };
   }, [registrations.length, filteredRegistrations.length]);
+
+  const handleExportExcel = () => {
+    if (filteredRegistrations.length === 0) {
+      toast({
+        title: "Aviso",
+        description: "Não há inscrições para exportar com os filtros atuais.",
+      });
+      return;
+    }
+
+    const data = filteredRegistrations.map((item) => ({
+      "Nome Completo": item.nome_completo,
+      Idade: item.idade ?? "",
+      Responsavel: item.nome_responsavel,
+      Discipuladora: item.discipuladora_name,
+      Lider: item.lider_name,
+      Participacao: item.participacao_confirmada ? "Confirmada" : "Pendente",
+      "Data de Cadastro": formatDateBR(new Date(item.created_at)),
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    worksheet["!cols"] = [
+      { wch: 28 },
+      { wch: 10 },
+      { wch: 28 },
+      { wch: 24 },
+      { wch: 24 },
+      { wch: 16 },
+      { wch: 18 },
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Encontro Kids");
+
+    const fileName = `inscricoes-encontro-kids-${new Date().toISOString().split("T")[0]}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
+
+    toast({
+      title: "Sucesso",
+      description: "Planilha Excel gerada com sucesso.",
+    });
+  };
 
   const loadData = async () => {
     try {
@@ -426,10 +469,23 @@ export function PublicEncounterKidsRegistrationsView() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg sm:text-xl">
-              Lista de Inscritos Kids ({filteredRegistrations.length})
-            </CardTitle>
-            <CardDescription>Acompanhamento público das inscrições</CardDescription>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <CardTitle className="text-lg sm:text-xl">
+                  Lista de Inscritos Kids ({filteredRegistrations.length})
+                </CardTitle>
+                <CardDescription>Acompanhamento público das inscrições</CardDescription>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full sm:w-auto"
+                onClick={handleExportExcel}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Baixar Excel
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {filteredRegistrations.length === 0 ? (

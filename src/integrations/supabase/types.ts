@@ -608,11 +608,14 @@ export type Database = {
           payment_plan: string | null
           payment_status: string
           registration_date: string
+          semester_label: string | null
           scholarship_amount: number | null
           special_needs: string | null
           status: string
           student_id: string
+          trilho_nome: string | null
           total_amount: number | null
+          turma_dia: string | null
           updated_at: string
         }
         Insert: {
@@ -631,11 +634,14 @@ export type Database = {
           payment_plan?: string | null
           payment_status?: string
           registration_date?: string
+          semester_label?: string | null
           scholarship_amount?: number | null
           special_needs?: string | null
           status?: string
           student_id: string
           total_amount?: number | null
+          trilho_nome?: string | null
+          turma_dia?: string | null
           updated_at?: string
         }
         Update: {
@@ -654,11 +660,14 @@ export type Database = {
           payment_plan?: string | null
           payment_status?: string
           registration_date?: string
+          semester_label?: string | null
           scholarship_amount?: number | null
           special_needs?: string | null
           status?: string
           student_id?: string
           total_amount?: number | null
+          trilho_nome?: string | null
+          turma_dia?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -713,9 +722,12 @@ export type Database = {
           price: number | null
           registration_deadline: string | null
           requirements: string[] | null
+          semester_label: string | null
           short_description: string | null
           start_date: string | null
           status: string
+          trilho_nome: string | null
+          turma_dia: string | null
           updated_at: string
         }
         Insert: {
@@ -738,9 +750,12 @@ export type Database = {
           price?: number | null
           registration_deadline?: string | null
           requirements?: string[] | null
+          semester_label?: string | null
           short_description?: string | null
           start_date?: string | null
           status?: string
+          trilho_nome?: string | null
+          turma_dia?: string | null
           updated_at?: string
         }
         Update: {
@@ -763,9 +778,12 @@ export type Database = {
           price?: number | null
           registration_deadline?: string | null
           requirements?: string[] | null
+          semester_label?: string | null
           short_description?: string | null
           start_date?: string | null
           status?: string
+          trilho_nome?: string | null
+          turma_dia?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -1205,6 +1223,7 @@ export type Database = {
           email: string
           full_name: string | null
           id: string
+          is_curso_coordenador: boolean
           name: string
           pastor_id: string | null
           pastor_uuid: string | null
@@ -1221,6 +1240,7 @@ export type Database = {
           email: string
           full_name?: string | null
           id?: string
+          is_curso_coordenador?: boolean
           name: string
           pastor_id?: string | null
           pastor_uuid?: string | null
@@ -1237,6 +1257,7 @@ export type Database = {
           email?: string
           full_name?: string | null
           id?: string
+          is_curso_coordenador?: boolean
           name?: string
           pastor_id?: string | null
           pastor_uuid?: string | null

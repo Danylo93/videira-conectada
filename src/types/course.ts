@@ -3,6 +3,9 @@ export interface Course {
   id: string;
   name: string;
   description?: string;
+  semester_label?: string;
+  trilho_nome?: 'ceifeiros' | 'ctl' | null;
+  turma_dia?: 'domingo' | 'terca' | null;
   short_description?: string;
   duration_weeks: number;
   price: number;
@@ -74,6 +77,9 @@ export interface CourseRegistration {
   id: string;
   course_id: string;
   student_id: string;
+  semester_label?: string | null;
+  trilho_nome?: 'ceifeiros' | 'ctl' | null;
+  turma_dia?: 'domingo' | 'terca' | null;
   leader_id: string;
   registration_date: string;
   status: 'pending' | 'approved' | 'rejected' | 'enrolled' | 'completed' | 'dropped' | 'suspended';

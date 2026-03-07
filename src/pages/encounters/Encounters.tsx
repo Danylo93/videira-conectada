@@ -134,21 +134,12 @@ export default function Encounters() {
         return;
       }
 
-      // Mapear IDs conhecidos para informações do evento
-      const eventMap: Record<string, { name: string; encounterType: string }> = {
-        '550e8400-e29b-41d4-a716-446655440001': {
-          name: 'Encontro com Deus - Jovens Setembro 2025',
-          encounterType: 'jovens'
-        },
-        '550e8400-e29b-41d4-a716-446655440002': {
-          name: 'Encontro com Deus - Adultos e Jovens Outubro 2025',
-          encounterType: 'adultos'
-        }
-      };
-
-      // Verificar se é um ID conhecido
-      if (eventMap[eventId]) {
-        setEventInfo(eventMap[eventId]);
+      const selectedEvent = encounterEvents.find((event) => event.id === eventId);
+      if (selectedEvent) {
+        setEventInfo({
+          name: selectedEvent.name,
+          encounterType: selectedEvent.encounterType,
+        });
       } else if (eventId.includes('jovens')) {
         setEventInfo({ name: 'Encontro com Deus - Jovens', encounterType: 'jovens' });
       } else if (eventId.includes('adultos')) {
@@ -159,41 +150,39 @@ export default function Encounters() {
     };
 
     fetchEventInfo();
-  }, [eventId]);
+  }, [eventId, encounterEvents]);
 
   // Determinar o tipo de encontro baseado no eventId
   const getEncounterType = () => {
     if (!eventId) return 'Encontro com Deus';
-    
+
     if (eventInfo) {
       return eventInfo.name;
     }
-    
-    // Fallback para IDs conhecidos
-    if (eventId.includes('jovens') || eventId === '550e8400-e29b-41d4-a716-446655440001') {
+
+    if (eventId.includes('jovens')) {
       return 'Encontro com Deus - Jovens';
-    } else if (eventId.includes('adultos') || eventId === '550e8400-e29b-41d4-a716-446655440002') {
+    } else if (eventId.includes('adultos')) {
       return 'Encontro com Deus - Adultos';
     }
-    
+
     return 'Encontro com Deus';
   };
 
   const getEncounterDescription = () => {
     if (!eventId) return 'Gerenciamento de encontros para jovens e adultos';
-    
+
     if (eventInfo) {
       const type = eventInfo.encounterType === 'jovens' ? 'jovens' : 'adultos';
       return `Gerenciamento de encontros para ${type}`;
     }
-    
-    // Fallback para IDs conhecidos
-    if (eventId.includes('jovens') || eventId === '550e8400-e29b-41d4-a716-446655440001') {
+
+    if (eventId.includes('jovens')) {
       return 'Gerenciamento de encontros para jovens';
-    } else if (eventId.includes('adultos') || eventId === '550e8400-e29b-41d4-a716-446655440002') {
+    } else if (eventId.includes('adultos')) {
       return 'Gerenciamento de encontros para adultos';
     }
-    
+
     return 'Gerenciamento de encontros para jovens e adultos';
   };
 

@@ -1,247 +1,284 @@
 import { supabase } from './client';
 import { EncounterEvent, CreateEncounterEventData, EncounterEventFilters } from '@/types/event';
 
+const isUnknownColumnError = (error: unknown): boolean => {
+  const message = String((error as any)?.message || '').toLowerCase();
+  return message.includes('column') && message.includes('does not exist');
+};
+
+const inferStatusFromDates = (eventDates: string[]): EncounterEvent['status'] => {
+  if (!eventDates.length) return 'draft';
+  const lastDate = [...eventDates].sort().at(-1);
+  if (!lastDate) return 'draft';
+  const today = new Date().toISOString().slice(0, 10);
+  return lastDate < today ? 'completed' : 'published';
+};
+
+const mapRowToEncounterEvent = (
+  row: any,
+  stats: { registrations_count: number; attended_count: number; total_revenue: number }
+): EncounterEvent => {
+  const eventDates = Array.isArray(row?.event_dates)
+    ? row.event_dates.map((date: string | Date) =>
+        typeof date === 'string' ? date : new Date(date).toISOString().slice(0, 10)
+      )
+    : [];
+
+  const status = (row?.status as EncounterEvent['status'] | undefined) || inferStatusFromDates(eventDates);
+
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description || '',
+    event_dates: eventDates,
+    location: row.location || '',
+    encounterType: (row.encounter_type || row.encounterType || 'jovens') as EncounterEvent['encounterType'],
+    max_capacity: row.max_capacity ?? undefined,
+    registration_deadline: row.registration_deadline ?? undefined,
+    price: row.price ?? undefined,
+    requirements: row.requirements ?? undefined,
+    status,
+    created_by: row.created_by,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    registrations_count: stats.registrations_count,
+    attended_count: stats.attended_count,
+    total_revenue: stats.total_revenue,
+  };
+};
+
+const applyEventFilters = (
+  events: EncounterEvent[],
+  filters?: EncounterEventFilters
+): EncounterEvent[] => {
+  if (!filters) return events;
+
+  return events.filter((event) => {
+    if (filters.encounterType && event.encounterType !== filters.encounterType) return false;
+    if (filters.status && event.status !== filters.status) return false;
+
+    if (filters.search) {
+      const searchLower = filters.search.toLowerCase();
+      const matchesSearch =
+        event.name.toLowerCase().includes(searchLower) ||
+        event.description.toLowerCase().includes(searchLower) ||
+        event.location.toLowerCase().includes(searchLower);
+      if (!matchesSearch) return false;
+    }
+
+    return true;
+  });
+};
+
+const getEncounterStatsMap = async (): Promise<Map<string, { registrations_count: number; attended_count: number; total_revenue: number }>> => {
+  const { data, error } = await supabase
+    .from('encounter_with_god')
+    .select('event_id, attended, amount_paid')
+    .not('event_id', 'is', null);
+
+  if (error) {
+    throw error;
+  }
+
+  const statsMap = new Map<string, { registrations_count: number; attended_count: number; total_revenue: number }>();
+
+  for (const row of data || []) {
+    const eventId = row.event_id as string;
+    const current = statsMap.get(eventId) || {
+      registrations_count: 0,
+      attended_count: 0,
+      total_revenue: 0,
+    };
+
+    current.registrations_count += 1;
+    current.attended_count += row.attended ? 1 : 0;
+    current.total_revenue += Number(row.amount_paid || 0);
+
+    statsMap.set(eventId, current);
+  }
+
+  return statsMap;
+};
+
 export const encounterEventsService = {
-  // Buscar todos os eventos de encontro
   async getEvents(filters?: EncounterEventFilters): Promise<EncounterEvent[]> {
     try {
-      // Usar dados mockados baseados nos dados reais que vimos no Supabase
-      const mockEvents: EncounterEvent[] = [
-        {
-          id: '550e8400-e29b-41d4-a716-446655440001',
-          name: 'Encontro com Deus - Jovens Setembro 2025',
-          description: 'Encontro para os Radicais Livres.',
-          event_dates: ['2025-09-26', '2025-09-27', '2025-09-28'],
-          location: 'Sítio Mairiporã',
-          encounterType: 'jovens',
-          max_capacity: 100,
-          registration_deadline: '2025-09-20',
-          price: 170,
-          requirements: 'Idade entre 13 e 30 anos',
-          status: 'completed',
-          created_by: 'user-1',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          registrations_count: 0,
-          attended_count: 0,
-          total_revenue: 0,
-        },
-        {
-          id: '550e8400-e29b-41d4-a716-446655440002',
-          name: 'Encontro com Deus - Adultos e Jovens Outubro 2025',
-          description: 'Encontro para adultos e jovens.',
-          event_dates: ['2025-10-30', '2025-11-01', '2025-11-02'],
-          location: 'Sítio Mairiporã',
-          encounterType: 'adultos',
-          max_capacity: 80,
-          registration_deadline: '2025-09-28',
-          price: 170,
-          requirements: 'Idade acima de 30 anos',
-          status: 'published',
-          created_by: 'user-1',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          registrations_count: 0,
-          attended_count: 0,
-          total_revenue: 0,
-        }
-      ];
+      const [eventsResult, statsMap] = await Promise.all([
+        (supabase as any).from('encounter_events').select('*').order('created_at', { ascending: false }),
+        getEncounterStatsMap(),
+      ]);
 
-      // Buscar estatísticas reais dos encontros
-      const { data: allEncounters, error: encountersError } = await supabase
-        .from('encounter_with_god')
-        .select('attended, amount_paid, encounter_type, event_id');
+      const { data, error } = eventsResult;
+      if (error) throw error;
 
-      if (encountersError) {
-        console.error('Erro ao buscar encontros:', encountersError);
-      }
+      const mappedEvents = (data || []).map((row: any) =>
+        mapRowToEncounterEvent(
+          row,
+          statsMap.get(row.id) || {
+            registrations_count: 0,
+            attended_count: 0,
+            total_revenue: 0,
+          }
+        )
+      );
 
-      // Atualizar estatísticas para cada evento
-      const eventsWithStats = mockEvents.map(event => {
-        const eventEncounters = allEncounters?.filter((e: any) => e.event_id === event.id) || [];
-        
-        const stats = {
-          total: eventEncounters.length,
-          attended: eventEncounters.filter((e: any) => Boolean(e.attended)).length,
-          revenue: eventEncounters.reduce((sum: number, e: any) => sum + (parseFloat(e.amount_paid) || 0), 0)
-        };
-
-        return {
-          ...event,
-          registrations_count: stats.total,
-          attended_count: stats.attended,
-          total_revenue: stats.revenue,
-        };
-      });
-
-      // Aplicar filtros
-      let filteredEvents = eventsWithStats;
-
-      if (filters?.encounterType) {
-        filteredEvents = filteredEvents.filter(event => event.encounterType === filters.encounterType);
-      }
-
-      if (filters?.status) {
-        filteredEvents = filteredEvents.filter(event => event.status === filters.status);
-      }
-
-      if (filters?.search) {
-        const searchLower = filters.search.toLowerCase();
-        filteredEvents = filteredEvents.filter(event =>
-          event.name.toLowerCase().includes(searchLower) ||
-          event.description?.toLowerCase().includes(searchLower) ||
-          event.location.toLowerCase().includes(searchLower)
-        );
-      }
-
-      return filteredEvents;
+      return applyEventFilters(mappedEvents, filters);
     } catch (error) {
       console.error('Erro ao buscar eventos:', error);
       return [];
     }
   },
 
-
-  // Buscar evento por ID
   async getEventById(id: string): Promise<EncounterEvent | null> {
     try {
-      // Buscar todos os eventos e encontrar o específico
-      const events = await this.getEvents();
-      const foundEvent = events.find(event => event.id === id);
-      
-      if (!foundEvent) {
-        console.log(`Evento com ID ${id} não encontrado. Eventos disponíveis:`, events.map(e => e.id));
-        return null;
-      }
-      
-      return foundEvent;
+      const { data, error } = await (supabase as any)
+        .from('encounter_events')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error) throw error;
+
+      const stats = await this.getEventStats(id);
+      return mapRowToEncounterEvent(data, stats);
     } catch (error) {
       console.error('Erro ao buscar evento:', error);
       return null;
     }
   },
 
-  // Criar evento de encontro
   async createEvent(data: CreateEncounterEventData, createdBy: string): Promise<EncounterEvent> {
-    // Por enquanto, simular criação
-    const newEvent: EncounterEvent = {
-      id: `event-${Date.now()}`,
+    const fullPayload = {
       name: data.name,
       description: data.description,
       event_dates: data.event_dates,
       location: data.location,
-      encounterType: data.encounterType,
-      max_capacity: data.max_capacity,
-      registration_deadline: data.registration_deadline,
-      price: data.price,
-      requirements: data.requirements,
+      encounter_type: data.encounterType,
+      max_capacity: data.max_capacity ?? null,
+      registration_deadline: data.registration_deadline ?? null,
+      price: data.price ?? null,
+      requirements: data.requirements ?? null,
       status: data.status,
       created_by: createdBy,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+    };
+
+    const basePayload = {
+      name: data.name,
+      description: data.description,
+      event_dates: data.event_dates,
+      location: data.location,
+      encounter_type: data.encounterType,
+      max_capacity: data.max_capacity ?? null,
+      created_by: createdBy,
+    };
+
+    let insertResult = await (supabase as any)
+      .from('encounter_events')
+      .insert(fullPayload)
+      .select('*')
+      .single();
+
+    if (insertResult.error && isUnknownColumnError(insertResult.error)) {
+      insertResult = await (supabase as any)
+        .from('encounter_events')
+        .insert(basePayload)
+        .select('*')
+        .single();
+    }
+
+    if (insertResult.error) {
+      throw insertResult.error;
+    }
+
+    return mapRowToEncounterEvent(insertResult.data, {
       registrations_count: 0,
       attended_count: 0,
       total_revenue: 0,
-    };
-
-    return newEvent;
+    });
   },
 
-  // Atualizar evento de encontro
   async updateEvent(id: string, data: Partial<CreateEncounterEventData>): Promise<EncounterEvent> {
-    // Por enquanto, simular atualização
-    const existingEvent = await this.getEventById(id);
-    if (!existingEvent) {
-      // Se não encontrar, criar um evento mockado com os dados fornecidos
-      const mockEvent: EncounterEvent = {
-        id: id,
-        name: data.name || 'Evento Atualizado',
-        description: data.description || '',
-        event_dates: data.event_dates || [],
-        location: data.location || '',
-        encounterType: data.encounterType || 'jovens',
-        max_capacity: data.max_capacity,
-        registration_deadline: data.registration_deadline,
-        price: data.price || 0,
-        requirements: data.requirements,
-        status: data.status || 'draft',
-        created_by: 'user-1',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        registrations_count: 0,
-        attended_count: 0,
-        total_revenue: 0,
-      };
-      return mockEvent;
-    }
-
-    const updatedEvent: EncounterEvent = {
-      ...existingEvent,
-      ...data,
+    const fullPayload: Record<string, any> = {
       updated_at: new Date().toISOString(),
     };
 
-    return updatedEvent;
+    if (data.name !== undefined) fullPayload.name = data.name;
+    if (data.description !== undefined) fullPayload.description = data.description;
+    if (data.event_dates !== undefined) fullPayload.event_dates = data.event_dates;
+    if (data.location !== undefined) fullPayload.location = data.location;
+    if (data.encounterType !== undefined) fullPayload.encounter_type = data.encounterType;
+    if (data.max_capacity !== undefined) fullPayload.max_capacity = data.max_capacity;
+    if (data.registration_deadline !== undefined) fullPayload.registration_deadline = data.registration_deadline;
+    if (data.price !== undefined) fullPayload.price = data.price;
+    if (data.requirements !== undefined) fullPayload.requirements = data.requirements;
+    if (data.status !== undefined) fullPayload.status = data.status;
+
+    const basePayload: Record<string, any> = {
+      updated_at: fullPayload.updated_at,
+    };
+
+    for (const key of ['name', 'description', 'event_dates', 'location', 'encounter_type', 'max_capacity']) {
+      if (fullPayload[key] !== undefined) {
+        basePayload[key] = fullPayload[key];
+      }
+    }
+
+    let updateResult = await (supabase as any)
+      .from('encounter_events')
+      .update(fullPayload)
+      .eq('id', id)
+      .select('*')
+      .single();
+
+    if (updateResult.error && isUnknownColumnError(updateResult.error)) {
+      updateResult = await (supabase as any)
+        .from('encounter_events')
+        .update(basePayload)
+        .eq('id', id)
+        .select('*')
+        .single();
+    }
+
+    if (updateResult.error) {
+      throw updateResult.error;
+    }
+
+    const stats = await this.getEventStats(id);
+    return mapRowToEncounterEvent(updateResult.data, stats);
   },
 
-  // Excluir evento de encontro
   async deleteEvent(id: string): Promise<void> {
-    // Por enquanto, simular exclusão
-    console.log(`Simulando exclusão do evento ${id}`);
+    const { error } = await (supabase as any)
+      .from('encounter_events')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      throw error;
+    }
   },
 
-  // Buscar estatísticas de um evento
   async getEventStats(eventId: string): Promise<{
     registrations_count: number;
     attended_count: number;
     total_revenue: number;
   }> {
     try {
-      // Por enquanto, retornar estatísticas mockadas baseadas no tipo de evento
-      const isJovensEvent = eventId.includes('jovens') || eventId === '550e8400-e29b-41d4-a716-446655440001';
-      const isAdultosEvent = eventId.includes('adultos') || eventId === '550e8400-e29b-41d4-a716-446655440002';
+      const { data, error } = await supabase
+        .from('encounter_with_god')
+        .select('attended, amount_paid')
+        .eq('event_id', eventId);
 
-      if (isAdultosEvent) {
-        // Adultos não devem ter inscrições ainda
-        return {
-          registrations_count: 0,
-          attended_count: 0,
-          total_revenue: 0,
-        };
-      }
+      if (error) throw error;
 
-      if (isJovensEvent) {
-        // Buscar dados reais dos encontros de jovens
-        const { data: encounters, error } = await supabase
-          .from('encounter_with_god')
-          .select('attended, amount_paid, encounter_type')
-          .eq('encounter_type', 'jovens');
+      const registrations_count = data?.length || 0;
+      const attended_count = data?.filter((row) => Boolean(row.attended)).length || 0;
+      const total_revenue = data?.reduce((sum, row) => sum + Number(row.amount_paid || 0), 0) || 0;
 
-        if (error) {
-          console.error('Erro ao buscar encontros:', error);
-          return {
-            registrations_count: 0,
-            attended_count: 0,
-            total_revenue: 0,
-          };
-        }
-
-        const registrations_count = encounters?.length || 0;
-        const attended_count = encounters?.filter((e: any) => Boolean(e.attended)).length || 0;
-        const total_revenue = encounters?.reduce((sum: number, e: any) => sum + (parseFloat(e.amount_paid) || 0), 0) || 0;
-
-        return {
-          registrations_count,
-          attended_count,
-          total_revenue,
-        };
-      }
-
-      // Para outros eventos, retornar 0
       return {
-        registrations_count: 0,
-        attended_count: 0,
-        total_revenue: 0,
+        registrations_count,
+        attended_count,
+        total_revenue,
       };
     } catch (error) {
       console.error('Erro ao buscar estatísticas:', error);

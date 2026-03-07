@@ -126,7 +126,7 @@ export function CellReportsWeekly() {
     if (allowedReportDays.has(day)) return value;
     const adjusted = new Date(date);
     if (day === 0) {
-      adjusted.setDate(date.getDate() - 1); // Domingo -> SÃ¡bado
+      adjusted.setDate(date.getDate() - 1); // Domingo -> Sábado
     } else {
       adjusted.setDate(date.getDate() + (4 - day)); // Seg a Qua -> Quinta
     }
@@ -151,8 +151,8 @@ export function CellReportsWeekly() {
     const normalized = normalizeReportDate(value);
     if (normalized !== value) {
       toast({
-        title: "Data invÃ¡lida",
-        description: "O relatÃ³rio semanal aceita apenas quinta, sexta ou sÃ¡bado.",
+        title: "Data inválida",
+        description: "O relatório semanal aceita apenas quinta, sexta ou sábado.",
         variant: "destructive",
       });
     }

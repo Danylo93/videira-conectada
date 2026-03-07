@@ -53,7 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (currentSession?.user) {
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('id, name, email, role, phone, discipulador_uuid, pastor_uuid, celula, is_tesoureiro, created_at')
+          .select('id, name, email, role, phone, discipulador_uuid, pastor_uuid, celula, is_tesoureiro, is_curso_coordenador, created_at')
           .eq('user_id', currentSession.user.id)
           .single();
 
@@ -72,6 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             pastorId: profile.pastor_uuid,
             celula: profile.celula,
             isTesoureiro: profile.is_tesoureiro || false,
+            isCursoCoordenador: profile.is_curso_coordenador || false,
             createdAt: new Date(profile.created_at),
           };
           console.log('User data created:', userData);

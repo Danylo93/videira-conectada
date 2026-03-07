@@ -1,9 +1,11 @@
-// Enhanced Course System - Leader Page
+﻿// Enhanced Course System - Leader Page
 // Course enrollment and progress interface for leaders
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useCourses } from '@/hooks/useCourses';
+import { useCourses, useCourseRegistrations } from '@/hooks/useCourses';
+import { supabase } from '@/integrations/supabase/client';
+import * as coursesService from '@/integrations/supabase/courses';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,16 +21,8 @@ import {
   Search, 
   BookOpen, 
   Users, 
-  Calendar,
-  CheckCircle,
-  XCircle,
-  Clock,
   TrendingUp,
   Award,
-  GraduationCap,
-  Target,
-  Plus,
-  DollarSign,
   UserPlus
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -54,8 +48,12 @@ export default function CoursesLeader() {
   const [statusFilter, setStatusFilter] = useState<string>('active');
   const [selectedCourse, setSelectedCourse] = useState<string>('');
   const [showEnrollmentDialog, setShowEnrollmentDialog] = useState(false);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [availableMembers, setAvailableMembers] = useState<Array<{ id: string; name: string; type: string }>>([]);
   const [enrollmentData, setEnrollmentData] = useState({
     memberId: '',
+    trilho: '',
+    turmaDia: '',
     courseId: '',
     paymentMethod: 'pix',
     amount: '',
@@ -72,6 +70,59 @@ export default function CoursesLeader() {
     loading,
     error,
   } = useCourses(filters);
+  const {
+    registrations,
+    refetch: refetchRegistrations,
+  } = useCourseRegistrations();
+
+  const trilhoOptions = useMemo(() => {
+    const values = new Set(
+      courses
+        .map((course) => course.trilho_nome)
+        .filter((value): value is 'ceifeiros' | 'ctl' => value === 'ceifeiros' || value === 'ctl')
+    );
+    return Array.from(values);
+  }, [courses]);
+
+  const filteredEnrollmentCourses = useMemo(() => {
+    return courses
+      .filter((course) => course.status === 'active')
+      .filter((course) => !enrollmentData.trilho || course.trilho_nome === enrollmentData.trilho)
+      .filter((course) => !enrollmentData.turmaDia || course.turma_dia === enrollmentData.turmaDia);
+  }, [courses, enrollmentData.trilho, enrollmentData.turmaDia]);
+
+  useEffect(() => {
+    const fetchMembers = async () => {
+      if (!user || !canEnrollStudents) return;
+      setMembersLoading(true);
+
+      let query = supabase
+        .from('members')
+        .select('id, name, type, lider_id, active')
+        .eq('active', true)
+        .order('name', { ascending: true });
+
+      if (user.role === 'lider') {
+        query = query.eq('lider_id', user.id);
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        console.error('Erro ao carregar membros para matrícula:', error);
+        setAvailableMembers([]);
+      } else {
+        setAvailableMembers((data || []).map((member) => ({
+          id: member.id,
+          name: member.name,
+          type: member.type,
+        })));
+      }
+
+      setMembersLoading(false);
+    };
+
+    fetchMembers();
+  }, [user, canEnrollStudents]);
 
   const handleEnrollment = async () => {
     if (!enrollmentData.memberId || !enrollmentData.courseId) {
@@ -83,9 +134,50 @@ export default function CoursesLeader() {
       return;
     }
 
+    if (enrollmentData.trilho && !enrollmentData.turmaDia) {
+      toast({
+        title: 'Erro',
+        description: 'Selecione o dia da turma (domingo ou terça).',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     try {
-      // Here you would call the enrollment API
-      console.log('Enrolling member:', enrollmentData);
+      const selectedCourseData = courses.find((course) => course.id === enrollmentData.courseId);
+      if (!selectedCourseData || !user) {
+        toast({
+          title: 'Erro',
+          description: 'Não foi possível localizar o curso para matrícula.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const totalAmount = Number(enrollmentData.amount || 0);
+      await coursesService.createCourseRegistration({
+        course_id: enrollmentData.courseId,
+        student_id: enrollmentData.memberId,
+        leader_id: user.id,
+        registration_date: new Date().toISOString().slice(0, 10),
+        status: 'enrolled',
+        payment_status: totalAmount > 0 ? 'pending' : 'paid',
+        total_amount: totalAmount,
+        paid_amount: 0,
+        scholarship_amount: 0,
+        payment_plan: 'full',
+        installment_count: 1,
+        notes: null,
+        emergency_contact: null,
+        medical_info: null,
+        special_needs: null,
+        approved_by: null,
+        approved_at: null,
+        completed_at: null,
+        semester_label: selectedCourseData.semester_label || null,
+        trilho_nome: selectedCourseData.trilho_nome || null,
+        turma_dia: selectedCourseData.turma_dia || null,
+      });
       
       toast({
         title: 'Sucesso!',
@@ -95,14 +187,21 @@ export default function CoursesLeader() {
       setShowEnrollmentDialog(false);
       setEnrollmentData({
         memberId: '',
+        trilho: '',
+        turmaDia: '',
         courseId: '',
         paymentMethod: 'pix',
         amount: '',
       });
-    } catch (error) {
+      refetchRegistrations();
+    } catch (error: any) {
+      const isTurmaConflict =
+        String(error?.message || '').includes('uq_course_registrations_student_semester_trilho');
       toast({
         title: 'Erro',
-        description: 'Não foi possível inscrever o membro.',
+        description: isTurmaConflict
+          ? 'Este aluno já está matriculado neste trilho no semestre atual. Escolha apenas domingo ou terça.'
+          : 'Não foi possível inscrever o membro.',
         variant: 'destructive',
       });
     }
@@ -126,19 +225,35 @@ export default function CoursesLeader() {
   }
 
   const activeCourses = courses.filter(c => c.status === 'active');
-  const enrolledMembers = [
-    { id: '1', name: 'João Silva', course: 'Maturidade no Espírito', progress: 75, status: 'Em Curso' },
-    { id: '2', name: 'Maria Santos', course: 'CTL', progress: 60, status: 'Em Curso' },
-    { id: '3', name: 'Pedro Costa', course: 'Maturidade no Espírito', progress: 90, status: 'Em Curso' },
-    { id: '4', name: 'Ana Oliveira', course: 'CTL', progress: 45, status: 'Em Curso' },
-  ];
-
-  const availableMembers = [
-    { id: '5', name: 'Carlos Lima', type: 'member' },
-    { id: '6', name: 'Sofia Pereira', type: 'frequentador' },
-    { id: '7', name: 'Rafael Souza', type: 'member' },
-    { id: '8', name: 'Julia Costa', type: 'frequentador' },
-  ];
+  const enrolledMembers = registrations.map((registration) => ({
+    id: registration.id,
+    name: registration.members?.name || 'Sem nome',
+    course: registration.courses?.name || 'Curso não informado',
+    registrationDate: registration.registration_date || registration.created_at,
+    status: registration.status,
+    paymentStatus: registration.payment_status,
+  }));
+  const completedCount = enrolledMembers.filter((member) => member.status === 'completed').length;
+  const completionRate = enrolledMembers.length > 0
+    ? Math.round((completedCount / enrolledMembers.length) * 100)
+    : 0;
+  const courseEnrollmentStats = activeCourses.map((course) => {
+    const courseMembers = enrolledMembers.filter((member) => member.course === course.name);
+    const courseCompleted = courseMembers.filter((member) => member.status === 'completed').length;
+    const courseCompletionRate = courseMembers.length > 0
+      ? Math.round((courseCompleted / courseMembers.length) * 100)
+      : 0;
+    return {
+      courseId: course.id,
+      courseName: course.name,
+      total: courseMembers.length,
+      completed: courseCompleted,
+      completionRate: courseCompletionRate,
+    };
+  });
+  const recentRegistrations = [...enrolledMembers]
+    .sort((a, b) => new Date(b.registrationDate).getTime() - new Date(a.registrationDate).getTime())
+    .slice(0, 6);
 
   return (
     <div className="space-y-8 animate-fade-in pb-12">
@@ -171,14 +286,69 @@ export default function CoursesLeader() {
                     onValueChange={(value) => setEnrollmentData(prev => ({ ...prev, memberId: value }))}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Selecione o membro" />
+                      <SelectValue placeholder={membersLoading ? "Carregando membros..." : "Selecione o membro"} />
                     </SelectTrigger>
                     <SelectContent>
+                      {!membersLoading && availableMembers.length === 0 ? (
+                        <SelectItem value="no-members" disabled>
+                          Nenhum membro disponível
+                        </SelectItem>
+                      ) : null}
                       {availableMembers.map((member) => (
                         <SelectItem key={member.id} value={member.id}>
                           {member.name} - {member.type === 'member' ? 'Membro' : 'Frequentador'}
                         </SelectItem>
                       ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Trilho</label>
+                  <Select
+                    value={enrollmentData.trilho || 'all'}
+                    onValueChange={(value) =>
+                      setEnrollmentData((prev) => ({
+                        ...prev,
+                        trilho: value === 'all' ? '' : value,
+                        courseId: '',
+                      }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o trilho" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      {trilhoOptions.includes('ceifeiros') ? (
+                        <SelectItem value="ceifeiros">Ceifeiros</SelectItem>
+                      ) : null}
+                      {trilhoOptions.includes('ctl') ? (
+                        <SelectItem value="ctl">CTL</SelectItem>
+                      ) : null}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Dia da turma</label>
+                  <Select
+                    value={enrollmentData.turmaDia || 'all'}
+                    onValueChange={(value) =>
+                      setEnrollmentData((prev) => ({
+                        ...prev,
+                        turmaDia: value === 'all' ? '' : value,
+                        courseId: '',
+                      }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Escolha domingo ou terça" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="domingo">Domingo</SelectItem>
+                      <SelectItem value="terca">Terça</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -193,9 +363,11 @@ export default function CoursesLeader() {
                       <SelectValue placeholder="Selecione o curso" />
                     </SelectTrigger>
                     <SelectContent>
-                      {activeCourses.map((course) => (
+                      {filteredEnrollmentCourses.map((course) => (
                         <SelectItem key={course.id} value={course.id}>
                           {course.name}
+                          {course.turma_dia === 'domingo' ? ' (Domingo)' : ''}
+                          {course.turma_dia === 'terca' ? ' (Terça)' : ''}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -275,8 +447,8 @@ export default function CoursesLeader() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Progresso Médio</p>
-                <p className="text-2xl font-bold text-blue-600">68%</p>
+                <p className="text-sm font-medium text-muted-foreground">Taxa de Conclusão</p>
+                <p className="text-2xl font-bold text-blue-600">{completionRate}%</p>
               </div>
               <TrendingUp className="h-8 w-8 text-blue-600" />
             </div>
@@ -287,8 +459,8 @@ export default function CoursesLeader() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Certificados</p>
-                <p className="text-2xl font-bold text-purple-600">2</p>
+                <p className="text-sm font-medium text-muted-foreground">Concluídos</p>
+                <p className="text-2xl font-bold text-purple-600">{completedCount}</p>
               </div>
               <Award className="h-8 w-8 text-purple-600" />
             </div>
@@ -409,34 +581,41 @@ export default function CoursesLeader() {
                     <TableRow>
                       <TableHead>Membro</TableHead>
                       <TableHead>Curso</TableHead>
-                      <TableHead>Progresso</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Ações</TableHead>
+                      <TableHead>Data da Matrícula</TableHead>
+                      <TableHead>Situação</TableHead>
+                      <TableHead>Pagamento</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {enrolledMembers.map((member) => (
-                      <TableRow key={member.id}>
-                        <TableCell className="font-medium">{member.name}</TableCell>
-                        <TableCell>{member.course}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Progress value={member.progress} className="flex-1 h-2" />
-                            <span className="text-sm text-muted-foreground">{member.progress}%</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={member.progress >= 90 ? 'default' : 'secondary'}>
-                            {member.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Button variant="ghost" size="sm">
-                            Ver Detalhes
-                          </Button>
+                    {enrolledMembers.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center text-muted-foreground">
+                          Nenhuma matrícula encontrada.
                         </TableCell>
                       </TableRow>
-                    ))}
+                    ) : (
+                      enrolledMembers.map((member) => (
+                        <TableRow key={member.id}>
+                          <TableCell className="font-medium">{member.name}</TableCell>
+                          <TableCell>{member.course}</TableCell>
+                          <TableCell>
+                            {member.registrationDate
+                              ? new Date(member.registrationDate).toLocaleDateString('pt-BR')
+                              : '-'}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={member.status === 'completed' ? 'default' : 'secondary'}>
+                              {member.status === 'completed' ? 'Concluído' : 'Em curso'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={member.paymentStatus === 'paid' ? 'default' : 'outline'}>
+                              {member.paymentStatus === 'paid' ? 'Pago' : 'Pendente'}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </div>
@@ -451,31 +630,28 @@ export default function CoursesLeader() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <TrendingUp className="w-5 h-5" />
-                  Progresso por Curso
+                  Matrículas por Curso
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {activeCourses.slice(0, 3).map((course) => {
-                    const courseMembers = enrolledMembers.filter(m => m.course === course.name);
-                    const avgProgress = courseMembers.length > 0 
-                      ? courseMembers.reduce((sum, m) => sum + m.progress, 0) / courseMembers.length 
-                      : 0;
-                    
-                    return (
-                      <div key={course.id} className="space-y-2">
+                  {courseEnrollmentStats.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Sem matrículas para exibir.</p>
+                  ) : (
+                    courseEnrollmentStats.map((courseStat) => (
+                      <div key={courseStat.courseId} className="space-y-2">
                         <div className="flex justify-between text-sm">
-                          <span className="font-medium">{course.name}</span>
-                          <span className="text-muted-foreground">{Math.round(avgProgress)}%</span>
+                          <span className="font-medium">{courseStat.courseName}</span>
+                          <span className="text-muted-foreground">{courseStat.completionRate}%</span>
                         </div>
-                        <Progress value={avgProgress} className="h-2" />
+                        <Progress value={courseStat.completionRate} className="h-2" />
                         <div className="flex justify-between text-xs text-muted-foreground">
-                          <span>{courseMembers.length} membros inscritos</span>
-                          <span>{course.duration_weeks} semanas</span>
+                          <span>{courseStat.total} inscritos</span>
+                          <span>{courseStat.completed} concluídos</span>
                         </div>
                       </div>
-                    );
-                  })}
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -484,32 +660,33 @@ export default function CoursesLeader() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Award className="w-5 h-5" />
-                  Membros em Destaque
+                  Últimas Matrículas
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {enrolledMembers
-                    .sort((a, b) => b.progress - a.progress)
-                    .slice(0, 4)
-                    .map((member) => (
+                  {recentRegistrations.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Sem matrículas recentes.</p>
+                  ) : (
+                    recentRegistrations.map((member) => (
                       <div key={member.id} className="flex items-center justify-between p-3 border rounded-lg">
                         <div className="flex-1">
                           <p className="font-medium text-sm">{member.name}</p>
                           <p className="text-xs text-muted-foreground">{member.course}</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-sm font-medium">{member.progress}%</p>
-                          <Badge 
-                            variant={member.progress >= 90 ? 'default' : member.progress >= 70 ? 'secondary' : 'outline'}
-                            className="text-xs"
-                          >
-                            {member.progress >= 90 ? 'Excelente' : 
-                             member.progress >= 70 ? 'Bom' : 'Em Progresso'}
+                          <p className="text-xs text-muted-foreground">
+                            {member.registrationDate
+                              ? new Date(member.registrationDate).toLocaleDateString('pt-BR')
+                              : '-'}
+                          </p>
+                          <Badge variant={member.status === 'completed' ? 'default' : 'secondary'} className="text-xs">
+                            {member.status === 'completed' ? 'Concluído' : 'Em curso'}
                           </Badge>
                         </div>
                       </div>
-                    ))}
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -519,3 +696,5 @@ export default function CoursesLeader() {
     </div>
   );
 }
+
+

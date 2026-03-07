@@ -100,8 +100,20 @@ export const deleteCourse = async (id: string): Promise<void> => {
     .delete()
     .eq('id', id);
 
-  if (error) {
+  if (!error) {
+    return;
+  }
+
+  // Fallback: se houver dependências/permissões que bloqueiem delete físico,
+  // o curso é arquivado para continuar a gestão individual sem travar a tela.
+  const { error: archiveError } = await supabase
+    .from('courses')
+    .update({ active: false, status: 'cancelled' })
+    .eq('id', id);
+
+  if (archiveError) {
     console.error('Error deleting course:', error);
+    console.error('Error archiving course after delete failure:', archiveError);
     throw error;
   }
 };
@@ -523,25 +535,36 @@ export const getAttendanceStats = async (courseId?: string): Promise<AttendanceS
     };
   }
 
-  let query = supabase
-    .from('course_attendance')
-    .select('status');
+  // Busca matrículas do curso para filtrar presença corretamente
+  const { data: registrations, error: registrationsError } = await supabase
+    .from('course_registrations')
+    .select('id')
+    .eq('course_id', courseId);
 
-  query = query.eq('course_registrations.course_id', courseId);
-
-  const { data, error } = await query;
-
-  if (error) {
-    console.error('Error fetching attendance stats:', error);
-    throw error;
+  if (registrationsError) {
+    console.error('Error fetching registrations for attendance stats:', registrationsError);
+    throw registrationsError;
   }
 
-  const totalAttendance = data?.length || 0;
-  const presentCount = data?.filter(a => a.status === 'present').length || 0;
-  const absentCount = data?.filter(a => a.status === 'absent').length || 0;
-  const lateCount = data?.filter(a => a.status === 'late').length || 0;
-  const excusedCount = data?.filter(a => a.status === 'excused').length || 0;
-  const makeupCount = data?.filter(a => a.status === 'makeup').length || 0;
+  const registrationIds = (registrations || []).map((reg) => reg.id);
+  const { data: attendanceRows, error: attendanceError } = registrationIds.length
+    ? await supabase
+        .from('course_attendance')
+        .select('status')
+        .in('registration_id', registrationIds)
+    : { data: [], error: null };
+
+  if (attendanceError) {
+    console.error('Error fetching attendance stats:', attendanceError);
+    throw attendanceError;
+  }
+
+  const totalAttendance = attendanceRows?.length || 0;
+  const presentCount = attendanceRows?.filter((a) => a.status === 'present').length || 0;
+  const absentCount = attendanceRows?.filter((a) => a.status === 'absent').length || 0;
+  const lateCount = attendanceRows?.filter((a) => a.status === 'late').length || 0;
+  const excusedCount = attendanceRows?.filter((a) => a.status === 'excused').length || 0;
+  const makeupCount = attendanceRows?.filter((a) => a.status === 'makeup').length || 0;
 
   // Get total lessons for the course
   const { data: lessons, error: lessonsError } = await supabase
@@ -568,10 +591,9 @@ export const getAttendanceStats = async (courseId?: string): Promise<AttendanceS
     makeupCount
   };
 };
-
 // ===== REPORTS =====
 export const getAttendanceReport = async (courseId?: string): Promise<AttendanceReport[]> => {
-  const { data, error } = await supabase
+  let query = supabase
     .from('course_registrations')
     .select(`
       id,
@@ -580,8 +602,13 @@ export const getAttendanceReport = async (courseId?: string): Promise<Attendance
       members:student_id(name),
       courses:course_id(name),
       course_attendance(status)
-    `)
-    .eq('course_id', courseId || '');
+    `);
+
+  if (courseId && courseId.trim() !== '') {
+    query = query.eq('course_id', courseId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('Error fetching attendance report:', error);

@@ -1,11 +1,10 @@
-// Enhanced Course System - Discipulador Page
+﻿// Enhanced Course System - Discipulador Page
 // Course management interface for discipuladores
 
 import React, { useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useCourses } from '@/hooks/useCourses';
+import { useCourses, useCourseRegistrations, useAttendanceReport, useAttendanceStats } from '@/hooks/useCourses';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -16,20 +15,14 @@ import FancyLoader from '@/components/FancyLoader';
 import { CourseCard } from '@/components/courses/CourseCard';
 import { 
   Search, 
-  Filter, 
   BookOpen, 
   Users, 
-  Calendar,
   CheckCircle,
   XCircle,
-  Clock,
   TrendingUp,
   Award,
-  GraduationCap,
-  Target
 } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import type { Course, CourseFilters } from '@/types/course';
+import type { CourseFilters } from '@/types/course';
 
 const tips = [
   'Acompanhando o progresso dos líderes como o bom pastor...',
@@ -41,10 +34,8 @@ const tips = [
 
 export default function CoursesDiscipulador() {
   const { user } = useAuth();
-  const { toast } = useToast();
   // Verificação de acesso baseada no role do usuário
   const canViewCourses = user?.role === 'discipulador' || user?.role === 'pastor' || user?.role === 'obreiro';
-  const canMarkAttendance = user?.role === 'discipulador' || user?.role === 'pastor' || user?.role === 'obreiro';
   
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
@@ -62,6 +53,10 @@ export default function CoursesDiscipulador() {
     loading,
     error,
   } = useCourses(filters);
+  const { registrations } = useCourseRegistrations();
+  const { report: overallAttendanceReport } = useAttendanceReport();
+  const { report: selectedAttendanceReport } = useAttendanceReport(selectedCourse || undefined);
+  const { stats: selectedAttendanceStats } = useAttendanceStats(selectedCourse || undefined);
 
   if (!canViewCourses) {
     return (
@@ -81,7 +76,28 @@ export default function CoursesDiscipulador() {
   }
 
   const activeCourses = courses.filter(c => c.status === 'active');
-  const enrolledCourses = courses.filter(c => c.status === 'active'); // This would be filtered by actual enrollments
+  const enrolledLeadersCount = new Set(registrations.map((registration) => registration.student_id)).size;
+  const completedCount = registrations.filter((registration) => registration.status === 'completed').length;
+  const overallAttendanceRate = overallAttendanceReport.length > 0
+    ? Math.round(
+        overallAttendanceReport.reduce((sum, item) => sum + item.attendanceRate, 0) / overallAttendanceReport.length
+      )
+    : 0;
+  const progressByCourse = activeCourses.map((course) => {
+    const reportItems = overallAttendanceReport.filter((item) => item.courseName === course.name);
+    const avgRate = reportItems.length > 0
+      ? Math.round(reportItems.reduce((sum, item) => sum + item.attendanceRate, 0) / reportItems.length)
+      : 0;
+    return {
+      courseId: course.id,
+      courseName: course.name,
+      avgRate,
+      students: reportItems.length,
+    };
+  });
+  const weakestAttendance = [...overallAttendanceReport]
+    .sort((a, b) => a.attendanceRate - b.attendanceRate)
+    .slice(0, 5);
 
   return (
     <div className="space-y-8 animate-fade-in pb-12">
@@ -114,7 +130,7 @@ export default function CoursesDiscipulador() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Líderes Inscritos</p>
-                <p className="text-2xl font-bold text-green-600">12</p>
+                <p className="text-2xl font-bold text-green-600">{enrolledLeadersCount}</p>
               </div>
               <Users className="h-8 w-8 text-green-600" />
             </div>
@@ -126,7 +142,7 @@ export default function CoursesDiscipulador() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Taxa de Presença</p>
-                <p className="text-2xl font-bold text-blue-600">85%</p>
+                <p className="text-2xl font-bold text-blue-600">{overallAttendanceRate}%</p>
               </div>
               <TrendingUp className="h-8 w-8 text-blue-600" />
             </div>
@@ -137,8 +153,8 @@ export default function CoursesDiscipulador() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Certificados</p>
-                <p className="text-2xl font-bold text-purple-600">8</p>
+                <p className="text-sm font-medium text-muted-foreground">Concluídos</p>
+                <p className="text-2xl font-bold text-purple-600">{completedCount}</p>
               </div>
               <Award className="h-8 w-8 text-purple-600" />
             </div>
@@ -278,7 +294,7 @@ export default function CoursesDiscipulador() {
                             <CheckCircle className="h-5 w-5 text-green-600" />
                             <span className="text-sm font-medium">Presentes</span>
                           </div>
-                          <p className="text-2xl font-bold text-green-600">15</p>
+                          <p className="text-2xl font-bold text-green-600">{selectedAttendanceStats?.presentCount || 0}</p>
                         </CardContent>
                       </Card>
                       
@@ -288,7 +304,7 @@ export default function CoursesDiscipulador() {
                             <XCircle className="h-5 w-5 text-red-600" />
                             <span className="text-sm font-medium">Ausentes</span>
                           </div>
-                          <p className="text-2xl font-bold text-red-600">3</p>
+                          <p className="text-2xl font-bold text-red-600">{selectedAttendanceStats?.absentCount || 0}</p>
                         </CardContent>
                       </Card>
                       
@@ -298,7 +314,9 @@ export default function CoursesDiscipulador() {
                             <TrendingUp className="h-5 w-5 text-blue-600" />
                             <span className="text-sm font-medium">Taxa de Presença</span>
                           </div>
-                          <p className="text-2xl font-bold text-blue-600">83%</p>
+                          <p className="text-2xl font-bold text-blue-600">
+                            {Math.round(selectedAttendanceStats?.attendanceRate || 0)}%
+                          </p>
                         </CardContent>
                       </Card>
                     </div>
@@ -308,37 +326,37 @@ export default function CoursesDiscipulador() {
                         <TableHeader>
                           <TableRow>
                             <TableHead>Líder</TableHead>
-                            <TableHead>Última Aula</TableHead>
-                            <TableHead>Presença</TableHead>
+                            <TableHead>Aulas Assistidas</TableHead>
+                            <TableHead>Taxa</TableHead>
                             <TableHead>Faltas</TableHead>
                             <TableHead>Status</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {[
-                            { name: 'João Silva', lastClass: '2024-01-15', present: true, absences: 1, status: 'Em Curso' },
-                            { name: 'Maria Santos', lastClass: '2024-01-15', present: true, absences: 0, status: 'Em Curso' },
-                            { name: 'Pedro Costa', lastClass: '2024-01-15', present: false, absences: 2, status: 'Em Curso' },
-                            { name: 'Ana Oliveira', lastClass: '2024-01-15', present: true, absences: 1, status: 'Em Curso' },
-                          ].map((student, index) => (
-                            <TableRow key={index}>
-                              <TableCell className="font-medium">{student.name}</TableCell>
-                              <TableCell>{student.lastClass}</TableCell>
-                              <TableCell>
-                                {student.present ? (
-                                  <CheckCircle className="h-4 w-4 text-green-600" />
-                                ) : (
-                                  <XCircle className="h-4 w-4 text-red-600" />
-                                )}
-                              </TableCell>
-                              <TableCell>{student.absences}</TableCell>
-                              <TableCell>
-                                <Badge variant={student.absences >= 4 ? 'destructive' : 'secondary'}>
-                                  {student.status}
-                                </Badge>
+                          {selectedAttendanceReport.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={5} className="text-center text-muted-foreground">
+                                Nenhum registro de presença encontrado para este curso.
                               </TableCell>
                             </TableRow>
-                          ))}
+                          ) : (
+                            selectedAttendanceReport.map((student) => {
+                              const absences = Math.max(student.totalLessons - student.attendedLessons, 0);
+                              return (
+                                <TableRow key={student.studentId}>
+                                  <TableCell className="font-medium">{student.studentName}</TableCell>
+                                  <TableCell>{student.attendedLessons}/{student.totalLessons}</TableCell>
+                                  <TableCell>{Math.round(student.attendanceRate)}%</TableCell>
+                                  <TableCell>{absences}</TableCell>
+                                  <TableCell>
+                                    <Badge variant={absences >= 4 ? 'destructive' : 'secondary'}>
+                                      {absences >= 4 ? 'Reprovado' : 'Em Curso'}
+                                    </Badge>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })
+                          )}
                         </TableBody>
                       </Table>
                     </div>
@@ -366,19 +384,23 @@ export default function CoursesDiscipulador() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {activeCourses.slice(0, 3).map((course) => (
-                    <div key={course.id} className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="font-medium">{course.name}</span>
-                        <span className="text-muted-foreground">75%</span>
+                  {progressByCourse.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Sem dados de progresso para exibir.</p>
+                  ) : (
+                    progressByCourse.map((courseStat) => (
+                      <div key={courseStat.courseId} className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="font-medium">{courseStat.courseName}</span>
+                          <span className="text-muted-foreground">{courseStat.avgRate}%</span>
+                        </div>
+                        <Progress value={courseStat.avgRate} className="h-2" />
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span>{courseStat.students} inscritos</span>
+                          <span>Média de presença</span>
+                        </div>
                       </div>
-                      <Progress value={75} className="h-2" />
-                      <div className="flex justify-between text-xs text-muted-foreground">
-                        <span>12 de 16 aulas</span>
-                        <span>8 líderes inscritos</span>
-                      </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -387,30 +409,29 @@ export default function CoursesDiscipulador() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Award className="w-5 h-5" />
-                  Líderes em Destaque
+                  Líderes com Menor Presença
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {[
-                    { name: 'João Silva', course: 'Maturidade no Espírito', progress: 90, status: 'Excelente' },
-                    { name: 'Maria Santos', course: 'CTL', progress: 85, status: 'Muito Bom' },
-                    { name: 'Pedro Costa', course: 'Maturidade no Espírito', progress: 78, status: 'Bom' },
-                    { name: 'Ana Oliveira', course: 'CTL', progress: 95, status: 'Excelente' },
-                  ].map((leader, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div className="flex-1">
-                        <p className="font-medium text-sm">{leader.name}</p>
-                        <p className="text-xs text-muted-foreground">{leader.course}</p>
+                  {weakestAttendance.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Sem dados de presença registrados.</p>
+                  ) : (
+                    weakestAttendance.map((leader) => (
+                      <div key={leader.studentId} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div className="flex-1">
+                          <p className="font-medium text-sm">{leader.studentName}</p>
+                          <p className="text-xs text-muted-foreground">{leader.courseName}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-medium">{Math.round(leader.attendanceRate)}%</p>
+                          <Badge variant={leader.attendanceRate < 75 ? 'destructive' : 'secondary'} className="text-xs">
+                            {leader.attendanceRate < 75 ? 'Atenção' : 'Estável'}
+                          </Badge>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium">{leader.progress}%</p>
-                        <Badge variant="secondary" className="text-xs">
-                          {leader.status}
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>
