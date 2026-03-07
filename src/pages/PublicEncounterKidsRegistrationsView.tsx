@@ -28,6 +28,7 @@ import * as XLSX from "xlsx";
 interface KidsRegistration {
   id: string;
   nome_completo: string;
+  funcao: "encontrista" | "equipe" | "discipuladora";
   idade: number | null;
   nome_responsavel: string;
   discipuladora_id: string;
@@ -49,6 +50,12 @@ const normalizeText = (value: string) =>
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
 
+const getKidsFuncaoLabel = (funcao: KidsRegistration["funcao"]) => {
+  if (funcao === "equipe") return "Equipe";
+  if (funcao === "discipuladora") return "Discipuladora";
+  return "Encontrista";
+};
+
 export function PublicEncounterKidsRegistrationsView() {
   const { toast } = useToast();
   const [registrations, setRegistrations] = useState<KidsRegistration[]>([]);
@@ -56,6 +63,7 @@ export function PublicEncounterKidsRegistrationsView() {
   const [updatingIds, setUpdatingIds] = useState<Set<string>>(new Set());
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedFuncao, setSelectedFuncao] = useState("all");
   const [selectedDiscipuladora, setSelectedDiscipuladora] = useState("all");
   const [selectedLeader, setSelectedLeader] = useState("all");
 
@@ -116,9 +124,11 @@ export function PublicEncounterKidsRegistrationsView() {
 
       const matchesLeader = selectedLeader === "all" || item.lider_filter_key === selectedLeader;
 
-      return matchesSearch && matchesDiscipuladora && matchesLeader;
+      const matchesFuncao = selectedFuncao === "all" || item.funcao === selectedFuncao;
+
+      return matchesSearch && matchesDiscipuladora && matchesLeader && matchesFuncao;
     });
-  }, [registrations, searchTerm, selectedDiscipuladora, selectedLeader]);
+  }, [registrations, searchTerm, selectedDiscipuladora, selectedLeader, selectedFuncao]);
 
   const stats = useMemo(() => {
     return {
@@ -138,6 +148,7 @@ export function PublicEncounterKidsRegistrationsView() {
 
     const data = filteredRegistrations.map((item) => ({
       "Nome Completo": item.nome_completo,
+      Funcao: getKidsFuncaoLabel(item.funcao),
       Idade: item.idade ?? "",
       Responsavel: item.nome_responsavel,
       Discipuladora: item.discipuladora_name,
@@ -149,6 +160,7 @@ export function PublicEncounterKidsRegistrationsView() {
     const worksheet = XLSX.utils.json_to_sheet(data);
     worksheet["!cols"] = [
       { wch: 28 },
+      { wch: 16 },
       { wch: 10 },
       { wch: 28 },
       { wch: 24 },
@@ -178,6 +190,7 @@ export function PublicEncounterKidsRegistrationsView() {
         .select(`
           id,
           nome_completo,
+          funcao,
           idade,
           nome_responsavel,
           discipuladora_id,
@@ -198,6 +211,7 @@ export function PublicEncounterKidsRegistrationsView() {
       const formatted: KidsRegistration[] = (registrationsData || []).map((item: any) => ({
         id: item.id,
         nome_completo: item.nome_completo,
+        funcao: item.funcao || "encontrista",
         idade: item.idade,
         nome_responsavel: item.nome_responsavel,
         discipuladora_id: item.discipuladora_id,
@@ -384,7 +398,7 @@ export function PublicEncounterKidsRegistrationsView() {
             <CardTitle className="text-lg sm:text-xl">Filtros</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="space-y-2">
                 <label htmlFor="search" className="text-sm font-medium">
                   Buscar
@@ -400,6 +414,34 @@ export function PublicEncounterKidsRegistrationsView() {
                     className="pl-10 min-h-[44px] touch-manipulation text-sm sm:text-base"
                   />
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="funcao" className="text-sm font-medium">
+                  Função
+                </label>
+                <Select value={selectedFuncao} onValueChange={setSelectedFuncao}>
+                  <SelectTrigger
+                    id="funcao"
+                    className="min-h-[44px] touch-manipulation text-sm sm:text-base"
+                  >
+                    <SelectValue placeholder="Todas" />
+                  </SelectTrigger>
+                  <SelectContent position="item-aligned" className="z-[9999]">
+                    <SelectItem value="all" className="min-h-[44px] touch-manipulation">
+                      Todas
+                    </SelectItem>
+                    <SelectItem value="encontrista" className="min-h-[44px] touch-manipulation">
+                      Encontrista
+                    </SelectItem>
+                    <SelectItem value="equipe" className="min-h-[44px] touch-manipulation">
+                      Equipe
+                    </SelectItem>
+                    <SelectItem value="discipuladora" className="min-h-[44px] touch-manipulation">
+                      Discipuladora
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
@@ -508,6 +550,10 @@ export function PublicEncounterKidsRegistrationsView() {
                       </p>
                       <div className="mt-3 grid grid-cols-1 gap-2 text-sm">
                         <div>
+                          <span className="text-muted-foreground">Função: </span>
+                          <span>{getKidsFuncaoLabel(item.funcao)}</span>
+                        </div>
+                        <div>
                           <span className="text-muted-foreground">Idade: </span>
                           <span>{item.idade ?? "-"}</span>
                         </div>
@@ -569,6 +615,7 @@ export function PublicEncounterKidsRegistrationsView() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="min-w-[210px]">Nome Completo</TableHead>
+                      <TableHead className="min-w-[140px]">Função</TableHead>
                       <TableHead className="min-w-[90px]">Idade</TableHead>
                       <TableHead className="min-w-[210px]">Nome do Responsável</TableHead>
                       <TableHead className="min-w-[170px]">Discipuladora</TableHead>
@@ -582,6 +629,7 @@ export function PublicEncounterKidsRegistrationsView() {
                     {filteredRegistrations.map((item) => (
                       <TableRow key={item.id}>
                         <TableCell className="font-medium">{item.nome_completo}</TableCell>
+                        <TableCell>{getKidsFuncaoLabel(item.funcao)}</TableCell>
                         <TableCell>{item.idade ?? "-"}</TableCell>
                         <TableCell>{item.nome_responsavel}</TableCell>
                         <TableCell>{item.discipuladora_name}</TableCell>
