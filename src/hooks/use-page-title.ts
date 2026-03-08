@@ -47,6 +47,10 @@ const PAGE_INFO: Record<string, PageInfo> = {
     title: "Acompanhamento Encontro Kids - Videira São Miguel",
     description: "Acompanhamento das inscrições do Encontro Kids da Igreja Videira São Miguel",
   },
+  "/lista-cursos-trilho": {
+    title: "Lista dos Cursos - Videira São Miguel",
+    description: "Lista pública semanal de alunos e presença dos cursos Ceifeiros e CTL da Igreja Videira São Miguel",
+  },
   "/batizantes": {
     title: "Batizantes - Videira São Miguel",
     description: "Gerenciamento de batizantes da Igreja Videira São Miguel",

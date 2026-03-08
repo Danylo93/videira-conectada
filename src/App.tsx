@@ -26,6 +26,7 @@ import { PublicEncounterRegistration } from "@/pages/PublicEncounterRegistration
 import { PublicEncontroRegistrationsView } from "@/pages/PublicEncontroRegistrationsView";
 import { PublicEncounterKidsRegistration } from "@/pages/PublicEncounterKidsRegistration";
 import { PublicEncounterKidsRegistrationsView } from "@/pages/PublicEncounterKidsRegistrationsView";
+import { PublicTrilhoCoursesWeeklyList } from "@/pages/PublicTrilhoCoursesWeeklyList";
 import { PublicEscalasView } from "@/pages/PublicEscalasView";
 import { PublicEscalasEdit } from "@/pages/PublicEscalasEdit";
 import { BatizantesView } from "@/pages/BatizantesView";
@@ -225,6 +226,10 @@ function AppContent() {
       <Route
         path="/acompanhamento-encontro-kids"
         element={<PublicEncounterKidsRegistrationsView />}
+      />
+      <Route
+        path="/lista-cursos-trilho"
+        element={<PublicTrilhoCoursesWeeklyList />}
       />
       <Route
         path="/escalas"
