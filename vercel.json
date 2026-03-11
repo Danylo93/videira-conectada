@@ -1,6 +1,94 @@
 {
   "rewrites": [
     {
+      "source": "/",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/bot-previews/dashboard.html"
+    },
+    {
+      "source": "/auth",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/bot-previews/auth.html"
+    },
+    {
+      "source": "/preencher-relatorio",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/bot-previews/preencher-relatorio.html"
+    },
+    {
+      "source": "/dashboard-relatorios-semanais/:pastorId",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/bot-previews/dashboard-relatorios-semanais.html"
+    },
+    {
+      "source": "/dashboard-relatorios-semanais/:pastorId/:mode",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/bot-previews/dashboard-relatorios-semanais.html"
+    },
+    {
+      "source": "/cadastro-dizimista",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/bot-previews/cadastro-dizimista.html"
+    },
+    {
+      "source": "/cadastro-batismo",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/bot-previews/cadastro-batismo.html"
+    },
+    {
+      "source": "/acompanhamento-batismo",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/bot-previews/acompanhamento-batismo.html"
+    },
+    {
       "source": "/cadastro-encontro",
       "has": [
         {
@@ -9,7 +97,18 @@
           "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
         }
       ],
-      "destination": "/cadastro-encontro.html"
+      "destination": "/bot-previews/cadastro-encontro.html"
+    },
+    {
+      "source": "/acompanhamento-encontro",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/bot-previews/acompanhamento-encontro.html"
     },
     {
       "source": "/cadastro-encontro-kids",
@@ -20,7 +119,7 @@
           "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
         }
       ],
-      "destination": "/cadastro-encontro-kids.html"
+      "destination": "/bot-previews/cadastro-encontro-kids.html"
     },
     {
       "source": "/acompanhamento-encontro-kids",
@@ -31,7 +130,260 @@
           "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
         }
       ],
-      "destination": "/acompanhamento-encontro-kids.html"
+      "destination": "/bot-previews/acompanhamento-encontro-kids.html"
+    },
+    {
+      "source": "/lista-cursos-trilho",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/bot-previews/lista-cursos-trilho.html"
+    },
+    {
+      "source": "/escalas",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/bot-previews/escalas-publicas.html"
+    },
+    {
+      "source": "/admin-escalas",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/bot-previews/admin-escalas.html"
+    },
+    {
+      "source": "/celula",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/bot-previews/celula.html"
+    },
+    {
+      "source": "/lideres",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/bot-previews/lideres.html"
+    },
+    {
+      "source": "/discipuladores",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/bot-previews/discipuladores.html"
+    },
+    {
+      "source": "/relatorios",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/bot-previews/relatorios.html"
+    },
+    {
+      "source": "/relatorios-semanal",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/bot-previews/relatorios-semanal.html"
+    },
+    {
+      "source": "/relatorios-culto",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/bot-previews/relatorios-culto.html"
+    },
+    {
+      "source": "/cursos",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/bot-previews/cursos.html"
+    },
+    {
+      "source": "/admin-cursos",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/bot-previews/admin-cursos.html"
+    },
+    {
+      "source": "/eventos",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/bot-previews/eventos.html"
+    },
+    {
+      "source": "/encounters",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/bot-previews/encounters.html"
+    },
+    {
+      "source": "/encounters/events",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/bot-previews/encounters-events.html"
+    },
+    {
+      "source": "/dizimos-ofertas",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/bot-previews/dizimos-ofertas.html"
+    },
+    {
+      "source": "/financeiro",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/bot-previews/financeiro.html"
+    },
+    {
+      "source": "/dizimistas",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/bot-previews/dizimistas.html"
+    },
+    {
+      "source": "/batizantes",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/bot-previews/batizantes.html"
+    },
+    {
+      "source": "/escalas-privado",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/bot-previews/escalas-internas.html"
+    },
+    {
+      "source": "/estatisticas",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/bot-previews/estatisticas.html"
+    },
+    {
+      "source": "/gerenciar",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/bot-previews/gerenciar.html"
+    },
+    {
+      "source": "/perfil",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/bot-previews/perfil.html"
+    },
+    {
+      "source": "/configuracoes",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/bot-previews/configuracoes.html"
     },
     {
       "source": "/(.*)",
@@ -39,4 +391,3 @@
     }
   ]
 }
-

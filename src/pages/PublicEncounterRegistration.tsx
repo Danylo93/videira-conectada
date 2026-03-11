@@ -52,7 +52,7 @@ export function PublicEncounterRegistration() {
   const [useNativeMobileSelects, setUseNativeMobileSelects] = useState(false);
 
   useEffect(() => {
-    loadData();
+    void loadData();
   }, []);
 
   useEffect(() => {
@@ -73,12 +73,33 @@ export function PublicEncounterRegistration() {
 
   const filteredLeaders = useMemo(() => {
     if (!discipuladorId) return [];
+
     return leaders.filter(
       (leader) =>
         leader.discipulador_id === discipuladorId ||
-        leader.discipulador_uuid === discipuladorId
+        leader.discipulador_uuid === discipuladorId,
     );
   }, [leaders, discipuladorId]);
+
+  const resetForm = () => {
+    setSubmitted(false);
+    setNomeCompleto("");
+    setFuncao("encontrista");
+    setDiscipuladorId("");
+    setLiderId("");
+  };
+
+  const prepareViewportForConfirmation = () => {
+    if (typeof document !== "undefined" && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
+    if (typeof window !== "undefined") {
+      window.setTimeout(() => {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }, 50);
+    }
+  };
 
   const resolveDefaultPastor = async (): Promise<ProfileLookup | null> => {
     const { data: pastorsData, error: pastorsError } = await (supabase as any)
@@ -97,7 +118,7 @@ export function PublicEncounterRegistration() {
     if (pastors.length === 0) return null;
 
     const preferred =
-      pastors.find((p) => p.name?.toLowerCase().includes("christian")) || pastors[0];
+      pastors.find((pastor) => pastor.name?.toLowerCase().includes("christian")) || pastors[0];
 
     return preferred;
   };
@@ -159,15 +180,14 @@ export function PublicEncounterRegistration() {
   };
 
   const syncEncounterSheetInBackground = () => {
-    // Sync must not impact UX on mobile/public page.
-    setTimeout(() => {
+    window.setTimeout(() => {
       void (async () => {
         try {
           const { error: syncError } = await supabase.functions.invoke(
             "sync-encontristas-google-sheets",
             {
               method: "POST",
-            }
+            },
           );
 
           if (syncError) {
@@ -180,8 +200,8 @@ export function PublicEncounterRegistration() {
     }, 0);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
 
     if (!nomeCompleto.trim()) {
       toast({
@@ -221,6 +241,7 @@ export function PublicEncounterRegistration() {
 
       selectedDiscipuladorId = resolvedPastorId;
       selectedLiderId = resolvedPastorId;
+
       if (resolvedPastorName !== pastorChristianName) {
         setPastorChristianName(resolvedPastorName);
       }
@@ -263,12 +284,8 @@ export function PublicEncounterRegistration() {
         return;
       }
 
+      prepareViewportForConfirmation();
       setSubmitted(true);
-      toast({
-        title: "Sucesso",
-        description: "Inscrição realizada com sucesso.",
-      });
-
       setNomeCompleto("");
       setFuncao("encontrista");
       setDiscipuladorId("");
@@ -302,36 +319,6 @@ export function PublicEncounterRegistration() {
     );
   }
 
-  if (submitted) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="pt-6">
-            <div className="text-center">
-              <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
-              <h2 className="text-2xl font-bold mb-2">Inscrição confirmada</h2>
-              <p className="text-muted-foreground mb-6">
-                Seu nome foi registrado para o encontro.
-              </p>
-              <Button
-                className="w-full"
-                onClick={() => {
-                  setSubmitted(false);
-                  setNomeCompleto("");
-                  setFuncao("encontrista");
-                  setDiscipuladorId("");
-                  setLiderId("");
-                }}
-              >
-                Fazer nova inscrição
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 p-3 sm:p-4 md:p-6 lg:p-8 safe-area-inset">
       <div className="max-w-3xl xl:max-w-4xl mx-auto">
@@ -353,254 +340,266 @@ export function PublicEncounterRegistration() {
             </div>
           </CardHeader>
           <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
-            <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5 md:space-y-6">
-              <div>
-                <Label htmlFor="nomeCompleto" className="text-sm sm:text-base">
-                  Nome Completo <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="nomeCompleto"
-                  type="text"
-                  value={nomeCompleto}
-                  onChange={(e) => setNomeCompleto(e.target.value)}
-                  placeholder="Digite seu nome completo"
-                  required
-                  className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
-                  autoComplete="name"
-                  autoCapitalize="words"
-                />
+            {submitted ? (
+              <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-8 sm:px-6 text-center">
+                <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
+                <h2 className="text-2xl font-bold mb-2">Inscrição confirmada</h2>
+                <p className="text-muted-foreground mb-6">
+                  Seu nome foi registrado para o encontro.
+                </p>
+                <Button className="w-full min-h-[48px] touch-manipulation" onClick={resetForm}>
+                  Fazer nova inscrição
+                </Button>
               </div>
-
-              <div>
-                <Label htmlFor="funcao" className="text-sm sm:text-base">
-                  Função <span className="text-red-500">*</span>
-                </Label>
-                {useNativeMobileSelects ? (
-                  <select
-                    id="funcao"
-                    value={funcao}
-                    onChange={(e) => {
-                      const value = e.target.value as "equipe" | "encontrista" | "discipulador";
-                      setFuncao(value);
-                      if (value === "discipulador") {
-                        setDiscipuladorId("");
-                        setLiderId("");
-                      }
-                    }}
-                    required
-                    className="mt-1 flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm sm:text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring touch-manipulation"
-                  >
-                    <option value="encontrista">Encontrista</option>
-                    <option value="equipe">Equipe</option>
-                    <option value="discipulador">Discipulador</option>
-                  </select>
-                ) : (
-                  <Select
-                    value={funcao}
-                    onValueChange={(value: "equipe" | "encontrista" | "discipulador") => {
-                      setFuncao(value);
-                      if (value === "discipulador") {
-                        setDiscipuladorId("");
-                        setLiderId("");
-                      }
-                    }}
-                    required
-                  >
-                    <SelectTrigger
-                      id="funcao"
-                      className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
-                    >
-                      <SelectValue placeholder="Selecione a função" />
-                    </SelectTrigger>
-                    <SelectContent
-                      position="item-aligned"
-                      className="z-[9999] w-[var(--radix-select-trigger-width)] max-h-[42svh] sm:max-h-72 md:max-h-80"
-                    >
-                      <SelectItem
-                        value="encontrista"
-                        className="min-h-[44px] touch-manipulation text-sm"
-                      >
-                        Encontrista
-                      </SelectItem>
-                      <SelectItem
-                        value="equipe"
-                        className="min-h-[44px] touch-manipulation text-sm"
-                      >
-                        Equipe
-                      </SelectItem>
-                      <SelectItem
-                        value="discipulador"
-                        className="min-h-[44px] touch-manipulation text-sm"
-                      >
-                        Discipulador
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-
-              {funcao === "discipulador" ? (
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5 md:space-y-6">
                 <div>
-                  <Label htmlFor="pastor-bloqueado" className="text-sm sm:text-base">
-                    Pastor
+                  <Label htmlFor="nomeCompleto" className="text-sm sm:text-base">
+                    Nome Completo <span className="text-red-500">*</span>
                   </Label>
                   <Input
-                    id="pastor-bloqueado"
-                    value={pastorChristianName}
-                    disabled
-                    readOnly
-                    className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation bg-muted"
+                    id="nomeCompleto"
+                    type="text"
+                    value={nomeCompleto}
+                    onChange={(e) => setNomeCompleto(e.target.value)}
+                    placeholder="Digite seu nome completo"
+                    required
+                    className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
+                    autoComplete="name"
+                    autoCapitalize="words"
                   />
                 </div>
-              ) : (
-                <>
-                  <div>
-                    <Label htmlFor="discipulador" className="text-sm sm:text-base">
-                      Discipulador <span className="text-red-500">*</span>
-                    </Label>
-                    {useNativeMobileSelects ? (
-                      <select
-                        id="discipulador"
-                        value={discipuladorId}
-                        onChange={(e) => {
-                          setDiscipuladorId(e.target.value);
-                          setLiderId("");
-                        }}
-                        required
-                        className="mt-1 flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm sm:text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring touch-manipulation"
-                      >
-                        <option value="">Selecione seu discipulador</option>
-                        {discipuladores.map((discipulador) => (
-                          <option key={discipulador.id} value={discipulador.id}>
-                            {discipulador.name}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <Select
-                        value={discipuladorId}
-                        onValueChange={(value) => {
-                          setDiscipuladorId(value);
-                          setLiderId("");
-                        }}
-                        required
-                      >
-                        <SelectTrigger
-                          id="discipulador"
-                          className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
-                        >
-                          <SelectValue placeholder="Selecione seu discipulador" />
-                        </SelectTrigger>
-                        <SelectContent
-                          position="item-aligned"
-                          className="z-[9999] w-[var(--radix-select-trigger-width)] max-h-[42svh] sm:max-h-72 md:max-h-80"
-                        >
-                          {discipuladores.map((discipulador) => (
-                            <SelectItem
-                              key={discipulador.id}
-                              value={discipulador.id}
-                              className="min-h-[44px] touch-manipulation text-sm"
-                            >
-                              {discipulador.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  </div>
 
-                  <div>
-                    <Label htmlFor="lider" className="text-sm sm:text-base">
-                      Líder <span className="text-red-500">*</span>
-                    </Label>
-                    {discipuladorId && filteredLeaders.length === 0 ? (
-                      <div className="mt-1 p-3 border border-amber-500 rounded-md bg-amber-50">
-                        <p className="text-sm text-amber-700">
-                          Nenhum líder vinculado ao discipulador selecionado.
-                        </p>
-                      </div>
-                    ) : (
-                      <>
-                        {useNativeMobileSelects ? (
-                          <select
-                            id="lider"
-                            value={liderId}
-                            onChange={(e) => setLiderId(e.target.value)}
-                            required
-                            disabled={!discipuladorId || filteredLeaders.length === 0}
-                            className="mt-1 flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm sm:text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 touch-manipulation"
-                          >
-                            <option value="">
-                              {!discipuladorId
-                                ? "Selecione primeiro o discipulador"
-                                : "Selecione seu líder"}
-                            </option>
-                            {filteredLeaders.map((leader) => (
-                              <option key={leader.id} value={leader.id}>
-                                {leader.name}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <Select value={liderId} onValueChange={setLiderId} required>
-                            <SelectTrigger
-                              id="lider"
-                              className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
-                              disabled={!discipuladorId || filteredLeaders.length === 0}
-                            >
-                              <SelectValue
-                                placeholder={
-                                  !discipuladorId
-                                    ? "Selecione primeiro o discipulador"
-                                    : "Selecione seu líder"
-                                }
-                              />
-                            </SelectTrigger>
-                            <SelectContent
-                              position="item-aligned"
-                              className="z-[9999] w-[var(--radix-select-trigger-width)] max-h-[42svh] sm:max-h-72 md:max-h-80"
-                            >
-                              {filteredLeaders.map((leader) => (
-                                <SelectItem
-                                  key={leader.id}
-                                  value={leader.id}
-                                  className="min-h-[44px] touch-manipulation text-sm"
-                                >
-                                  {leader.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </>
-              )}
+                <div>
+                  <Label htmlFor="funcao" className="text-sm sm:text-base">
+                    Função <span className="text-red-500">*</span>
+                  </Label>
+                  {useNativeMobileSelects ? (
+                    <select
+                      id="funcao"
+                      value={funcao}
+                      onChange={(e) => {
+                        const value = e.target.value as "equipe" | "encontrista" | "discipulador";
+                        setFuncao(value);
+                        if (value === "discipulador") {
+                          setDiscipuladorId("");
+                          setLiderId("");
+                        }
+                      }}
+                      required
+                      className="mt-1 flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm sm:text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring touch-manipulation"
+                    >
+                      <option value="encontrista">Encontrista</option>
+                      <option value="equipe">Equipe</option>
+                      <option value="discipulador">Discipulador</option>
+                    </select>
+                  ) : (
+                    <Select
+                      value={funcao}
+                      onValueChange={(value: "equipe" | "encontrista" | "discipulador") => {
+                        setFuncao(value);
+                        if (value === "discipulador") {
+                          setDiscipuladorId("");
+                          setLiderId("");
+                        }
+                      }}
+                      required
+                    >
+                      <SelectTrigger
+                        id="funcao"
+                        className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
+                      >
+                        <SelectValue placeholder="Selecione a função" />
+                      </SelectTrigger>
+                      <SelectContent
+                        position="item-aligned"
+                        className="z-[9999] w-[var(--radix-select-trigger-width)] max-h-[42svh] sm:max-h-72 md:max-h-80"
+                      >
+                        <SelectItem
+                          value="encontrista"
+                          className="min-h-[44px] touch-manipulation text-sm"
+                        >
+                          Encontrista
+                        </SelectItem>
+                        <SelectItem
+                          value="equipe"
+                          className="min-h-[44px] touch-manipulation text-sm"
+                        >
+                          Equipe
+                        </SelectItem>
+                        <SelectItem
+                          value="discipulador"
+                          className="min-h-[44px] touch-manipulation text-sm"
+                        >
+                          Discipulador
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
 
-              <Button
-                type="submit"
-                disabled={submitting}
-                className="w-full text-sm sm:text-base py-3 sm:py-4 min-h-[48px] touch-manipulation"
-                size="lg"
-              >
-                {submitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Enviando...
-                  </>
+                {funcao === "discipulador" ? (
+                  <div>
+                    <Label htmlFor="pastor-bloqueado" className="text-sm sm:text-base">
+                      Pastor
+                    </Label>
+                    <Input
+                      id="pastor-bloqueado"
+                      value={pastorChristianName}
+                      disabled
+                      readOnly
+                      className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation bg-muted"
+                    />
+                  </div>
                 ) : (
                   <>
-                    <Users className="mr-2 h-4 w-4" />
-                    Confirmar Inscrição
+                    <div>
+                      <Label htmlFor="discipulador" className="text-sm sm:text-base">
+                        Discipulador <span className="text-red-500">*</span>
+                      </Label>
+                      {useNativeMobileSelects ? (
+                        <select
+                          id="discipulador"
+                          value={discipuladorId}
+                          onChange={(e) => {
+                            setDiscipuladorId(e.target.value);
+                            setLiderId("");
+                          }}
+                          required
+                          className="mt-1 flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm sm:text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring touch-manipulation"
+                        >
+                          <option value="">Selecione seu discipulador</option>
+                          {discipuladores.map((discipulador) => (
+                            <option key={discipulador.id} value={discipulador.id}>
+                              {discipulador.name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <Select
+                          value={discipuladorId}
+                          onValueChange={(value) => {
+                            setDiscipuladorId(value);
+                            setLiderId("");
+                          }}
+                          required
+                        >
+                          <SelectTrigger
+                            id="discipulador"
+                            className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
+                          >
+                            <SelectValue placeholder="Selecione seu discipulador" />
+                          </SelectTrigger>
+                          <SelectContent
+                            position="item-aligned"
+                            className="z-[9999] w-[var(--radix-select-trigger-width)] max-h-[42svh] sm:max-h-72 md:max-h-80"
+                          >
+                            {discipuladores.map((discipulador) => (
+                              <SelectItem
+                                key={discipulador.id}
+                                value={discipulador.id}
+                                className="min-h-[44px] touch-manipulation text-sm"
+                              >
+                                {discipulador.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+
+                    <div>
+                      <Label htmlFor="lider" className="text-sm sm:text-base">
+                        Líder <span className="text-red-500">*</span>
+                      </Label>
+                      {discipuladorId && filteredLeaders.length === 0 ? (
+                        <div className="mt-1 p-3 border border-amber-500 rounded-md bg-amber-50">
+                          <p className="text-sm text-amber-700">
+                            Nenhum líder vinculado ao discipulador selecionado.
+                          </p>
+                        </div>
+                      ) : (
+                        <>
+                          {useNativeMobileSelects ? (
+                            <select
+                              id="lider"
+                              value={liderId}
+                              onChange={(e) => setLiderId(e.target.value)}
+                              required
+                              disabled={!discipuladorId || filteredLeaders.length === 0}
+                              className="mt-1 flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm sm:text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 touch-manipulation"
+                            >
+                              <option value="">
+                                {!discipuladorId
+                                  ? "Selecione primeiro o discipulador"
+                                  : "Selecione seu líder"}
+                              </option>
+                              {filteredLeaders.map((leader) => (
+                                <option key={leader.id} value={leader.id}>
+                                  {leader.name}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <Select value={liderId} onValueChange={setLiderId} required>
+                              <SelectTrigger
+                                id="lider"
+                                className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
+                                disabled={!discipuladorId || filteredLeaders.length === 0}
+                              >
+                                <SelectValue
+                                  placeholder={
+                                    !discipuladorId
+                                      ? "Selecione primeiro o discipulador"
+                                      : "Selecione seu líder"
+                                  }
+                                />
+                              </SelectTrigger>
+                              <SelectContent
+                                position="item-aligned"
+                                className="z-[9999] w-[var(--radix-select-trigger-width)] max-h-[42svh] sm:max-h-72 md:max-h-80"
+                              >
+                                {filteredLeaders.map((leader) => (
+                                  <SelectItem
+                                    key={leader.id}
+                                    value={leader.id}
+                                    className="min-h-[44px] touch-manipulation text-sm"
+                                  >
+                                    {leader.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </>
                 )}
-              </Button>
-            </form>
+
+                <Button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full text-sm sm:text-base py-3 sm:py-4 min-h-[48px] touch-manipulation"
+                  size="lg"
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Enviando...
+                    </>
+                  ) : (
+                    <>
+                      <Users className="mr-2 h-4 w-4" />
+                      Confirmar Inscrição
+                    </>
+                  )}
+                </Button>
+              </form>
+            )}
           </CardContent>
         </Card>
       </div>
     </div>
   );
 }
-
