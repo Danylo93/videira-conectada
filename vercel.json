@@ -1,6 +1,17 @@
 {
   "rewrites": [
     {
+      "source": "/cadastro-encontro",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/cadastro-encontro.html"
+    },
+    {
       "source": "/cadastro-encontro-kids",
       "has": [
         {
