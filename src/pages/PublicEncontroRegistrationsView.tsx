@@ -51,6 +51,8 @@ interface EncounterRegistration {
   created_at: string;
 }
 
+const ENCOUNTER_REGISTRATION_CLOSED = true;
+
 export function PublicEncontroRegistrationsView() {
   const { toast } = useToast();
   const [registrations, setRegistrations] = useState<EncounterRegistration[]>([]);
@@ -618,12 +620,18 @@ export function PublicEncontroRegistrationsView() {
           <p className="text-sm text-muted-foreground mb-4">
             Ainda não fez sua inscrição para o encontro?
           </p>
-          <a
-            href="/cadastro-encontro"
-            className="inline-block px-6 py-3 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors min-h-[48px] touch-manipulation text-sm sm:text-base"
-          >
-            Fazer Inscrição
-          </a>
+          {ENCOUNTER_REGISTRATION_CLOSED ? (
+            <span className="inline-flex cursor-not-allowed items-center justify-center rounded-lg bg-red-600 px-6 py-3 text-sm font-medium text-white opacity-80 sm:text-base">
+              Inscrições encerradas
+            </span>
+          ) : (
+            <a
+              href="/cadastro-encontro"
+              className="inline-block px-6 py-3 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors min-h-[48px] touch-manipulation text-sm sm:text-base"
+            >
+              Fazer Inscrição
+            </a>
+          )}
         </div>
       </div>
     </div>

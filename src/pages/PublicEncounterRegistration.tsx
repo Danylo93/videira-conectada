@@ -34,6 +34,7 @@ interface ProfileLookup {
 }
 
 const ENCOUNTER_DATES = "13, 14 e 15/03";
+const ENCOUNTER_REGISTRATION_CLOSED = true;
 
 export function PublicEncounterRegistration() {
   const { toast } = useToast();
@@ -203,6 +204,15 @@ export function PublicEncounterRegistration() {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
+    if (ENCOUNTER_REGISTRATION_CLOSED) {
+      toast({
+        title: "Inscrições encerradas",
+        description: "As inscrições para encontristas estão encerradas.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!nomeCompleto.trim()) {
       toast({
         title: "Erro",
@@ -322,7 +332,14 @@ export function PublicEncounterRegistration() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 p-3 sm:p-4 md:p-6 lg:p-8 safe-area-inset">
       <div className="max-w-3xl xl:max-w-4xl mx-auto">
-        <Card className="border-2">
+        <Card className="relative overflow-hidden border-2">
+          {ENCOUNTER_REGISTRATION_CLOSED ? (
+            <div className="pointer-events-none absolute left-1/2 top-28 z-20 w-[24rem] max-w-[140%] -translate-x-1/2 -rotate-[18deg] bg-red-600 px-6 py-3 text-center shadow-lg">
+              <span className="block text-sm font-black uppercase tracking-[0.35em] text-white sm:text-base">
+                Inscrições encerradas
+              </span>
+            </div>
+          ) : null}
           <CardHeader className="text-center px-4 sm:px-6 pt-4 sm:pt-6">
             <div className="flex justify-center mb-3 sm:mb-4">
               <img src={logoVideira} alt="Videira Conectada" className="h-14 sm:h-16 md:h-20" />
@@ -352,7 +369,13 @@ export function PublicEncounterRegistration() {
                 </Button>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5 md:space-y-6">
+              <form
+                onSubmit={handleSubmit}
+                className={`space-y-4 sm:space-y-5 md:space-y-6 ${
+                  ENCOUNTER_REGISTRATION_CLOSED ? "pointer-events-none opacity-60" : ""
+                }`}
+                aria-disabled={ENCOUNTER_REGISTRATION_CLOSED}
+              >
                 <div>
                   <Label htmlFor="nomeCompleto" className="text-sm sm:text-base">
                     Nome Completo <span className="text-red-500">*</span>
@@ -364,6 +387,7 @@ export function PublicEncounterRegistration() {
                     onChange={(e) => setNomeCompleto(e.target.value)}
                     placeholder="Digite seu nome completo"
                     required
+                    disabled={ENCOUNTER_REGISTRATION_CLOSED}
                     className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
                     autoComplete="name"
                     autoCapitalize="words"
@@ -387,6 +411,7 @@ export function PublicEncounterRegistration() {
                         }
                       }}
                       required
+                      disabled={ENCOUNTER_REGISTRATION_CLOSED}
                       className="mt-1 flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm sm:text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring touch-manipulation"
                     >
                       <option value="encontrista">Encontrista</option>
@@ -404,6 +429,7 @@ export function PublicEncounterRegistration() {
                         }
                       }}
                       required
+                      disabled={ENCOUNTER_REGISTRATION_CLOSED}
                     >
                       <SelectTrigger
                         id="funcao"
@@ -466,6 +492,7 @@ export function PublicEncounterRegistration() {
                             setLiderId("");
                           }}
                           required
+                          disabled={ENCOUNTER_REGISTRATION_CLOSED}
                           className="mt-1 flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm sm:text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring touch-manipulation"
                         >
                           <option value="">Selecione seu discipulador</option>
@@ -483,6 +510,7 @@ export function PublicEncounterRegistration() {
                             setLiderId("");
                           }}
                           required
+                          disabled={ENCOUNTER_REGISTRATION_CLOSED}
                         >
                           <SelectTrigger
                             id="discipulador"
@@ -526,7 +554,11 @@ export function PublicEncounterRegistration() {
                               value={liderId}
                               onChange={(e) => setLiderId(e.target.value)}
                               required
-                              disabled={!discipuladorId || filteredLeaders.length === 0}
+                              disabled={
+                                ENCOUNTER_REGISTRATION_CLOSED ||
+                                !discipuladorId ||
+                                filteredLeaders.length === 0
+                              }
                               className="mt-1 flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm sm:text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 touch-manipulation"
                             >
                               <option value="">
@@ -541,11 +573,20 @@ export function PublicEncounterRegistration() {
                               ))}
                             </select>
                           ) : (
-                            <Select value={liderId} onValueChange={setLiderId} required>
+                            <Select
+                              value={liderId}
+                              onValueChange={setLiderId}
+                              required
+                              disabled={ENCOUNTER_REGISTRATION_CLOSED}
+                            >
                               <SelectTrigger
                                 id="lider"
                                 className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
-                                disabled={!discipuladorId || filteredLeaders.length === 0}
+                                disabled={
+                                  ENCOUNTER_REGISTRATION_CLOSED ||
+                                  !discipuladorId ||
+                                  filteredLeaders.length === 0
+                                }
                               >
                                 <SelectValue
                                   placeholder={
@@ -579,11 +620,13 @@ export function PublicEncounterRegistration() {
 
                 <Button
                   type="submit"
-                  disabled={submitting}
+                  disabled={submitting || ENCOUNTER_REGISTRATION_CLOSED}
                   className="w-full text-sm sm:text-base py-3 sm:py-4 min-h-[48px] touch-manipulation"
                   size="lg"
                 >
-                  {submitting ? (
+                  {ENCOUNTER_REGISTRATION_CLOSED ? (
+                    "Inscrições encerradas"
+                  ) : submitting ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Enviando...
