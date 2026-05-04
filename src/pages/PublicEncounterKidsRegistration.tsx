@@ -44,10 +44,10 @@ const KIDS_REGISTRATION_CONFIG: KidsRegistrationConfig = {
 
 const BABYS_REGISTRATION_CONFIG: KidsRegistrationConfig = {
   tableName: "encounter_babys_registrations",
-  title: "Inscrição Encontro Babys",
-  date: "09/05",
+  title: "Inscrição Encontro Bebês",
+  date: "16/05",
   time: "08:00 às 12:00hs",
-  successDescription: "Cadastro do Encontro Babys realizado com sucesso.",
+  successDescription: "Cadastro do Encontro Bebês realizado com sucesso.",
 };
 
 const DEFAULT_PASTORA_KIDS_NAME = "Pastora Tainá";
@@ -259,20 +259,31 @@ function EncounterKidsRegistrationForm({ config }: { config: KidsRegistrationCon
       selectedLiderId = resolvedPastoraId;
       selectedLiderNome = DEFAULT_PASTORA_KIDS_NAME;
     } else {
-      if (!discipuladoraId || !liderNome.trim()) {
+      if (!discipuladoraId) {
         toast({
           title: "Erro",
-          description: "Selecione discipuladora e líder.",
+          description: "Selecione a discipuladora.",
           variant: "destructive",
         });
         return;
       }
 
-      const matchedLeader = filteredLeaders.find(
-        (leader) => normalizeText(leader.name) === normalizeText(liderNome)
-      );
-      selectedLiderId = matchedLeader?.id ?? null;
-      selectedLiderNome = liderNome.trim();
+      if (funcao === "encontrista") {
+        if (!liderNome.trim()) {
+          toast({
+            title: "Erro",
+            description: "Selecione o líder.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        const matchedLeader = filteredLeaders.find(
+          (leader) => normalizeText(leader.name) === normalizeText(liderNome)
+        );
+        selectedLiderId = matchedLeader?.id ?? null;
+        selectedLiderNome = liderNome.trim();
+      }
     }
 
     try {
@@ -505,40 +516,42 @@ function EncounterKidsRegistrationForm({ config }: { config: KidsRegistrationCon
                     </select>
                   </div>
 
-                  <div>
-                    <Label htmlFor="lider" className="text-sm sm:text-base">
-                      Líder <span className="text-red-500">*</span>
-                    </Label>
-                    {discipuladoraId && filteredLeaders.length === 0 ? (
-                      <div className="mt-1 p-3 border border-amber-500 rounded-md bg-amber-50">
-                        <p className="text-sm text-amber-700">
-                          Nenhum líder vinculado à discipuladora selecionada.
-                        </p>
-                      </div>
-                    ) : (
-                      <>
-                        <Input
-                          id="lider"
-                          value={liderNome}
-                          onChange={(e) => setLiderNome(e.target.value)}
-                          list="kids-leaders-options"
-                          placeholder={
-                            !discipuladoraId
-                              ? "Selecione primeiro a discipuladora"
-                              : "Digite o nome do líder"
-                          }
-                          disabled={!discipuladoraId}
-                          required
-                          className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
-                        />
-                        <datalist id="kids-leaders-options">
-                          {filteredLeaders.map((leader) => (
-                            <option key={leader.id} value={leader.name} />
-                          ))}
-                        </datalist>
-                      </>
-                    )}
-                  </div>
+                  {funcao === "encontrista" ? (
+                    <div>
+                      <Label htmlFor="lider" className="text-sm sm:text-base">
+                        Líder <span className="text-red-500">*</span>
+                      </Label>
+                      {discipuladoraId && filteredLeaders.length === 0 ? (
+                        <div className="mt-1 p-3 border border-amber-500 rounded-md bg-amber-50">
+                          <p className="text-sm text-amber-700">
+                            Nenhum líder vinculado à discipuladora selecionada.
+                          </p>
+                        </div>
+                      ) : (
+                        <>
+                          <Input
+                            id="lider"
+                            value={liderNome}
+                            onChange={(e) => setLiderNome(e.target.value)}
+                            list="kids-leaders-options"
+                            placeholder={
+                              !discipuladoraId
+                                ? "Selecione primeiro a discipuladora"
+                                : "Digite o nome do líder"
+                            }
+                            disabled={!discipuladoraId}
+                            required
+                            className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
+                          />
+                          <datalist id="kids-leaders-options">
+                            {filteredLeaders.map((leader) => (
+                              <option key={leader.id} value={leader.name} />
+                            ))}
+                          </datalist>
+                        </>
+                      )}
+                    </div>
+                  ) : null}
                 </>
               )}
 

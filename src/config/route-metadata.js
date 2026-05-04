@@ -134,8 +134,8 @@ export const ROUTE_METADATA = [
   },
   {
     key: "cadastro-encontro-babys",
-    title: "Inscrição Encontro Babys - Videira São Miguel",
-    description: "Inscrição para o Encontro Babys da Igreja Videira São Miguel.",
+    title: "Inscrição Encontro Bebês - Videira São Miguel",
+    description: "Inscrição para o Encontro Bebês da Igreja Videira São Miguel.",
     image: kidsImage,
     imageType: "image/jpeg",
     twitterCard: "summary_large_image",
@@ -156,8 +156,8 @@ export const ROUTE_METADATA = [
   },
   {
     key: "acompanhamento-encontro-babys",
-    title: "Acompanhamento Encontro Babys - Videira São Miguel",
-    description: "Acompanhamento das inscrições do Encontro Babys da Igreja Videira São Miguel.",
+    title: "Acompanhamento Encontro Bebês - Videira São Miguel",
+    description: "Acompanhamento das inscrições do Encontro Bebês da Igreja Videira São Miguel.",
     image: kidsImage,
     imageType: "image/jpeg",
     twitterCard: "summary_large_image",

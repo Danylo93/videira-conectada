@@ -77,20 +77,20 @@ const KIDS_VIEW_CONFIG: KidsRegistrationsViewConfig = {
 };
 
 const BABYS_VIEW_CONFIG: KidsRegistrationsViewConfig = {
-  title: "Acompanhamento Encontro Babys",
-  description: "Lista de inscritos para o Encontro Babys",
-  listTitle: "Lista de Inscritos Babys",
-  emptyMessage: "Nenhum inscrito Babys cadastrado ainda.",
-  loadingMessage: "Carregando inscrições Babys...",
-  newRegistrationPrompt: "Quer fazer uma nova inscrição Babys?",
-  newRegistrationLabel: "Fazer inscrição Babys",
+  title: "Acompanhamento Encontro Bebês",
+  description: "Lista de inscritos para o Encontro Bebês",
+  listTitle: "Lista de Inscritos Bebês",
+  emptyMessage: "Nenhum inscrito do Encontro Bebês cadastrado ainda.",
+  loadingMessage: "Carregando inscrições Bebês...",
+  newRegistrationPrompt: "Quer fazer uma nova inscrição para o Encontro Bebês?",
+  newRegistrationLabel: "Fazer inscrição Bebês",
   registrationHref: "/cadastro-encontro-babys",
   tableName: "encounter_babys_registrations",
   discipuladoraFk: "encounter_babys_registrations_discipuladora_id_fkey",
   liderFk: "encounter_babys_registrations_lider_id_fkey",
-  date: "09/05",
+  date: "16/05",
   time: "08:00 às 12:00hs",
-  excelSheetName: "Encontro Babys",
+  excelSheetName: "Encontro Bebês",
   excelFilePrefix: "inscricoes-encontro-babys",
 };
 

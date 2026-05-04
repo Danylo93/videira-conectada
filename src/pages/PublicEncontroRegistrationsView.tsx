@@ -51,7 +51,7 @@ interface EncounterRegistration {
   created_at: string;
 }
 
-const ENCOUNTER_REGISTRATION_CLOSED = true;
+const ENCOUNTER_REGISTRATION_CLOSED = false;
 const ENCOUNTER_REGISTRATION_TABLE = "encounter_22_05_26";
 const DISCIPULADOR_FK = "encounter_22_05_26_discipulador_id_fkey";
 const LIDER_FK = "encounter_22_05_26_lider_id_fkey";
