@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,13 +11,6 @@ import logoKids from "@/assets/logo-kids.jpg";
 interface Discipuladora {
   id: string;
   name: string;
-}
-
-interface Leader {
-  id: string;
-  name: string;
-  discipulador_id?: string | null;
-  discipulador_uuid?: string | null;
 }
 
 interface ProfileLookup {
@@ -63,7 +56,6 @@ function EncounterKidsRegistrationForm({ config }: { config: KidsRegistrationCon
   const { toast } = useToast();
 
   const [discipuladoras, setDiscipuladoras] = useState<Discipuladora[]>([]);
-  const [leaders, setLeaders] = useState<Leader[]>([]);
 
   const [nomeCompleto, setNomeCompleto] = useState("");
   const [funcao, setFuncao] = useState<"encontrista" | "equipe" | "discipuladora">(
@@ -83,15 +75,6 @@ function EncounterKidsRegistrationForm({ config }: { config: KidsRegistrationCon
   useEffect(() => {
     loadData();
   }, []);
-
-  const filteredLeaders = useMemo(() => {
-    if (!discipuladoraId) return [];
-    return leaders.filter(
-      (leader) =>
-        leader.discipulador_id === discipuladoraId ||
-        leader.discipulador_uuid === discipuladoraId
-    );
-  }, [leaders, discipuladoraId]);
 
   const resolveDefaultPastoraKids = async (): Promise<ProfileLookup | null> => {
     const { data: pastorsData, error: pastorsError } = await (supabase as any)
@@ -151,24 +134,7 @@ function EncounterKidsRegistrationForm({ config }: { config: KidsRegistrationCon
         return;
       }
 
-      const { data: leadersData, error: leadersError } = await (supabase as any)
-        .from("profiles")
-        .select("id, name, discipulador_id, discipulador_uuid")
-        .eq("role", "lider")
-        .eq("is_kids", true)
-        .order("name");
-
-      if (leadersError) {
-        toast({
-          title: "Erro",
-          description: "Erro ao carregar líderes.",
-          variant: "destructive",
-        });
-        return;
-      }
-
       setDiscipuladoras(discipuladorasData || []);
-      setLeaders(leadersData || []);
 
       const defaultPastora = await resolveDefaultPastoraKids();
       if (defaultPastora) {
@@ -272,16 +238,12 @@ function EncounterKidsRegistrationForm({ config }: { config: KidsRegistrationCon
         if (!liderNome.trim()) {
           toast({
             title: "Erro",
-            description: "Selecione o líder.",
+            description: "Digite o nome do líder.",
             variant: "destructive",
           });
           return;
         }
 
-        const matchedLeader = filteredLeaders.find(
-          (leader) => normalizeText(leader.name) === normalizeText(liderNome)
-        );
-        selectedLiderId = matchedLeader?.id ?? null;
         selectedLiderNome = liderNome.trim();
       }
     }
@@ -521,35 +483,14 @@ function EncounterKidsRegistrationForm({ config }: { config: KidsRegistrationCon
                       <Label htmlFor="lider" className="text-sm sm:text-base">
                         Líder <span className="text-red-500">*</span>
                       </Label>
-                      {discipuladoraId && filteredLeaders.length === 0 ? (
-                        <div className="mt-1 p-3 border border-amber-500 rounded-md bg-amber-50">
-                          <p className="text-sm text-amber-700">
-                            Nenhum líder vinculado à discipuladora selecionada.
-                          </p>
-                        </div>
-                      ) : (
-                        <>
-                          <Input
-                            id="lider"
-                            value={liderNome}
-                            onChange={(e) => setLiderNome(e.target.value)}
-                            list="kids-leaders-options"
-                            placeholder={
-                              !discipuladoraId
-                                ? "Selecione primeiro a discipuladora"
-                                : "Digite o nome do líder"
-                            }
-                            disabled={!discipuladoraId}
-                            required
-                            className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
-                          />
-                          <datalist id="kids-leaders-options">
-                            {filteredLeaders.map((leader) => (
-                              <option key={leader.id} value={leader.name} />
-                            ))}
-                          </datalist>
-                        </>
-                      )}
+                      <Input
+                        id="lider"
+                        value={liderNome}
+                        onChange={(e) => setLiderNome(e.target.value)}
+                        placeholder="Digite o nome do líder"
+                        required
+                        className="mt-1 text-sm sm:text-base min-h-[44px] touch-manipulation"
+                      />
                     </div>
                   ) : null}
                 </>
