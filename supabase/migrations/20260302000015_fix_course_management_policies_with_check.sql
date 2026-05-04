@@ -1,4 +1,4 @@
-﻿-- Fix course management policies to explicitly allow INSERT/UPDATE via WITH CHECK
+-- Fix course management policies to explicitly allow INSERT/UPDATE via WITH CHECK
 -- This prevents "manage" operations from being blocked by RLS in some environments.
 
 -- courses

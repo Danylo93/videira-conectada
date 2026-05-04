@@ -24,7 +24,10 @@ import { PublicBatismoRegistration } from "@/pages/PublicBatismoRegistration";
 import { PublicBatizantesView } from "@/pages/PublicBatizantesView";
 import { PublicEncounterRegistration } from "@/pages/PublicEncounterRegistration";
 import { PublicEncontroRegistrationsView } from "@/pages/PublicEncontroRegistrationsView";
-import { PublicEncounterKidsRegistration } from "@/pages/PublicEncounterKidsRegistration";
+import {
+  PublicEncounterBabysRegistration,
+  PublicEncounterKidsRegistration,
+} from "@/pages/PublicEncounterKidsRegistration";
 import { PublicEncounterKidsRegistrationsView } from "@/pages/PublicEncounterKidsRegistrationsView";
 import { PublicTrilhoCoursesWeeklyList } from "@/pages/PublicTrilhoCoursesWeeklyList";
 import { PublicEscalasView } from "@/pages/PublicEscalasView";
@@ -222,6 +225,10 @@ function AppContent() {
       <Route
         path="/cadastro-encontro-kids"
         element={<PublicEncounterKidsRegistration />}
+      />
+      <Route
+        path="/cadastro-encontro-babys"
+        element={<PublicEncounterBabysRegistration />}
       />
       <Route
         path="/acompanhamento-encontro-kids"

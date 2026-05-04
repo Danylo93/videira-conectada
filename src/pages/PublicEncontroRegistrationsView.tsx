@@ -52,6 +52,9 @@ interface EncounterRegistration {
 }
 
 const ENCOUNTER_REGISTRATION_CLOSED = true;
+const ENCOUNTER_REGISTRATION_TABLE = "encounter_22_05_26";
+const DISCIPULADOR_FK = "encounter_22_05_26_discipulador_id_fkey";
+const LIDER_FK = "encounter_22_05_26_lider_id_fkey";
 
 export function PublicEncontroRegistrationsView() {
   const { toast } = useToast();
@@ -171,7 +174,7 @@ export function PublicEncontroRegistrationsView() {
         .order("name");
 
       const { data: registrationsData, error: registrationsError } = await (supabase as any)
-        .from("encounter_registrations")
+        .from(ENCOUNTER_REGISTRATION_TABLE)
         .select(`
           id,
           nome_completo,
@@ -181,8 +184,8 @@ export function PublicEncontroRegistrationsView() {
           ja_pagou,
           presenca_confirmada,
           created_at,
-          discipulador:profiles!encounter_registrations_discipulador_id_fkey(name),
-          lider:profiles!encounter_registrations_lider_id_fkey(name)
+          discipulador:profiles!${DISCIPULADOR_FK}(name),
+          lider:profiles!${LIDER_FK}(name)
         `)
         .order("created_at", { ascending: false });
 
@@ -228,7 +231,7 @@ export function PublicEncontroRegistrationsView() {
 
     try {
       const { error } = await (supabase as any)
-        .from("encounter_registrations")
+        .from(ENCOUNTER_REGISTRATION_TABLE)
         .update({ [field]: value })
         .eq("id", registrationId);
 
@@ -277,7 +280,7 @@ export function PublicEncontroRegistrationsView() {
 
     try {
       const { error } = await (supabase as any)
-        .from("encounter_registrations")
+        .from(ENCOUNTER_REGISTRATION_TABLE)
         .delete()
         .eq("id", registrationId);
 
@@ -637,4 +640,3 @@ export function PublicEncontroRegistrationsView() {
     </div>
   );
 }
-

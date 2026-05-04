@@ -33,8 +33,9 @@ interface ProfileLookup {
   role: string;
 }
 
-const ENCOUNTER_DATES = "13, 14 e 15/03";
-const ENCOUNTER_REGISTRATION_CLOSED = true;
+const ENCOUNTER_DATES = "22/05";
+const ENCOUNTER_REGISTRATION_CLOSED = false;
+const ENCOUNTER_REGISTRATION_TABLE = "encounter_22_05_26";
 
 export function PublicEncounterRegistration() {
   const { toast } = useToast();
@@ -278,7 +279,7 @@ export function PublicEncounterRegistration() {
     try {
       setSubmitting(true);
 
-      const { error } = await (supabase as any).from("encounter_registrations").insert({
+      const { error } = await (supabase as any).from(ENCOUNTER_REGISTRATION_TABLE).insert({
         nome_completo: nomeCompleto.trim(),
         funcao,
         discipulador_id: selectedDiscipuladorId,

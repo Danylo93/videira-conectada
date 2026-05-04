@@ -26,8 +26,30 @@ interface ProfileLookup {
   role: string;
 }
 
-const KIDS_DATE = "07/03";
-const KIDS_TIME = "08:30 às 14:30hs";
+type KidsRegistrationConfig = {
+  tableName: "encounter_kids_registrations" | "encounter_babys_registrations";
+  title: string;
+  date: string;
+  time: string;
+  successDescription: string;
+};
+
+const KIDS_REGISTRATION_CONFIG: KidsRegistrationConfig = {
+  tableName: "encounter_kids_registrations",
+  title: "Inscrição Encontro Kids",
+  date: "07/03",
+  time: "08:30 às 14:30hs",
+  successDescription: "Cadastro do Encontro Kids realizado com sucesso.",
+};
+
+const BABYS_REGISTRATION_CONFIG: KidsRegistrationConfig = {
+  tableName: "encounter_babys_registrations",
+  title: "Inscrição Encontro Babys",
+  date: "09/05",
+  time: "08:00 às 12:00hs",
+  successDescription: "Cadastro do Encontro Babys realizado com sucesso.",
+};
+
 const DEFAULT_PASTORA_KIDS_NAME = "Pastora Tainá";
 
 const normalizeText = (value: string) =>
@@ -37,7 +59,7 @@ const normalizeText = (value: string) =>
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
 
-export function PublicEncounterKidsRegistration() {
+function EncounterKidsRegistrationForm({ config }: { config: KidsRegistrationConfig }) {
   const { toast } = useToast();
 
   const [discipuladoras, setDiscipuladoras] = useState<Discipuladora[]>([]);
@@ -256,7 +278,7 @@ export function PublicEncounterKidsRegistration() {
     try {
       setSubmitting(true);
 
-      const { error } = await (supabase as any).from("encounter_kids_registrations").insert({
+      const registrationPayload = {
         nome_completo: nomeCompleto.trim(),
         funcao,
         idade: idadeValue,
@@ -264,7 +286,11 @@ export function PublicEncounterKidsRegistration() {
         discipuladora_id: selectedDiscipuladoraId,
         lider_id: selectedLiderId,
         lider_nome: selectedLiderNome,
-      });
+      };
+
+      const { error } = await (supabase as any)
+        .from(config.tableName)
+        .insert(registrationPayload);
 
       if (error) {
         toast({
@@ -278,7 +304,7 @@ export function PublicEncounterKidsRegistration() {
       setSubmitted(true);
       toast({
         title: "Sucesso",
-        description: "Inscrição Kids realizada com sucesso.",
+        description: config.successDescription,
       });
 
       setNomeCompleto("");
@@ -320,7 +346,7 @@ export function PublicEncounterKidsRegistration() {
             <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
             <h2 className="text-2xl font-bold mb-2">Inscrição confirmada</h2>
             <p className="text-muted-foreground mb-6">
-              Cadastro do Encontro Kids realizado com sucesso.
+              {config.successDescription}
             </p>
             <Button
               className="w-full"
@@ -351,14 +377,14 @@ export function PublicEncounterKidsRegistration() {
               <img src={logoKids} alt="Videira Kids" className="h-14 sm:h-16 md:h-20 rounded-md" />
             </div>
             <CardTitle className="text-lg sm:text-xl md:text-2xl lg:text-3xl">
-              Inscrição Encontro Kids
+              {config.title}
             </CardTitle>
             <CardDescription className="text-xs sm:text-sm md:text-base mt-2">
               Preencha os dados abaixo para confirmar a inscrição
             </CardDescription>
             <div className="mt-3 sm:mt-4 bg-gradient-to-r from-cyan-100 to-blue-100 p-3 sm:p-4 rounded-lg">
               <p className="font-semibold text-cyan-700 text-sm sm:text-base md:text-lg">
-                Dia: {KIDS_DATE} - Horário: {KIDS_TIME}
+                Dia: {config.date} - Horário: {config.time}
               </p>
             </div>
           </CardHeader>
@@ -540,4 +566,12 @@ export function PublicEncounterKidsRegistration() {
       </div>
     </div>
   );
+}
+
+export function PublicEncounterKidsRegistration() {
+  return <EncounterKidsRegistrationForm config={KIDS_REGISTRATION_CONFIG} />;
+}
+
+export function PublicEncounterBabysRegistration() {
+  return <EncounterKidsRegistrationForm config={BABYS_REGISTRATION_CONFIG} />;
 }

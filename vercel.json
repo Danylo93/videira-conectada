@@ -122,6 +122,17 @@
       "destination": "/bot-previews/cadastro-encontro-kids.html"
     },
     {
+      "source": "/cadastro-encontro-babys",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|whatsapp|twitterbot|telegrambot|discordbot|linkedinbot|slackbot).*"
+        }
+      ],
+      "destination": "/bot-previews/cadastro-encontro-babys.html"
+    },
+    {
       "source": "/acompanhamento-encontro-kids",
       "has": [
         {

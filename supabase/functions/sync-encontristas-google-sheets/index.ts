@@ -8,13 +8,17 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 
+const ENCOUNTER_REGISTRATION_TABLE = "encounter_22_05_26";
+const DISCIPULADOR_FK = "encounter_22_05_26_discipulador_id_fkey";
+const LIDER_FK = "encounter_22_05_26_lider_id_fkey";
+
 async function syncToGoogleSheets(
   supabase: any,
   sheetId: string,
   sheetName: string
 ) {
   const { data: registrations, error } = await (supabase as any)
-    .from("encounter_registrations")
+    .from(ENCOUNTER_REGISTRATION_TABLE)
     .select(`
       id,
       nome_completo,
@@ -22,8 +26,8 @@ async function syncToGoogleSheets(
       discipulador_id,
       lider_id,
       created_at,
-      discipulador:profiles!encounter_registrations_discipulador_id_fkey(name),
-      lider:profiles!encounter_registrations_lider_id_fkey(name)
+      discipulador:profiles!${DISCIPULADOR_FK}(name),
+      lider:profiles!${LIDER_FK}(name)
     `)
     .order("created_at", { ascending: false });
 

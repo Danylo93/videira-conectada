@@ -2,6 +2,7 @@
 
 -- courses
 DROP POLICY IF EXISTS "Pastors and obreiros can manage courses" ON public.courses;
+DROP POLICY IF EXISTS "Pastors, obreiros and coordinators can manage courses" ON public.courses;
 CREATE POLICY "Pastors, obreiros and coordinators can manage courses"
 ON public.courses
 FOR ALL
@@ -19,6 +20,7 @@ USING (
 
 -- course_modules
 DROP POLICY IF EXISTS "Pastors and obreiros can manage course modules" ON public.course_modules;
+DROP POLICY IF EXISTS "Pastors, obreiros and coordinators can manage course modules" ON public.course_modules;
 CREATE POLICY "Pastors, obreiros and coordinators can manage course modules"
 ON public.course_modules
 FOR ALL
@@ -36,6 +38,7 @@ USING (
 
 -- course_lessons
 DROP POLICY IF EXISTS "Pastors and obreiros can manage course lessons" ON public.course_lessons;
+DROP POLICY IF EXISTS "Pastors, obreiros and coordinators can manage course lessons" ON public.course_lessons;
 CREATE POLICY "Pastors, obreiros and coordinators can manage course lessons"
 ON public.course_lessons
 FOR ALL
@@ -53,6 +56,7 @@ USING (
 
 -- course_instructors
 DROP POLICY IF EXISTS "Pastors and obreiros can manage course instructors" ON public.course_instructors;
+DROP POLICY IF EXISTS "Pastors, obreiros and coordinators can manage course instructors" ON public.course_instructors;
 CREATE POLICY "Pastors, obreiros and coordinators can manage course instructors"
 ON public.course_instructors
 FOR ALL
@@ -70,6 +74,7 @@ USING (
 
 -- course_registrations (view)
 DROP POLICY IF EXISTS "Users can view their own registrations" ON public.course_registrations;
+DROP POLICY IF EXISTS "Users can view course registrations" ON public.course_registrations;
 CREATE POLICY "Users can view course registrations"
 ON public.course_registrations
 FOR SELECT
@@ -88,6 +93,7 @@ USING (
 
 -- course_registrations (manage)
 DROP POLICY IF EXISTS "Leaders can manage their members' registrations" ON public.course_registrations;
+DROP POLICY IF EXISTS "Users can manage course registrations" ON public.course_registrations;
 CREATE POLICY "Users can manage course registrations"
 ON public.course_registrations
 FOR ALL
@@ -106,6 +112,7 @@ USING (
 
 -- course_attendance (view)
 DROP POLICY IF EXISTS "Users can view attendance for their courses" ON public.course_attendance;
+DROP POLICY IF EXISTS "Users can view course attendance" ON public.course_attendance;
 CREATE POLICY "Users can view course attendance"
 ON public.course_attendance
 FOR SELECT
@@ -130,6 +137,7 @@ USING (
 
 -- course_attendance (manage)
 DROP POLICY IF EXISTS "Instructors and leaders can manage attendance" ON public.course_attendance;
+DROP POLICY IF EXISTS "Users can manage course attendance" ON public.course_attendance;
 CREATE POLICY "Users can manage course attendance"
 ON public.course_attendance
 FOR ALL
@@ -147,6 +155,7 @@ USING (
 
 -- course_payments (view)
 DROP POLICY IF EXISTS "Users can view payments for their registrations" ON public.course_payments;
+DROP POLICY IF EXISTS "Users can view course payments" ON public.course_payments;
 CREATE POLICY "Users can view course payments"
 ON public.course_payments
 FOR SELECT
@@ -171,6 +180,7 @@ USING (
 
 -- course_payments (manage)
 DROP POLICY IF EXISTS "Leaders can manage payments for their members" ON public.course_payments;
+DROP POLICY IF EXISTS "Users can manage course payments" ON public.course_payments;
 CREATE POLICY "Users can manage course payments"
 ON public.course_payments
 FOR ALL

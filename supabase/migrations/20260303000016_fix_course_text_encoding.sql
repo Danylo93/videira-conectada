@@ -1,54 +1,38 @@
-﻿-- Normalize legacy mojibake text in courses-related tables.
+-- Normalize legacy mojibake text in courses-related tables.
 -- This fixes records previously saved as "TerÃ§a", "MÃ³dulo", etc.
 
 CREATE OR REPLACE FUNCTION public.fix_mojibake_ptbr(input_text TEXT)
 RETURNS TEXT
-LANGUAGE SQL
+LANGUAGE plpgsql
 IMMUTABLE
 AS $$
-  SELECT
-    replace(
-      replace(
-        replace(
-          replace(
-            replace(
-              replace(
-                replace(
-                  replace(
-                    replace(
-                      replace(
-                        replace(
-                          replace(
-                            replace(
-                              replace(
-                                replace(
-                                  replace(
-                                    replace(
-                                      replace(
-                                        replace(
-                                          replace(
-                                            replace(
-                                              replace(coalesce(input_text, ''), 'ÃƒÂ§', 'ç'),
-                                            'ÃƒÂ£', 'ã'),
-                                          'ÃƒÂ¡', 'á'),
-                                        'ÃƒÂ©', 'é'),
-                                      'ÃƒÂ­', 'í'),
-                                    'ÃƒÂ³', 'ó'),
-                                  'ÃƒÂº', 'ú'),
-                                'ÃƒÂµ', 'õ'),
-                              'ÃƒÂª', 'ê'),
-                            'ÃƒÂ´', 'ô'),
-                          'ÃƒÂ‰', 'É'),
-                        'ÃƒÂ“', 'Ó'),
-                      'ÃƒÂ‡', 'Ç'),
-                    'Ã§', 'ç'),
-                  'Ã£', 'ã'),
-                'Ã¡', 'á'),
-              'Ã©', 'é'),
-            'Ã­', 'í'),
-          'Ã³', 'ó'),
-        'Ãº', 'ú'),
-      'Ãµ', 'õ')
+DECLARE
+  fixed TEXT := coalesce(input_text, '');
+BEGIN
+  fixed := replace(fixed, 'ÃƒÂ§', 'ç');
+  fixed := replace(fixed, 'ÃƒÂ£', 'ã');
+  fixed := replace(fixed, 'ÃƒÂ¡', 'á');
+  fixed := replace(fixed, 'ÃƒÂ©', 'é');
+  fixed := replace(fixed, 'ÃƒÂ­', 'í');
+  fixed := replace(fixed, 'ÃƒÂ³', 'ó');
+  fixed := replace(fixed, 'ÃƒÂº', 'ú');
+  fixed := replace(fixed, 'ÃƒÂµ', 'õ');
+  fixed := replace(fixed, 'ÃƒÂª', 'ê');
+  fixed := replace(fixed, 'ÃƒÂ´', 'ô');
+  fixed := replace(fixed, 'ÃƒÂ‰', 'É');
+  fixed := replace(fixed, 'ÃƒÂ“', 'Ó');
+  fixed := replace(fixed, 'ÃƒÂ‡', 'Ç');
+  fixed := replace(fixed, 'Ã§', 'ç');
+  fixed := replace(fixed, 'Ã£', 'ã');
+  fixed := replace(fixed, 'Ã¡', 'á');
+  fixed := replace(fixed, 'Ã©', 'é');
+  fixed := replace(fixed, 'Ã­', 'í');
+  fixed := replace(fixed, 'Ã³', 'ó');
+  fixed := replace(fixed, 'Ãº', 'ú');
+  fixed := replace(fixed, 'Ãµ', 'õ');
+
+  RETURN fixed;
+END;
 $$;
 
 UPDATE public.courses

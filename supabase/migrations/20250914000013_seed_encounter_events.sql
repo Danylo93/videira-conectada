@@ -48,5 +48,3 @@
 --   'active',
 --   (SELECT id FROM profiles WHERE role = 'pastor' LIMIT 1)
 -- );
-
-

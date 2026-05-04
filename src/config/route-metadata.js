@@ -133,6 +133,17 @@ export const ROUTE_METADATA = [
     botSources: ["/cadastro-encontro-kids"],
   },
   {
+    key: "cadastro-encontro-babys",
+    title: "Inscrição Encontro Babys - Videira São Miguel",
+    description: "Inscrição para o Encontro Babys da Igreja Videira São Miguel.",
+    image: kidsImage,
+    imageType: "image/jpeg",
+    twitterCard: "summary_large_image",
+    canonicalPath: "/cadastro-encontro-babys",
+    exactPaths: ["/cadastro-encontro-babys"],
+    botSources: ["/cadastro-encontro-babys"],
+  },
+  {
     key: "acompanhamento-encontro-kids",
     title: "Acompanhamento Encontro Kids - Videira São Miguel",
     description: "Acompanhamento das inscrições do Encontro Kids da Igreja Videira São Miguel.",
