@@ -28,7 +28,10 @@ import {
   PublicEncounterBabysRegistration,
   PublicEncounterKidsRegistration,
 } from "@/pages/PublicEncounterKidsRegistration";
-import { PublicEncounterKidsRegistrationsView } from "@/pages/PublicEncounterKidsRegistrationsView";
+import {
+  PublicEncounterBabysRegistrationsView,
+  PublicEncounterKidsRegistrationsView,
+} from "@/pages/PublicEncounterKidsRegistrationsView";
 import { PublicTrilhoCoursesWeeklyList } from "@/pages/PublicTrilhoCoursesWeeklyList";
 import { PublicEscalasView } from "@/pages/PublicEscalasView";
 import { PublicEscalasEdit } from "@/pages/PublicEscalasEdit";
@@ -233,6 +236,10 @@ function AppContent() {
       <Route
         path="/acompanhamento-encontro-kids"
         element={<PublicEncounterKidsRegistrationsView />}
+      />
+      <Route
+        path="/acompanhamento-encontro-babys"
+        element={<PublicEncounterBabysRegistrationsView />}
       />
       <Route
         path="/lista-cursos-trilho"

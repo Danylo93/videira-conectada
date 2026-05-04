@@ -40,8 +40,59 @@ interface KidsRegistration {
   created_at: string;
 }
 
-const KIDS_DATE = "07/03";
-const KIDS_TIME = "08:30 às 14:30hs";
+type KidsRegistrationsViewConfig = {
+  title: string;
+  description: string;
+  listTitle: string;
+  emptyMessage: string;
+  loadingMessage: string;
+  newRegistrationPrompt: string;
+  newRegistrationLabel: string;
+  registrationHref: string;
+  tableName: "encounter_kids_registrations" | "encounter_babys_registrations";
+  discipuladoraFk: string;
+  liderFk: string;
+  date: string;
+  time: string;
+  excelSheetName: string;
+  excelFilePrefix: string;
+};
+
+const KIDS_VIEW_CONFIG: KidsRegistrationsViewConfig = {
+  title: "Acompanhamento Encontro Kids",
+  description: "Lista de inscritos para o Encontro Kids",
+  listTitle: "Lista de Inscritos Kids",
+  emptyMessage: "Nenhum inscrito Kids cadastrado ainda.",
+  loadingMessage: "Carregando inscrições Kids...",
+  newRegistrationPrompt: "Quer fazer uma nova inscrição Kids?",
+  newRegistrationLabel: "Fazer inscrição Kids",
+  registrationHref: "/cadastro-encontro-kids",
+  tableName: "encounter_kids_registrations",
+  discipuladoraFk: "encounter_kids_registrations_discipuladora_id_fkey",
+  liderFk: "encounter_kids_registrations_lider_id_fkey",
+  date: "07/03",
+  time: "08:30 às 14:30hs",
+  excelSheetName: "Encontro Kids",
+  excelFilePrefix: "inscricoes-encontro-kids",
+};
+
+const BABYS_VIEW_CONFIG: KidsRegistrationsViewConfig = {
+  title: "Acompanhamento Encontro Babys",
+  description: "Lista de inscritos para o Encontro Babys",
+  listTitle: "Lista de Inscritos Babys",
+  emptyMessage: "Nenhum inscrito Babys cadastrado ainda.",
+  loadingMessage: "Carregando inscrições Babys...",
+  newRegistrationPrompt: "Quer fazer uma nova inscrição Babys?",
+  newRegistrationLabel: "Fazer inscrição Babys",
+  registrationHref: "/cadastro-encontro-babys",
+  tableName: "encounter_babys_registrations",
+  discipuladoraFk: "encounter_babys_registrations_discipuladora_id_fkey",
+  liderFk: "encounter_babys_registrations_lider_id_fkey",
+  date: "09/05",
+  time: "08:00 às 12:00hs",
+  excelSheetName: "Encontro Babys",
+  excelFilePrefix: "inscricoes-encontro-babys",
+};
 
 const normalizeText = (value: string) =>
   value
@@ -56,7 +107,7 @@ const getKidsFuncaoLabel = (funcao: KidsRegistration["funcao"]) => {
   return "Encontrista";
 };
 
-export function PublicEncounterKidsRegistrationsView() {
+function EncounterKidsRegistrationsView({ config }: { config: KidsRegistrationsViewConfig }) {
   const { toast } = useToast();
   const [registrations, setRegistrations] = useState<KidsRegistration[]>([]);
   const [loading, setLoading] = useState(true);
@@ -170,9 +221,9 @@ export function PublicEncounterKidsRegistrationsView() {
     ];
 
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Encontro Kids");
+    XLSX.utils.book_append_sheet(workbook, worksheet, config.excelSheetName);
 
-    const fileName = `inscricoes-encontro-kids-${new Date().toISOString().split("T")[0]}.xlsx`;
+    const fileName = `${config.excelFilePrefix}-${new Date().toISOString().split("T")[0]}.xlsx`;
     XLSX.writeFile(workbook, fileName);
 
     toast({
@@ -186,7 +237,7 @@ export function PublicEncounterKidsRegistrationsView() {
       setLoading(true);
 
       const { data: registrationsData, error: registrationsError } = await (supabase as any)
-        .from("encounter_kids_registrations")
+        .from(config.tableName)
         .select(`
           id,
           nome_completo,
@@ -198,8 +249,8 @@ export function PublicEncounterKidsRegistrationsView() {
           lider_nome,
           participacao_confirmada,
           created_at,
-          discipuladora:profiles!encounter_kids_registrations_discipuladora_id_fkey(name),
-          lider:profiles!encounter_kids_registrations_lider_id_fkey(name)
+          discipuladora:profiles!${config.discipuladoraFk}(name),
+          lider:profiles!${config.liderFk}(name)
         `)
         .order("created_at", { ascending: false });
 
@@ -243,7 +294,7 @@ export function PublicEncounterKidsRegistrationsView() {
 
     try {
       const { error } = await (supabase as any)
-        .from("encounter_kids_registrations")
+        .from(config.tableName)
         .update({ participacao_confirmada: confirmed })
         .eq("id", registrationId);
 
@@ -293,7 +344,7 @@ export function PublicEncounterKidsRegistrationsView() {
 
     try {
       const { error } = await (supabase as any)
-        .from("encounter_kids_registrations")
+        .from(config.tableName)
         .delete()
         .eq("id", registrationId);
 
@@ -333,7 +384,7 @@ export function PublicEncounterKidsRegistrationsView() {
         <Card className="w-full max-w-md">
           <CardContent className="pt-6 flex flex-col items-center justify-center space-y-4">
             <Loader2 className="h-8 w-8 animate-spin text-cyan-600" />
-            <p className="text-sm text-muted-foreground">Carregando inscrições Kids...</p>
+            <p className="text-sm text-muted-foreground">{config.loadingMessage}</p>
           </CardContent>
         </Card>
       </div>
@@ -348,10 +399,10 @@ export function PublicEncounterKidsRegistrationsView() {
             <img src={logoKids} alt="Videira Kids" className="h-16 sm:h-20 w-auto rounded-md" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
-            Acompanhamento Encontro Kids
+            {config.title}
           </h1>
           <p className="text-sm sm:text-base text-gray-600">
-            Lista de inscritos para o Encontro Kids
+            {config.description}
           </p>
         </div>
 
@@ -361,7 +412,7 @@ export function PublicEncounterKidsRegistrationsView() {
               <div className="flex items-center gap-2 text-cyan-700">
                 <Calendar className="h-5 w-5" />
                 <span className="font-semibold">
-                  Data: {KIDS_DATE} | Horário: {KIDS_TIME}
+                  Data: {config.date} | Horário: {config.time}
                 </span>
               </div>
             </div>
@@ -514,7 +565,7 @@ export function PublicEncounterKidsRegistrationsView() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <CardTitle className="text-lg sm:text-xl">
-                  Lista de Inscritos Kids ({filteredRegistrations.length})
+                  {config.listTitle} ({filteredRegistrations.length})
                 </CardTitle>
                 <CardDescription>Acompanhamento público das inscrições</CardDescription>
               </div>
@@ -535,7 +586,7 @@ export function PublicEncounterKidsRegistrationsView() {
                 <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <p className="text-muted-foreground">
                   {registrations.length === 0
-                    ? "Nenhum inscrito Kids cadastrado ainda."
+                    ? config.emptyMessage
                     : "Nenhum inscrito encontrado com os filtros selecionados."}
                 </p>
               </div>
@@ -679,15 +730,23 @@ export function PublicEncounterKidsRegistrationsView() {
         </Card>
 
         <div className="mt-6 sm:mt-8 text-center">
-          <p className="text-sm text-muted-foreground mb-4">Quer fazer uma nova inscrição Kids?</p>
+          <p className="text-sm text-muted-foreground mb-4">{config.newRegistrationPrompt}</p>
           <a
-            href="/cadastro-encontro-kids"
+            href={config.registrationHref}
             className="inline-block px-6 py-3 bg-cyan-600 text-white rounded-lg font-medium hover:bg-cyan-700 transition-colors min-h-[48px] touch-manipulation text-sm sm:text-base"
           >
-            Fazer inscrição Kids
+            {config.newRegistrationLabel}
           </a>
         </div>
       </div>
     </div>
   );
+}
+
+export function PublicEncounterKidsRegistrationsView() {
+  return <EncounterKidsRegistrationsView config={KIDS_VIEW_CONFIG} />;
+}
+
+export function PublicEncounterBabysRegistrationsView() {
+  return <EncounterKidsRegistrationsView config={BABYS_VIEW_CONFIG} />;
 }

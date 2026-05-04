@@ -155,6 +155,17 @@ export const ROUTE_METADATA = [
     botSources: ["/acompanhamento-encontro-kids"],
   },
   {
+    key: "acompanhamento-encontro-babys",
+    title: "Acompanhamento Encontro Babys - Videira São Miguel",
+    description: "Acompanhamento das inscrições do Encontro Babys da Igreja Videira São Miguel.",
+    image: kidsImage,
+    imageType: "image/jpeg",
+    twitterCard: "summary_large_image",
+    canonicalPath: "/acompanhamento-encontro-babys",
+    exactPaths: ["/acompanhamento-encontro-babys"],
+    botSources: ["/acompanhamento-encontro-babys"],
+  },
+  {
     key: "lista-cursos-trilho",
     title: "Lista Semanal dos Cursos - Videira São Miguel",
     description: "Lista pública semanal de alunos e presença dos cursos Ceifeiros e CTL da Igreja Videira São Miguel.",
