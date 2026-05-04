@@ -58,6 +58,15 @@ export function PublicEncounterRegistration() {
   }, []);
 
   useEffect(() => {
+    if (!submitted || typeof window === "undefined") return;
+
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    });
+  }, [submitted]);
+
+  useEffect(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
 
     const query = window.matchMedia("(max-width: 768px), (pointer: coarse)");
@@ -89,6 +98,10 @@ export function PublicEncounterRegistration() {
     setFuncao("encontrista");
     setDiscipuladorId("");
     setLiderId("");
+
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    }
   };
 
   const prepareViewportForConfirmation = () => {
@@ -330,6 +343,27 @@ export function PublicEncounterRegistration() {
     );
   }
 
+  if (submitted) {
+    return (
+      <div className="fixed inset-0 z-50 overflow-y-auto bg-gradient-to-br from-purple-50 to-blue-50 p-3 sm:p-4 md:p-6 lg:p-8 safe-area-inset">
+        <div className="flex min-h-[100svh] items-center justify-center">
+          <Card className="w-full max-w-md border-2">
+            <CardContent className="px-4 py-8 sm:px-6 text-center">
+              <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
+              <h2 className="text-2xl font-bold mb-2">Inscrição confirmada</h2>
+              <p className="text-muted-foreground mb-6">
+                Seu nome foi registrado para o encontro.
+              </p>
+              <Button className="w-full min-h-[48px] touch-manipulation" onClick={resetForm}>
+                Fazer nova inscrição
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 p-3 sm:p-4 md:p-6 lg:p-8 safe-area-inset">
       <div className="max-w-3xl xl:max-w-4xl mx-auto">
@@ -358,18 +392,6 @@ export function PublicEncounterRegistration() {
             </div>
           </CardHeader>
           <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
-            {submitted ? (
-              <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-8 sm:px-6 text-center">
-                <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
-                <h2 className="text-2xl font-bold mb-2">Inscrição confirmada</h2>
-                <p className="text-muted-foreground mb-6">
-                  Seu nome foi registrado para o encontro.
-                </p>
-                <Button className="w-full min-h-[48px] touch-manipulation" onClick={resetForm}>
-                  Fazer nova inscrição
-                </Button>
-              </div>
-            ) : (
               <form
                 onSubmit={handleSubmit}
                 className={`space-y-4 sm:space-y-5 md:space-y-6 ${
@@ -640,7 +662,6 @@ export function PublicEncounterRegistration() {
                   )}
                 </Button>
               </form>
-            )}
           </CardContent>
         </Card>
       </div>
