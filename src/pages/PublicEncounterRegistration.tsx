@@ -159,8 +159,9 @@ export function PublicEncounterRegistration() {
 
       const { data: discipuladoresData, error: discipuladoresError } = await supabase
         .from("profiles")
-        .select("id, name")
+        .select("id, name, is_kids")
         .eq("role", "discipulador")
+        .or("is_kids.is.null,is_kids.eq.false")
         .order("name");
 
       if (discipuladoresError) {
@@ -252,6 +253,7 @@ export function PublicEncounterRegistration() {
 
     let selectedDiscipuladorId = discipuladorId;
     let selectedLiderId = liderId;
+    let selectedLiderNome = "";
 
     if (funcao === "discipulador") {
       let resolvedPastorId = pastorChristianId;
@@ -279,6 +281,7 @@ export function PublicEncounterRegistration() {
 
       selectedDiscipuladorId = resolvedPastorId;
       selectedLiderId = resolvedPastorId;
+      selectedLiderNome = resolvedPastorName;
 
       if (resolvedPastorName !== pastorChristianName) {
         setPastorChristianName(resolvedPastorName);
@@ -301,6 +304,8 @@ export function PublicEncounterRegistration() {
         });
         return;
       }
+
+      selectedLiderNome = filteredLeaders.find((leader) => leader.id === liderId)?.name || "";
     }
 
     try {
@@ -311,6 +316,7 @@ export function PublicEncounterRegistration() {
         funcao,
         discipulador_id: selectedDiscipuladorId,
         lider_id: selectedLiderId,
+        lider_nome: selectedLiderNome,
       });
 
       if (error) {

@@ -25,6 +25,7 @@ async function syncToGoogleSheets(
       funcao,
       discipulador_id,
       lider_id,
+      lider_nome,
       created_at,
       discipulador:profiles!${DISCIPULADOR_FK}(name),
       lider:profiles!${LIDER_FK}(name)
@@ -44,7 +45,7 @@ async function syncToGoogleSheets(
         ? "Discipulador"
         : "Encontrista",
     item.discipulador?.name || "Nao informado",
-    item.lider?.name || "Nao informado",
+    item.lider?.name || item.lider_nome || "Nao informado",
     item.created_at ? new Date(item.created_at).toLocaleDateString("pt-BR") : "",
   ]);
 

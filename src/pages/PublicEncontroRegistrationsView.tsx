@@ -43,9 +43,10 @@ interface EncounterRegistration {
   nome_completo: string;
   funcao: "equipe" | "encontrista" | "discipulador";
   discipulador_id: string;
-  lider_id: string;
+  lider_id: string | null;
   discipulador_name: string;
   lider_name: string;
+  lider_filter_key: string;
   ja_pagou: boolean;
   presenca_confirmada: boolean;
   created_at: string;
@@ -82,6 +83,22 @@ export function PublicEncontroRegistrationsView() {
     );
   }, [leaders, selectedDiscipulador]);
 
+  const manualLeaderOptions = useMemo(() => {
+    const map = new Map<string, string>();
+
+    registrations.forEach((item) => {
+      if (item.lider_id) return;
+      if (selectedDiscipulador !== "all" && item.discipulador_id !== selectedDiscipulador) return;
+      if (item.lider_filter_key && item.lider_name) {
+        map.set(item.lider_filter_key, item.lider_name);
+      }
+    });
+
+    return Array.from(map.entries())
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
+  }, [registrations, selectedDiscipulador]);
+
   const filteredRegistrations = useMemo(() => {
     return registrations.filter((item) => {
       const matchesSearch =
@@ -93,7 +110,7 @@ export function PublicEncontroRegistrationsView() {
       const matchesDiscipulador =
         selectedDiscipulador === "all" || item.discipulador_id === selectedDiscipulador;
 
-      const matchesLeader = selectedLeader === "all" || item.lider_id === selectedLeader;
+      const matchesLeader = selectedLeader === "all" || item.lider_filter_key === selectedLeader;
 
       const matchesFuncao = selectedFuncao === "all" || item.funcao === selectedFuncao;
 
@@ -181,6 +198,7 @@ export function PublicEncontroRegistrationsView() {
           funcao,
           discipulador_id,
           lider_id,
+          lider_nome,
           ja_pagou,
           presenca_confirmada,
           created_at,
@@ -199,9 +217,12 @@ export function PublicEncontroRegistrationsView() {
         nome_completo: item.nome_completo,
         funcao: item.funcao || "encontrista",
         discipulador_id: item.discipulador_id,
-        lider_id: item.lider_id,
+        lider_id: item.lider_id ?? null,
         discipulador_name: item.discipulador?.name || "Não informado",
-        lider_name: item.lider?.name || "Não informado",
+        lider_name: item.lider?.name || item.lider_nome || "Não informado",
+        lider_filter_key: item.lider_id
+          ? `id:${item.lider_id}`
+          : `nome:${(item.lider?.name || item.lider_nome || "Não informado").toLowerCase()}`,
         ja_pagou: !!item.ja_pagou,
         presenca_confirmada: !!item.presenca_confirmada,
         created_at: item.created_at,
@@ -472,10 +493,19 @@ export function PublicEncontroRegistrationsView() {
                     {filteredLeaderOptions.map((leader) => (
                       <SelectItem
                         key={leader.id}
-                        value={leader.id}
+                        value={`id:${leader.id}`}
                         className="min-h-[44px] touch-manipulation"
                       >
                         {leader.name}
+                      </SelectItem>
+                    ))}
+                    {manualLeaderOptions.map((leader) => (
+                      <SelectItem
+                        key={leader.value}
+                        value={leader.value}
+                        className="min-h-[44px] touch-manipulation"
+                      >
+                        {leader.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
