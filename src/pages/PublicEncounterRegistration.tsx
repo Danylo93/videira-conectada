@@ -159,9 +159,8 @@ export function PublicEncounterRegistration() {
 
       const { data: discipuladoresData, error: discipuladoresError } = await supabase
         .from("profiles")
-        .select("id, name, is_kids")
+        .select("id, name")
         .eq("role", "discipulador")
-        .or("is_kids.is.null,is_kids.eq.false")
         .order("name");
 
       if (discipuladoresError) {
