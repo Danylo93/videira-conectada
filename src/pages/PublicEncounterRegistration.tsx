@@ -67,6 +67,21 @@ export function PublicEncounterRegistration() {
   }, [submitted]);
 
   useEffect(() => {
+    if (!submitted || typeof document === "undefined") return;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, [submitted]);
+
+  useEffect(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
 
     const query = window.matchMedia("(max-width: 768px), (pointer: coarse)");
@@ -110,9 +125,9 @@ export function PublicEncounterRegistration() {
     }
 
     if (typeof window !== "undefined") {
-      window.setTimeout(() => {
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      }, 50);
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      window.setTimeout(() => window.scrollTo({ top: 0, left: 0, behavior: "auto" }), 50);
+      window.setTimeout(() => window.scrollTo({ top: 0, left: 0, behavior: "auto" }), 250);
     }
   };
 
@@ -346,7 +361,7 @@ export function PublicEncounterRegistration() {
   if (submitted) {
     return (
       <div className="fixed inset-0 z-50 overflow-y-auto bg-gradient-to-br from-purple-50 to-blue-50 p-3 sm:p-4 md:p-6 lg:p-8 safe-area-inset">
-        <div className="flex min-h-[100svh] items-center justify-center">
+        <div className="flex min-h-[100dvh] min-h-[100svh] items-center justify-center">
           <Card className="w-full max-w-md border-2">
             <CardContent className="px-4 py-8 sm:px-6 text-center">
               <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
