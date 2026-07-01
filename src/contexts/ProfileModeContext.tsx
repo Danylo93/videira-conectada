@@ -4,12 +4,10 @@ export type ProfileMode = 'normal' | 'kids' | 'radicais';
 
 // Importados de forma tardia para evitar dependência circular em runtime
 // (config/profileModes faz apenas import de tipo deste arquivo).
-import { PROFILE_MODE_CONFIG, PROFILE_MODE_ORDER } from '@/config/profileModes';
+import { PROFILE_MODE_CONFIG, PROFILE_MODE_ORDER, getDefaultModeForUser } from '@/config/profileModes';
+import { useAuth } from '@/contexts/AuthContext';
 
 const PROFILE_MODES = PROFILE_MODE_ORDER;
-
-// Modo exibido para quem ainda não escolheu um (sem preferência salva).
-const DEFAULT_PROFILE_MODE: ProfileMode = 'radicais';
 
 interface ProfileModeState {
   mode: ProfileMode;
@@ -24,9 +22,8 @@ function isValidMode(value: string | null): value is ProfileMode {
   return PROFILE_MODES.includes(value as ProfileMode);
 }
 
-function normalizeMode(value: string | null): ProfileMode {
-  return isValidMode(value) ? value : DEFAULT_PROFILE_MODE;
-}
+// Chave de preferência POR usuário, para não vazar o modo entre contas no mesmo navegador.
+const storageKeyFor = (userId: string) => `profileMode:${userId}`;
 
 // Permite forçar o modo via URL (ex.: /?mode=radicais), útil para links diretos.
 function readModeFromUrl(): ProfileMode | null {
@@ -36,22 +33,33 @@ function readModeFromUrl(): ProfileMode | null {
 }
 
 export function ProfileModeProvider({ children }: { children: React.ReactNode }) {
-  const [mode, setModeState] = useState<ProfileMode>(() => {
-    // Prioridade: parâmetro de URL > localStorage > padrão
-    return readModeFromUrl() ?? normalizeMode(localStorage.getItem('profileMode'));
-  });
+  const { user } = useAuth();
+  // Antes do login: só URL manda; padrão neutro.
+  const [mode, setModeState] = useState<ProfileMode>(() => readModeFromUrl() ?? 'normal');
+
+  // Ao logar (ou trocar de usuário): URL > preferência salva do usuário > escopo do perfil.
+  useEffect(() => {
+    const urlMode = readModeFromUrl();
+    if (urlMode) {
+      setModeState(urlMode);
+      return;
+    }
+    if (!user) return;
+    const saved = localStorage.getItem(storageKeyFor(user.id));
+    setModeState(isValidMode(saved) ? saved : getDefaultModeForUser(user));
+  }, [user]);
 
   useEffect(() => {
-    // Salvar no localStorage quando mudar
-    localStorage.setItem('profileMode', mode);
+    // Salvar a preferência do usuário atual quando o modo mudar.
+    if (user) localStorage.setItem(storageKeyFor(user.id), mode);
 
-    // Aplicar a classe de tema do modo atual (e remover as dos outros)
+    // Aplicar a classe de tema do modo atual (e remover as dos outros).
     const root = document.documentElement;
     for (const m of PROFILE_MODES) {
       const themeClass = PROFILE_MODE_CONFIG[m].themeClass;
       if (themeClass) root.classList.toggle(themeClass, m === mode);
     }
-  }, [mode]);
+  }, [mode, user]);
 
   const setMode = (newMode: ProfileMode) => {
     setModeState(newMode);

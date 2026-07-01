@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getPastorScopeId } from "@/types/auth";
+import { useProfileMode } from '@/contexts/ProfileModeContext';
+import { profilesService } from '@/integrations/supabase/profiles';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -52,6 +53,7 @@ type ChartPoint = {
 
 export function NetworkReports() {
   const { user } = useAuth();
+  const { mode } = useProfileMode();
   const { toast } = useToast();
   const isMobile = useIsMobile();
 
@@ -124,36 +126,28 @@ export function NetworkReports() {
 
   const loadDiscipuladores = useCallback(async () => {
     if (!user) return;
-    const { data } = await supabase
-      .from('profiles')
-      .select('id, name, email, phone, created_at')
-      .eq('pastor_uuid', getPastorScopeId(user))
-      .eq('role', 'discipulador')
-      .order('created_at', { ascending: false });
-
-    const formatted: Discipulador[] = (data || []).map((d) => ({
+    const data = await profilesService.getDiscipuladores(user, mode);
+    const formatted: Discipulador[] = data.map((d) => ({
       id: d.id,
       name: d.name,
-      email: d.email,
+      email: d.email || '',
       phone: d.phone || undefined,
       pastorId: user.id,
       createdAt: new Date(d.created_at),
     }));
     setDiscipuladores(formatted);
-  }, [user]);
+  }, [user, mode]);
 
   const loadLeaders = useCallback(async () => {
     if (!user) return;
-    let query = supabase.from('profiles').select('id, name, email, discipulador_uuid').eq('role', 'lider');
-    if (user.role === 'discipulador') query = query.eq('discipulador_uuid', user.id);
-    else if (user.role === 'pastor') query = query.eq('pastor_uuid', getPastorScopeId(user));
-
-    const { data, error } = await query.order('name');
-    if (error) {
+    let data;
+    try {
+      data = await profilesService.getLeaders(user, mode);
+    } catch {
       setLoading(false);
       return;
     }
-    const formatted: Leader[] = (data || []).map((l) => ({
+    const formatted: Leader[] = data.map((l) => ({
       id: l.id,
       name: l.name,
       email: l.email || '',
@@ -169,7 +163,7 @@ export function NetworkReports() {
       user.role === 'pastor' ? setChurchReports : setNetworkReports
     );
     setLoading(false);
-  }, [user, loadReportsForLeaders]);
+  }, [user, mode, loadReportsForLeaders]);
 
   useEffect(() => {
     if (user && (user.role === 'discipulador' || user.role === 'pastor')) {

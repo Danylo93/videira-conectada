@@ -38,6 +38,7 @@ import {
   Flame,
 } from "lucide-react";
 import logoVideira from "@/assets/logo-videira.png";
+import logoRl from "@/assets/logo-rl.jpg";
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -1147,13 +1148,15 @@ export function Dashboard() {
     trend?: { value: number; label: string };
     color?: "primary" | "success" | "warning" | "destructive";
   }) => (
-    <Card className={`${isKidsMode ? 'hover:shadow-lg hover:shadow-pink-100 border-pink-200' : 'hover:grape-glow'} transition-smooth`}>
+    <Card className={`interactive stagger-item overflow-hidden ${isKidsMode ? 'border-pink-200' : ''}`}>
       <CardHeader className="pb-1 flex flex-row items-center justify-between">
-        <CardTitle className={`text-xs font-medium ${isKidsMode ? 'text-pink-700' : ''}`}>{title}</CardTitle>
-        <Icon className={`h-4 w-4 ${isKidsMode ? 'text-pink-500' : `text-${color === 'primary' ? 'primary' : color === 'success' ? 'green-500' : color === 'warning' ? 'yellow-500' : 'red-500'}`}`} />
+        <CardTitle className={`text-xs font-medium tracking-wide uppercase ${isKidsMode ? 'text-pink-700' : 'text-muted-foreground'}`}>{title}</CardTitle>
+        <span className={`inline-flex h-8 w-8 items-center justify-center rounded-xl ${isKidsMode ? 'bg-pink-100 text-pink-500' : color === 'success' ? 'bg-green-500/10 text-green-600' : color === 'warning' ? 'bg-yellow-500/10 text-yellow-600' : color === 'destructive' ? 'bg-red-500/10 text-red-600' : 'bg-primary/10 text-primary'}`}>
+          <Icon className="h-4 w-4" />
+        </span>
       </CardHeader>
       <CardContent className="pt-0">
-        <div className={`text-xl font-semibold ${loading ? "text-muted-foreground" : isKidsMode ? 'text-pink-600' : `text-${color === 'primary' ? 'primary' : color === 'success' ? 'green-600' : color === 'warning' ? 'yellow-600' : 'red-600'}`}`}>
+        <div className={`text-2xl font-display font-bold tracking-tight ${loading ? "text-muted-foreground" : isKidsMode ? 'text-pink-600' : `text-${color === 'primary' ? 'primary' : color === 'success' ? 'green-600' : color === 'warning' ? 'yellow-600' : 'red-600'}`}`}>
           {loading ? "…" : value}
         </div>
         {subtitle && <p className={`text-[11px] ${isKidsMode ? 'text-pink-600/70' : 'text-muted-foreground'} mt-0.5`}>{subtitle}</p>}
@@ -1225,11 +1228,11 @@ export function Dashboard() {
   return (
     <div className="space-y-6 animate-fade-in pb-12">
       {/* Saudação */}
-      <div className={`${isRadicaisMode ? 'bg-gradient-to-br from-orange-500 via-amber-500 to-orange-600' : isKidsMode ? 'bg-gradient-to-br from-pink-400 via-pink-500 to-purple-500' : 'gradient-primary'} rounded-xl p-6 md:p-8 text-white relative overflow-hidden ${isKidsMode ? 'shadow-lg shadow-pink-200' : isRadicaisMode ? 'shadow-lg shadow-orange-200' : ''}`}>
+      <div className={`animate-scale-in ${isRadicaisMode ? 'bg-gradient-to-br from-orange-500 via-amber-500 to-orange-600' : isKidsMode ? 'bg-gradient-to-br from-pink-400 via-pink-500 to-purple-500' : 'gradient-primary'} rounded-2xl p-6 md:p-8 text-white relative overflow-hidden shadow-strong ${isKidsMode ? 'shadow-pink-200' : isRadicaisMode ? 'shadow-orange-200' : ''}`}>
         <div className="relative z-10">
           <div className="flex items-center gap-3 md:gap-4 mb-2 md:mb-4">
             <div className={`w-14 h-14 md:w-16 md:h-16 bg-white ${isKidsMode ? 'rounded-full shadow-xl' : 'rounded-full'} flex items-center justify-center ${isKidsMode ? 'shadow-pink-300' : 'shadow-lg'}`}>
-              <img src={logoVideira} alt="Videira Logo" className="w-10 h-10 md:w-12 md:h-12" />
+              <img src={isRadicaisMode ? logoRl : logoVideira} alt={isRadicaisMode ? "Radicais Livres" : "Videira Logo"} className={`w-10 h-10 md:w-12 md:h-12 ${isRadicaisMode ? 'rounded-full object-cover' : ''}`} />
             </div>
             <div>
               <h1 className={`text-2xl md:text-3xl font-bold ${isKidsMode ? 'drop-shadow-md' : ''}`}>
@@ -1283,7 +1286,7 @@ export function Dashboard() {
       )}
 
       {/* KPIs Principais */}
-      <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 ${gridColsDesktop} gap-4`}>
+      <div className={`stagger grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 ${gridColsDesktop} gap-4`}>
         {isPastor ? (
           isRadicaisMode ? (
             /* Modo Radicais Livres — dados reais das células dos líderes radicais */

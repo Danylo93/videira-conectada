@@ -2,6 +2,7 @@ import { Users, Sparkles, Flame, type LucideIcon } from 'lucide-react';
 import type { ProfileMode } from '@/contexts/ProfileModeContext';
 import logoVideira from '@/assets/logo-videira.png';
 import logoKids from '@/assets/logo-kids.jpg';
+import logoRadicais from '@/assets/logo-rl.jpg';
 
 /**
  * Fonte única de verdade para a apresentação de cada Modo de Perfil
@@ -76,8 +77,8 @@ export const PROFILE_MODE_CONFIG: Record<ProfileMode, ProfileModeConfig> = {
     sidebarSubtitle: 'Videira Jovens',
     badgeLabel: 'Radicais',
     icon: Flame,
-    logo: logoVideira,
-    logoRounded: false,
+    logo: logoRadicais,
+    logoRounded: true,
     themeClass: 'radicais-mode',
     titleGradientClass: 'bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent',
     emailDomain: 'rlsaomiguel.com',
@@ -89,3 +90,15 @@ export const PROFILE_MODE_ORDER: ProfileMode[] = ['normal', 'kids', 'radicais'];
 
 export const getProfileModeConfig = (mode: ProfileMode): ProfileModeConfig =>
   PROFILE_MODE_CONFIG[mode] ?? PROFILE_MODE_CONFIG.normal;
+
+/**
+ * Modo padrão para um usuário sem preferência salva: cai no escopo do próprio
+ * perfil (radicais > kids > normal), para que cada um veja seus próprios dados.
+ */
+export function getDefaultModeForUser(
+  user: { isRadicais?: boolean; isKids?: boolean } | null,
+): ProfileMode {
+  if (user?.isRadicais) return 'radicais';
+  if (user?.isKids) return 'kids';
+  return 'normal';
+}

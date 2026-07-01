@@ -44,7 +44,7 @@ export function Header() {
     .toUpperCase();
 
   return (
-    <header className="h-16 border-b bg-card flex items-center justify-between px-4 sm:px-6">
+    <header className="h-16 border-b border-border/60 bg-card/80 backdrop-blur-md shadow-soft flex items-center justify-between px-4 sm:px-6 sticky top-0 z-30">
       <div className="flex items-center gap-3 sm:gap-4">
         <SidebarTrigger />
         <div>

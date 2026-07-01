@@ -243,21 +243,24 @@ export function Sidebar() {
         <SidebarGroup>
           <SidebarGroupLabel>Navegação</SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="stagger">
               {filteredItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
+                <SidebarMenuItem key={item.title} className="stagger-item">
                   <SidebarMenuButton
                     asChild
                     isActive={isActive(item.url)}
                     className={cn(
-                      'flex items-center gap-3 px-3 py-2 rounded-lg transition-smooth',
+                      'group relative flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 hover:translate-x-0.5 active:scale-[0.98]',
                       isActive(item.url)
-                        ? 'bg-primary text-primary-foreground grape-glow'
+                        ? 'bg-primary text-primary-foreground shadow-soft font-medium'
                         : 'text-sidebar-foreground hover:bg-muted'
                     )}
                   >
                     <NavLink to={item.url}>
-                      <item.icon className="w-5 h-5 flex-shrink-0" />
+                      {isActive(item.url) && (
+                        <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary-foreground/80" />
+                      )}
+                      <item.icon className="w-5 h-5 flex-shrink-0 transition-transform group-hover:scale-110" />
                       {!collapsed && <span>{item.title}</span>}
                     </NavLink>
                   </SidebarMenuButton>
