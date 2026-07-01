@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { getPastorScopeId } from "@/types/auth";
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -126,7 +127,7 @@ export function NetworkReports() {
     const { data } = await supabase
       .from('profiles')
       .select('id, name, email, phone, created_at')
-      .eq('pastor_uuid', user.id)
+      .eq('pastor_uuid', getPastorScopeId(user))
       .eq('role', 'discipulador')
       .order('created_at', { ascending: false });
 
@@ -145,7 +146,7 @@ export function NetworkReports() {
     if (!user) return;
     let query = supabase.from('profiles').select('id, name, email, discipulador_uuid').eq('role', 'lider');
     if (user.role === 'discipulador') query = query.eq('discipulador_uuid', user.id);
-    else if (user.role === 'pastor') query = query.eq('pastor_uuid', user.id);
+    else if (user.role === 'pastor') query = query.eq('pastor_uuid', getPastorScopeId(user));
 
     const { data, error } = await query.order('name');
     if (error) {

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useProfileMode } from "@/contexts/ProfileModeContext";
+import { profilesService } from "@/integrations/supabase/profiles";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -120,35 +121,20 @@ export function ServiceReports() {
   const loadLeaders = useCallback(async () => {
     if (!user || user.role !== "pastor") return;
 
-    let query = supabase
-      .from("profiles")
-      .select("id, name, email, celula, is_kids")
-      .eq("role", "lider")
-      .eq("pastor_uuid", user.id);
-    
-    // No modo Kids, mostrar apenas os do modo Kids. No modo normal, mostrar apenas os do modo normal
-    if (isKidsMode) {
-      query = query.eq('is_kids', true);
-    } else {
-      query = query.or('is_kids.is.null,is_kids.eq.false');
-    }
-    
-    const { data, error } = await query.order("name");
-
-    if (error) {
+    try {
+      const data = await profilesService.getLeaders(user, mode);
+      const formatted: Leader[] = data.map((l) => ({
+        id: l.id,
+        name: l.name,
+        email: l.email || "",
+        discipuladorId: "",
+        createdAt: new Date(),
+      }));
+      setLeaders(formatted);
+    } catch (error) {
       console.error("Error loading leaders:", error);
-      return;
     }
-
-    const formatted: Leader[] = (data || []).map((l) => ({
-      id: l.id,
-      name: l.name,
-      email: l.email || "",
-      discipuladorId: "",
-      createdAt: new Date(),
-    }));
-    setLeaders(formatted);
-  }, [user, isKidsMode]);
+  }, [user, mode]);
 
   // ---- data load -----------------------------------------------------------
   useEffect(() => {
@@ -183,7 +169,7 @@ export function ServiceReports() {
       loadReports();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedLeaderId, isKidsMode]);
+  }, [selectedLeaderId, mode]);
 
   // Recarregar relatórios quando mês ou ano mudarem
   useEffect(() => {
@@ -196,7 +182,7 @@ export function ServiceReports() {
       loadReports();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMonth, selectedYear, isKidsMode]);
+  }, [selectedMonth, selectedYear, mode]);
 
   const loadMembers = async (): Promise<Member[]> => {
     if (!user) return [];

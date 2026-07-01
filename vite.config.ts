@@ -21,4 +21,17 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Separa dependências grandes em chunks próprios para reduzir o
+        // bundle inicial e melhorar o cache entre deploys.
+        manualChunks: {
+          "vendor-react": ["react", "react-dom", "react-router-dom"],
+          "vendor-charts": ["recharts"],
+          "vendor-supabase": ["@supabase/supabase-js"],
+        },
+      },
+    },
+  },
 }));

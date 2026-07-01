@@ -1,4 +1,6 @@
 import { supabase } from './client';
+import type { ProfileMode } from '@/contexts/ProfileModeContext';
+import { applyProfileScope } from '@/lib/profileScope';
 
 export interface LeaderWeeklyReportStatus {
   liderId: string;
@@ -68,13 +70,13 @@ const getReportWindow = (baseDate: Date) => {
  * Busca todos os líderes com status de relatório semanal para uma data específica
  * @param reportDate Data do relatório no formato YYYY-MM-DD
  * @param pastorId ID do pastor (opcional, filtra apenas líderes deste pastor)
- * @param isKids Se true, retorna apenas líderes do modo Kids
+ * @param mode Escopo do modo de perfil (normal/kids/radicais). Se omitido, retorna todos.
  * @returns Lista de líderes com status de relatório
  */
 export async function getLeadersWeeklyReportStatus(
   reportDate: string,
   pastorId?: string,
-  isKids?: boolean
+  mode?: ProfileMode
 ): Promise<LeaderWeeklyReportStatus[]> {
   const baseDate = parseDateInput(reportDate) ?? new Date();
   const reportWindow = getReportWindow(baseDate);
@@ -85,19 +87,15 @@ export async function getLeadersWeeklyReportStatus(
   // Buscar todos os líderes
   let leadersQuery = supabase
     .from('profiles')
-    .select('id, name, email, phone, celula, is_kids, pastor_uuid')
+    .select('id, name, email, phone, celula, is_kids, is_radicais, pastor_uuid')
     .eq('role', 'lider');
 
   if (pastorId) {
     leadersQuery = leadersQuery.eq('pastor_uuid', pastorId);
   }
 
-  if (isKids !== undefined) {
-    if (isKids) {
-      leadersQuery = leadersQuery.eq('is_kids', true);
-    } else {
-      leadersQuery = leadersQuery.or('is_kids.is.null,is_kids.eq.false');
-    }
+  if (mode !== undefined) {
+    leadersQuery = applyProfileScope(leadersQuery, mode);
   }
 
   const { data: leaders, error: leadersError } = await leadersQuery.order('name');
@@ -193,14 +191,14 @@ export async function getLeadersWeeklyReportStatus(
 /**
  * Busca status de relatórios semanais para a semana atual
  * @param pastorId ID do pastor (opcional)
- * @param isKids Se true, retorna apenas líderes do modo Kids
+ * @param mode Escopo do modo de perfil (normal/kids/radicais). Se omitido, retorna todos.
  * @returns Lista de líderes com status de relatório da semana atual
  */
 export async function getCurrentWeekLeadersStatus(
   pastorId?: string,
-  isKids?: boolean
+  mode?: ProfileMode
 ): Promise<LeaderWeeklyReportStatus[]> {
   const reportDate = formatDateInput(new Date());
-  return getLeadersWeeklyReportStatus(reportDate, pastorId, isKids);
+  return getLeadersWeeklyReportStatus(reportDate, pastorId, mode);
 }
 

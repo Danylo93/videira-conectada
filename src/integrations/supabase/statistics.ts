@@ -1,5 +1,8 @@
 import { supabase } from './client';
 import type { User } from '@/types/auth';
+import { getPastorScopeId } from '@/types/auth';
+import type { ProfileMode } from '@/contexts/ProfileModeContext';
+import { applyProfileScope } from '@/lib/profileScope';
 
 export interface StatisticsData {
   // Dados por papel
@@ -71,25 +74,25 @@ export interface LeaderData {
 
 export const statisticsService = {
   // Buscar estatísticas gerais
-  async getGeneralStatistics(user: User, isKidsMode?: boolean): Promise<StatisticsData> {
+  async getGeneralStatistics(user: User, mode: ProfileMode = 'normal'): Promise<StatisticsData> {
     const now = new Date();
     const yearStart = new Date(now.getFullYear(), 0, 1);
     const yearEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
 
     // Dados básicos por papel
-    const basicData = await this.getBasicData(user, isKidsMode);
-    
+    const basicData = await this.getBasicData(user, mode);
+
     // Dados de presença
-    const presenceData = await this.getPresenceData(user, yearStart, yearEnd, isKidsMode);
-    
+    const presenceData = await this.getPresenceData(user, yearStart, yearEnd, mode);
+
     // Dados mensais
-    const monthlyData = await this.getMonthlyData(user, yearStart, yearEnd, isKidsMode);
-    
+    const monthlyData = await this.getMonthlyData(user, yearStart, yearEnd, mode);
+
     // Dados semanais
-    const weeklyData = await this.getWeeklyData(user, yearStart, yearEnd, isKidsMode);
-    
+    const weeklyData = await this.getWeeklyData(user, yearStart, yearEnd, mode);
+
     // Dados de rede (se aplicável)
-    const networkData = await this.getNetworkData(user, isKidsMode);
+    const networkData = await this.getNetworkData(user, mode);
 
     return {
       ...basicData,
@@ -101,26 +104,17 @@ export const statisticsService = {
   },
 
   // Dados básicos por papel do usuário
-  async getBasicData(user: User, isKidsMode?: boolean) {
+  async getBasicData(user: User, mode: ProfileMode = 'normal') {
     if (user.role === 'pastor') {
-      let discipuladoresQuery = supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'discipulador');
-      let leadersQuery = supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'lider');
-      
-      if (isKidsMode) {
-        discipuladoresQuery = discipuladoresQuery.eq('is_kids', true);
-        leadersQuery = leadersQuery.eq('is_kids', true);
-      } else {
-        discipuladoresQuery = discipuladoresQuery.or('is_kids.is.null,is_kids.eq.false');
-        leadersQuery = leadersQuery.or('is_kids.is.null,is_kids.eq.false');
-      }
-      
+      let discipuladoresQuery = supabase.from('profiles').select('id', { count: 'exact', head: true }).in('role', ['discipulador', 'obreiro', 'pastor']);
+      let leadersQuery = supabase.from('profiles').select('id', { count: 'exact', head: true }).in('role', ['lider', 'obreiro', 'pastor']);
+
+      discipuladoresQuery = applyProfileScope(discipuladoresQuery, mode);
+      leadersQuery = applyProfileScope(leadersQuery, mode);
+
       // Buscar IDs dos líderes para filtrar membros
-      let leadersDataQuery = supabase.from('profiles').select('id').eq('role', 'lider');
-      if (isKidsMode) {
-        leadersDataQuery = leadersDataQuery.eq('is_kids', true);
-      } else {
-        leadersDataQuery = leadersDataQuery.or('is_kids.is.null,is_kids.eq.false');
-      }
+      let leadersDataQuery = supabase.from('profiles').select('id').in('role', ['lider', 'obreiro', 'pastor']);
+      leadersDataQuery = applyProfileScope(leadersDataQuery, mode);
       const { data: leadersData } = await leadersDataQuery;
       const leaderIds = (leadersData || []).map(l => l.id);
       
@@ -157,17 +151,13 @@ export const statisticsService = {
     }
 
     if (user.role === 'discipulador') {
-      let leadersCountQuery = supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'lider').eq('discipulador_uuid', user.id);
-      let leadersDataQuery = supabase.from('profiles').select('id').eq('role', 'lider').eq('discipulador_uuid', user.id);
-      
-      if (isKidsMode) {
-        leadersCountQuery = leadersCountQuery.eq('is_kids', true);
-        leadersDataQuery = leadersDataQuery.eq('is_kids', true);
-      } else {
-        leadersCountQuery = leadersCountQuery.or('is_kids.is.null,is_kids.eq.false');
-        leadersDataQuery = leadersDataQuery.or('is_kids.is.null,is_kids.eq.false');
-      }
-      
+      let leadersCountQuery = supabase.from('profiles').select('id', { count: 'exact', head: true }).in('role', ['lider', 'obreiro', 'pastor']).eq('discipulador_uuid', user.id);
+      let leadersDataQuery = supabase.from('profiles').select('id').in('role', ['lider', 'obreiro', 'pastor']).eq('discipulador_uuid', user.id);
+
+      leadersCountQuery = applyProfileScope(leadersCountQuery, mode);
+      leadersDataQuery = applyProfileScope(leadersDataQuery, mode);
+
+
       const [
         { count: leaders },
         { data: leaderData }
@@ -224,8 +214,8 @@ export const statisticsService = {
   },
 
   // Dados de presença baseados nos relatórios
-  async getPresenceData(user: User, startDate: Date, endDate: Date, isKidsMode?: boolean) {
-    const reports = await this.getReportsForUser(user, startDate, endDate, isKidsMode);
+  async getPresenceData(user: User, startDate: Date, endDate: Date, mode: ProfileMode = 'normal') {
+    const reports = await this.getReportsForUser(user, startDate, endDate, mode);
     
     const totalPresence = reports.reduce((sum, r) => {
       const members = Array.isArray(r.members_present) ? r.members_present.length : 0;
@@ -240,7 +230,7 @@ export const statisticsService = {
     const prevStartDate = new Date(startDate.getTime() - periodLength);
     const prevEndDate = new Date(startDate.getTime() - 1);
     
-    const prevReports = await this.getReportsForUser(user, prevStartDate, prevEndDate, isKidsMode);
+    const prevReports = await this.getReportsForUser(user, prevStartDate, prevEndDate, mode);
     const prevTotalPresence = prevReports.reduce((sum, r) => {
       const members = Array.isArray(r.members_present) ? r.members_present.length : 0;
       const visitors = Array.isArray(r.visitors_present) ? r.visitors_present.length : 0;
@@ -259,8 +249,8 @@ export const statisticsService = {
   },
 
   // Dados mensais agregados
-  async getMonthlyData(user: User, startDate: Date, endDate: Date, isKidsMode?: boolean): Promise<MonthlyData[]> {
-    const reports = await this.getReportsForUser(user, startDate, endDate, isKidsMode);
+  async getMonthlyData(user: User, startDate: Date, endDate: Date, mode: ProfileMode = 'normal'): Promise<MonthlyData[]> {
+    const reports = await this.getReportsForUser(user, startDate, endDate, mode);
     
     const monthlyMap = new Map<string, {
       members: number;
@@ -307,8 +297,8 @@ export const statisticsService = {
   },
 
   // Dados semanais
-  async getWeeklyData(user: User, startDate: Date, endDate: Date, isKidsMode?: boolean): Promise<WeeklyData[]> {
-    const reports = await this.getReportsForUser(user, startDate, endDate, isKidsMode);
+  async getWeeklyData(user: User, startDate: Date, endDate: Date, mode: ProfileMode = 'normal'): Promise<WeeklyData[]> {
+    const reports = await this.getReportsForUser(user, startDate, endDate, mode);
     
     return reports.map(r => {
       const weekStart = new Date(r.week_start);
@@ -330,7 +320,7 @@ export const statisticsService = {
   },
 
   // Dados de rede (para discipuladores e pastores)
-  async getNetworkData(user: User, isKidsMode?: boolean): Promise<NetworkData | undefined> {
+  async getNetworkData(user: User, mode: ProfileMode = 'normal'): Promise<NetworkData | undefined> {
     if (user.role === 'lider') return undefined;
 
     let discipuladores: DiscipuladorData[] = [];
@@ -339,19 +329,15 @@ export const statisticsService = {
       let discipuladorQuery = supabase
         .from('profiles')
         .select('id, name')
-        .eq('role', 'discipulador');
-      
-      if (isKidsMode) {
-        discipuladorQuery = discipuladorQuery.eq('is_kids', true);
-      } else {
-        discipuladorQuery = discipuladorQuery.or('is_kids.is.null,is_kids.eq.false');
-      }
-      
+        .in('role', ['discipulador', 'obreiro', 'pastor']);
+
+      discipuladorQuery = applyProfileScope(discipuladorQuery, mode);
+
       const { data: discipuladorData } = await discipuladorQuery;
 
       discipuladores = await Promise.all(
         (discipuladorData || []).map(async (d) => {
-          const leaders = await this.getLeadersForDiscipulador(d.id, isKidsMode);
+          const leaders = await this.getLeadersForDiscipulador(d.id, mode);
           const totalMembers = leaders.reduce((sum, l) => sum + l.members + l.frequentadores, 0);
           const averagePresence = leaders.length > 0 
             ? leaders.reduce((sum, l) => sum + l.averagePresence, 0) / leaders.length 
@@ -368,7 +354,7 @@ export const statisticsService = {
         })
       );
     } else if (user.role === 'discipulador') {
-      const leaders = await this.getLeadersForDiscipulador(user.id, isKidsMode);
+      const leaders = await this.getLeadersForDiscipulador(user.id, mode);
       const totalMembers = leaders.reduce((sum, l) => sum + l.members + l.frequentadores, 0);
       const averagePresence = leaders.length > 0 
         ? leaders.reduce((sum, l) => sum + l.averagePresence, 0) / leaders.length 
@@ -401,19 +387,15 @@ export const statisticsService = {
   },
 
   // Buscar líderes de um discipulador
-  async getLeadersForDiscipulador(discipuladorId: string, isKidsMode?: boolean): Promise<LeaderData[]> {
+  async getLeadersForDiscipulador(discipuladorId: string, mode: ProfileMode = 'normal'): Promise<LeaderData[]> {
     let leadersQuery = supabase
       .from('profiles')
       .select('id, name, celula')
-      .eq('role', 'lider')
-      .eq('discipulador_uuid', discipuladorId);
-    
-    if (isKidsMode) {
-      leadersQuery = leadersQuery.eq('is_kids', true);
-    } else {
-      leadersQuery = leadersQuery.or('is_kids.is.null,is_kids.eq.false');
-    }
-    
+      .in('role', ['lider', 'obreiro', 'pastor'])
+      .or(`discipulador_uuid.eq.${discipuladorId},id.eq.${discipuladorId}`);
+
+    leadersQuery = applyProfileScope(leadersQuery, mode);
+
     const { data: leaders } = await leadersQuery;
 
     if (!leaders) return [];
@@ -456,7 +438,7 @@ export const statisticsService = {
   },
 
   // Buscar relatórios para um usuário
-  async getReportsForUser(user: User, startDate: Date, endDate: Date, isKidsMode?: boolean) {
+  async getReportsForUser(user: User, startDate: Date, endDate: Date, mode: ProfileMode = 'normal') {
     let query = supabase
       .from('cell_reports')
       .select('*')
@@ -469,27 +451,23 @@ export const statisticsService = {
       let leaderQuery = supabase
         .from('profiles')
         .select('id')
-        .eq('role', 'lider')
+        .in('role', ['lider', 'obreiro', 'pastor'])
         .eq('discipulador_uuid', user.id);
-      
-      if (isKidsMode) {
-        leaderQuery = leaderQuery.eq('is_kids', true);
-      } else {
-        leaderQuery = leaderQuery.or('is_kids.is.null,is_kids.eq.false');
-      }
-      
+
+      leaderQuery = applyProfileScope(leaderQuery, mode);
+
       const { data: leaderIds } = await leaderQuery;
       const ids = (leaderIds || []).map(l => l.id);
       query = ids.length > 0 ? query.in('lider_id', ids) : query.eq('lider_id', '');
-    } else if (user.role === 'pastor' && isKidsMode) {
-      // Para pastores no modo Kids, filtrar apenas líderes kids
+    } else if (user.role === 'pastor' && mode !== 'normal') {
+      // Para pastores em modo Kids/Radicais, filtrar apenas líderes do escopo
       let leaderQuery = supabase
         .from('profiles')
         .select('id')
-        .eq('role', 'lider')
-        .eq('pastor_uuid', user.id)
-        .eq('is_kids', true);
-      
+        .in('role', ['lider', 'obreiro', 'pastor'])
+        .eq('pastor_uuid', getPastorScopeId(user));
+      leaderQuery = applyProfileScope(leaderQuery, mode);
+
       const { data: leaderIds } = await leaderQuery;
       const ids = (leaderIds || []).map(l => l.id);
       query = ids.length > 0 ? query.in('lider_id', ids) : query.eq('lider_id', '');

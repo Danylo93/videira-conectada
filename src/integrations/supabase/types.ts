@@ -1224,6 +1224,9 @@ export type Database = {
           full_name: string | null
           id: string
           is_curso_coordenador: boolean
+          is_kids: boolean | null
+          is_radicais: boolean | null
+          is_tesoureiro: boolean | null
           name: string
           pastor_id: string | null
           pastor_uuid: string | null
@@ -1241,6 +1244,9 @@ export type Database = {
           full_name?: string | null
           id?: string
           is_curso_coordenador?: boolean
+          is_kids?: boolean | null
+          is_radicais?: boolean | null
+          is_tesoureiro?: boolean | null
           name: string
           pastor_id?: string | null
           pastor_uuid?: string | null
@@ -1258,6 +1264,9 @@ export type Database = {
           full_name?: string | null
           id?: string
           is_curso_coordenador?: boolean
+          is_kids?: boolean | null
+          is_radicais?: boolean | null
+          is_tesoureiro?: boolean | null
           name?: string
           pastor_id?: string | null
           pastor_uuid?: string | null

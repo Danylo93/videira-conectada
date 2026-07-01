@@ -89,6 +89,7 @@ export function PublicDizimistasView() {
         .select("id, name")
         .eq("role", "discipulador")
         .or("is_kids.is.null,is_kids.eq.false")
+        .or("is_radicais.is.null,is_radicais.eq.false")
         .order("name");
 
       if (discipError) {

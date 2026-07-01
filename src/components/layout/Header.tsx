@@ -12,8 +12,9 @@ import {
   DropdownMenuLabel
 } from '@/components/ui/dropdown-menu';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { LogOut, User, Settings, Sparkles, Users } from 'lucide-react';
+import { LogOut, User, Settings, Check } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { PROFILE_MODE_ORDER, getProfileModeConfig } from '@/config/profileModes';
 
 const roleNames = {
   pastor: 'Pastor',
@@ -24,16 +25,18 @@ const roleNames = {
 
 export function Header() {
   const { user, logout } = useAuth();
-  const { mode, toggleMode } = useProfileMode();
+  const { mode, setMode } = useProfileMode();
   const navigate = useNavigate();
 
   if (!user) return null;
 
-  const isKidsMode = mode === 'kids';
-  const systemName = isKidsMode ? 'Videira Kids' : 'Sistema Videira São Miguel';
-  const displayName = isKidsMode && user.role === 'pastor' ? 'Tainá' : user.name;
-  const displayRole = isKidsMode && user.role === 'pastor' ? 'Pastora' : roleNames[user.role];
-  
+  const config = getProfileModeConfig(mode);
+  const isObreiro = user.isObreiro === true;
+  // O apelido de pastor (ex.: Kids = Tainá) não se aplica a um obreiro.
+  const pastorAlias = user.role === 'pastor' && !isObreiro ? config.pastorAlias : undefined;
+  const displayName = pastorAlias?.name ?? user.name;
+  const displayRole = isObreiro ? 'Obreiro' : (pastorAlias?.role ?? roleNames[user.role]);
+
   const initials = displayName
     .split(' ')
     .map(n => n[0])
@@ -47,12 +50,12 @@ export function Header() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-base sm:text-lg font-semibold text-foreground">
-              {systemName}
+              {config.systemName}
             </h1>
-            {isKidsMode && (
+            {config.badgeLabel && (
               <Badge variant="secondary" className="bg-accent text-accent-foreground">
-                <Sparkles className="w-3 h-3 mr-1" />
-                Kids
+                <config.icon className="w-3 h-3 mr-1" />
+                {config.badgeLabel}
               </Badge>
             )}
           </div>
@@ -86,24 +89,22 @@ export function Header() {
             {user.role === 'pastor' && (
               <>
                 <DropdownMenuLabel>Modo de Perfil</DropdownMenuLabel>
-                <DropdownMenuItem
-                  onSelect={(event) => {
-                    event.preventDefault();
-                    toggleMode();
-                  }}
-                >
-                  {isKidsMode ? (
-                    <>
-                      <Users className="mr-2 h-4 w-4" />
-                      Modo Normal
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="mr-2 h-4 w-4" />
-                      Modo Kids
-                    </>
-                  )}
-                </DropdownMenuItem>
+                {PROFILE_MODE_ORDER.map((m) => {
+                  const option = getProfileModeConfig(m);
+                  return (
+                    <DropdownMenuItem
+                      key={m}
+                      onSelect={(event) => {
+                        event.preventDefault();
+                        setMode(m);
+                      }}
+                    >
+                      <option.icon className="mr-2 h-4 w-4" />
+                      <span className="flex-1">{option.menuLabel}</span>
+                      {mode === m && <Check className="ml-2 h-4 w-4" />}
+                    </DropdownMenuItem>
+                  );
+                })}
                 <DropdownMenuSeparator />
               </>
             )}

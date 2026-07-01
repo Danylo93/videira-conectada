@@ -1,0 +1,91 @@
+import { Users, Sparkles, Flame, type LucideIcon } from 'lucide-react';
+import type { ProfileMode } from '@/contexts/ProfileModeContext';
+import logoVideira from '@/assets/logo-videira.png';
+import logoKids from '@/assets/logo-kids.jpg';
+
+/**
+ * Fonte única de verdade para a apresentação de cada Modo de Perfil
+ * (normal / kids / radicais). Em vez de espalhar `mode === 'kids' ? ... : ...`
+ * por Header, Sidebar, Dashboard etc., todos consomem esta config.
+ */
+export interface ProfileModeConfig {
+  mode: ProfileMode;
+  /** Rótulo no menu "Modo de Perfil" (ex.: "Modo Kids"). */
+  menuLabel: string;
+  /** Rótulo curto para badges/títulos (ex.: "Kids"). */
+  shortLabel: string;
+  /** Nome do sistema exibido no Header. */
+  systemName: string;
+  /** Título exibido na Sidebar. */
+  sidebarTitle: string;
+  /** Subtítulo opcional na Sidebar. */
+  sidebarSubtitle?: string;
+  /** Texto do badge no Header (ausente no modo normal). */
+  badgeLabel?: string;
+  icon: LucideIcon;
+  logo: string;
+  logoRounded: boolean;
+  /** Classe aplicada em <html> para o tema (ausente no normal). */
+  themeClass?: string;
+  /** Classes Tailwind do gradiente do título. */
+  titleGradientClass: string;
+  /** Domínio usado para gerar e-mails de novas contas neste escopo. */
+  emailDomain: string;
+  /** Apelido do pastor neste modo (ex.: Kids = Pastora Tainá). */
+  pastorAlias?: { name: string; role: string };
+}
+
+const NORMAL_TITLE_GRADIENT =
+  'bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent';
+
+export const PROFILE_MODE_CONFIG: Record<ProfileMode, ProfileModeConfig> = {
+  normal: {
+    mode: 'normal',
+    menuLabel: 'Modo Normal',
+    shortLabel: 'Normal',
+    systemName: 'Sistema Videira São Miguel',
+    sidebarTitle: 'Videira',
+    sidebarSubtitle: 'São Miguel',
+    icon: Users,
+    logo: logoVideira,
+    logoRounded: false,
+    titleGradientClass: NORMAL_TITLE_GRADIENT,
+    emailDomain: 'videirasaomiguel.com',
+  },
+  kids: {
+    mode: 'kids',
+    menuLabel: 'Modo Kids',
+    shortLabel: 'Kids',
+    systemName: 'Videira Kids',
+    sidebarTitle: 'Videira Kids',
+    badgeLabel: 'Kids',
+    icon: Sparkles,
+    logo: logoKids,
+    logoRounded: true,
+    themeClass: 'kids-mode',
+    titleGradientClass: 'bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent',
+    emailDomain: 'radicaiskids.com',
+    pastorAlias: { name: 'Tainá', role: 'Pastora' },
+  },
+  radicais: {
+    mode: 'radicais',
+    menuLabel: 'Modo Radicais Livres',
+    shortLabel: 'Radicais',
+    systemName: 'Videira Radicais Livres',
+    sidebarTitle: 'Radicais Livres',
+    sidebarSubtitle: 'Videira Jovens',
+    badgeLabel: 'Radicais',
+    icon: Flame,
+    logo: logoVideira,
+    logoRounded: false,
+    themeClass: 'radicais-mode',
+    titleGradientClass: 'bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent',
+    emailDomain: 'rlsaomiguel.com',
+  },
+};
+
+/** Ordem canônica dos modos (usada em menus e no ciclo de toggle). */
+export const PROFILE_MODE_ORDER: ProfileMode[] = ['normal', 'kids', 'radicais'];
+
+export const getProfileModeConfig = (mode: ProfileMode): ProfileModeConfig =>
+  PROFILE_MODE_CONFIG[mode] ?? PROFILE_MODE_CONFIG.normal;

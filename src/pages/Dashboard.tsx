@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { useProfileMode } from "@/contexts/ProfileModeContext";
+import { getPastorScopeId } from "@/types/auth";
+import { useProfileMode, type ProfileMode } from "@/contexts/ProfileModeContext";
+import { applyProfileScope } from "@/lib/profileScope";
 import { supabase } from "@/integrations/supabase/client";
 import { eventsService } from "@/integrations/supabase/events";
 import FancyLoader from "@/components/FancyLoader";
@@ -33,6 +35,7 @@ import {
   Grape,
   Send,
   Bell,
+  Flame,
 } from "lucide-react";
 import logoVideira from "@/assets/logo-videira.png";
 import {
@@ -197,25 +200,27 @@ const MonthCalendar = ({ events }: { events: Event[] }) => {
 };
 
 // Componente para botão de enviar lembretes
-function SendWeeklyRemindersButton({ 
-  pastorId, 
-  isKids = false,
+function SendWeeklyRemindersButton({
+  pastorId,
+  mode = 'normal',
   onSuccess,
-  onError 
-}: { 
-  pastorId: string; 
-  isKids?: boolean;
+  onError
+}: {
+  pastorId: string;
+  mode?: ProfileMode;
   onSuccess?: (result: { sent: number; failed: number; pending: number; leaders: Array<{ id: string; name: string }> }) => void;
   onError?: (error: string) => void;
 }) {
+  const isKids = mode === 'kids';
+  const isRadicais = mode === 'radicais';
   const [sending, setSending] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(true);
   const [allReportsSubmitted, setAllReportsSubmitted] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const { toast } = useToast();
 
-  // Chave única para localStorage baseada no pastorId e modo (kids/normal)
-  const storageKey = `lastReminderSent_${pastorId}_${isKids ? 'kids' : 'normal'}`;
+  // Chave única para localStorage baseada no pastorId e modo (normal/kids/radicais)
+  const storageKey = `lastReminderSent_${pastorId}_${mode}`;
   
   // Verificar período permitido
   const periodCheck = isWeeklyRemindersAllowed();
@@ -303,6 +308,7 @@ function SendWeeklyRemindersButton({
           body: {
             pastor_id: pastorId,
             is_kids: isKids,
+            is_radicais: isRadicais,
             date: weekStartDate,
             base_url: 'https://videirasaomiguel.vercel.app',
           },
@@ -329,7 +335,7 @@ function SendWeeklyRemindersButton({
     const statusInterval = setInterval(checkReportsStatus, 5 * 60 * 1000);
 
     return () => clearInterval(statusInterval);
-  }, [pastorId, isKids]);
+  }, [pastorId, mode]);
 
   // Atualizar estado do botão periodicamente
   useEffect(() => {
@@ -379,6 +385,7 @@ function SendWeeklyRemindersButton({
         body: {
           pastorId,
           isKids,
+          isRadicais,
           sendViaWhatsApp: true,
           sendViaEmail: false,
         },
@@ -418,6 +425,7 @@ function SendWeeklyRemindersButton({
         body: {
           pastor_id: pastorId,
           is_kids: isKids,
+          is_radicais: isRadicais,
           date: new Date().toISOString().split('T')[0],
           base_url: 'https://videirasaomiguel.vercel.app',
         },
@@ -592,6 +600,8 @@ export function Dashboard() {
   const isLeader = user?.role === "lider";
   const isDiscipulador = user?.role === "discipulador";
   const isPastor = user?.role === "pastor";
+  const isKidsMode = mode === 'kids';
+  const isRadicaisMode = mode === 'radicais';
 
   useEffect(() => {
     if (!user) return;
@@ -613,19 +623,14 @@ export function Dashboard() {
             .select("id", { count: "exact", head: true })
             .eq("status", "submitted");
           if (isDiscipulador) {
-            const isKidsMode = mode === 'kids';
             let leaderQuery = supabase
               .from("profiles")
               .select("id")
               .eq("role", "lider")
               .eq("discipulador_uuid", user.id);
-            
-            if (isKidsMode) {
-              leaderQuery = leaderQuery.eq('is_kids', true);
-            } else {
-              leaderQuery = leaderQuery.or('is_kids.is.null,is_kids.eq.false');
-            }
-            
+
+            leaderQuery = applyProfileScope(leaderQuery, mode);
+
             const { data: leaderIds } = await leaderQuery;
             const ids = (leaderIds ?? []).map((l: { id: string }) => l.id);
             query = ids.length ? query.in("lider_id", ids) : query.eq("lider_id", "");
@@ -713,19 +718,14 @@ export function Dashboard() {
         // Calcular compliance real baseado em relatórios
         let reportCompliance = 0;
         if (isPastor) {
-          const isKidsMode = mode === 'kids';
           // Buscar líderes do modo correto
           let leadersQuery = supabase
             .from("profiles")
             .select("id", { count: "exact", head: true })
             .eq("role", "lider");
-          
-          if (isKidsMode) {
-            leadersQuery = leadersQuery.eq('is_kids', true);
-          } else {
-            leadersQuery = leadersQuery.or('is_kids.is.null,is_kids.eq.false');
-          }
-          
+
+          leadersQuery = applyProfileScope(leadersQuery, mode);
+
           const { count: totalLeaders } = await leadersQuery;
           
           if (totalLeaders && totalLeaders > 0) {
@@ -736,9 +736,10 @@ export function Dashboard() {
             const expectedReports = totalLeaders * weeksElapsed;
             
             // Contar relatórios enviados/aprovados do modo correto
-            const { data: leaderIdsData } = await (isKidsMode 
-              ? supabase.from("profiles").select("id").eq("role", "lider").eq('is_kids', true)
-              : supabase.from("profiles").select("id").eq("role", "lider").or('is_kids.is.null,is_kids.eq.false'));
+            const { data: leaderIdsData } = await applyProfileScope(
+              supabase.from("profiles").select("id").eq("role", "lider"),
+              mode,
+            );
             
             const leaderIds = (leaderIdsData ?? []).map((l: { id: string }) => l.id);
             
@@ -758,20 +759,15 @@ export function Dashboard() {
             reportCompliance = 100; // Sem líderes = 100% de compliance
           }
         } else if (isDiscipulador) {
-          const isKidsMode = mode === 'kids';
           // Buscar líderes do discipulador do modo correto
           let leaderQuery = supabase
             .from("profiles")
             .select("id")
             .eq("role", "lider")
             .eq("discipulador_uuid", user.id);
-          
-          if (isKidsMode) {
-            leaderQuery = leaderQuery.eq('is_kids', true);
-          } else {
-            leaderQuery = leaderQuery.or('is_kids.is.null,is_kids.eq.false');
-          }
-          
+
+          leaderQuery = applyProfileScope(leaderQuery, mode);
+
           const { data: leaderIdsData } = await leaderQuery;
           const leaderIds = (leaderIdsData ?? []).map((l: { id: string }) => l.id);
           
@@ -867,9 +863,19 @@ export function Dashboard() {
         // Para pastor: usar cell_reports_weekly para dados semanais
         let reportsQuery = supabase
           .from("cell_reports_weekly")
-          .select("report_date,members_count,frequentadores_count")
+          .select("report_date,members_count,frequentadores_count,lider_id")
           .gte("report_date", yearStart.toISOString().split('T')[0])
           .lte("report_date", yearEnd.toISOString().split('T')[0]);
+
+        // Filtrar por líderes do modo correto (radicais ou normal)
+        if (isRadicaisMode) {
+          const { data: radicaisLeaders } = await applyProfileScope(
+            supabase.from("profiles").select("id").eq("role", "lider"),
+            mode,
+          );
+          const ids = (radicaisLeaders ?? []).map((l: { id: string }) => l.id);
+          reportsQuery = ids.length ? reportsQuery.in("lider_id", ids) : reportsQuery.eq("lider_id", "");
+        }
 
         const { data: yearReports } = await reportsQuery;
 
@@ -967,19 +973,14 @@ export function Dashboard() {
         if (isLeader) {
           reportsQuery = reportsQuery.eq("lider_id", user.id);
         } else if (isDiscipulador) {
-          const isKidsMode = mode === 'kids';
           let leaderQuery = supabase
             .from("profiles")
             .select("id")
             .eq("role", "lider")
             .eq("discipulador_uuid", user.id);
-          
-          if (isKidsMode) {
-            leaderQuery = leaderQuery.eq('is_kids', true);
-          } else {
-            leaderQuery = leaderQuery.or('is_kids.is.null,is_kids.eq.false');
-          }
-          
+
+          leaderQuery = applyProfileScope(leaderQuery, mode);
+
           const { data: leaderIds } = await leaderQuery;
           const ids = (leaderIds ?? []).map((l: { id: string }) => l.id);
           reportsQuery = ids.length ? reportsQuery.in("lider_id", ids) : reportsQuery.eq("lider_id", "");
@@ -1119,7 +1120,7 @@ export function Dashboard() {
     })();
   }, [user, mode, isLeader, isDiscipulador, isPastor, statistics]);
 
-  const isKidsMode = mode === 'kids';
+  // (isKidsMode e isRadicaisMode já declarados acima do useEffect)
   const greeting = isKidsMode && user?.role === 'pastor' 
     ? 'Pastora' 
     : (roleGreetings[user?.role as keyof typeof roleGreetings] ?? "Usuário");
@@ -1208,7 +1209,7 @@ export function Dashboard() {
 
   if (!user) return null;
 
-  if (loading) {
+  if (loading || statsLoading) {
     return (
       <FancyLoader
         message="Preparando o panorama da sua rede"
@@ -1224,7 +1225,7 @@ export function Dashboard() {
   return (
     <div className="space-y-6 animate-fade-in pb-12">
       {/* Saudação */}
-      <div className={`${isKidsMode ? 'bg-gradient-to-br from-pink-400 via-pink-500 to-purple-500' : 'gradient-primary'} rounded-xl p-6 md:p-8 text-white relative overflow-hidden ${isKidsMode ? 'shadow-lg shadow-pink-200' : ''}`}>
+      <div className={`${isRadicaisMode ? 'bg-gradient-to-br from-orange-500 via-amber-500 to-orange-600' : isKidsMode ? 'bg-gradient-to-br from-pink-400 via-pink-500 to-purple-500' : 'gradient-primary'} rounded-xl p-6 md:p-8 text-white relative overflow-hidden ${isKidsMode ? 'shadow-lg shadow-pink-200' : isRadicaisMode ? 'shadow-lg shadow-orange-200' : ''}`}>
         <div className="relative z-10">
           <div className="flex items-center gap-3 md:gap-4 mb-2 md:mb-4">
             <div className={`w-14 h-14 md:w-16 md:h-16 bg-white ${isKidsMode ? 'rounded-full shadow-xl' : 'rounded-full'} flex items-center justify-center ${isKidsMode ? 'shadow-pink-300' : 'shadow-lg'}`}>
@@ -1239,7 +1240,9 @@ export function Dashboard() {
           </div>
         </div>
         <div className={`absolute top-3 right-3 md:top-4 md:right-4 ${isKidsMode ? 'opacity-30' : 'opacity-20'}`}>
-          {isKidsMode ? (
+          {isRadicaisMode ? (
+            <Flame className="w-16 h-16 md:w-24 md:h-24 text-white" />
+          ) : isKidsMode ? (
             <Grape className="w-16 h-16 md:w-24 md:h-24 text-white" />
           ) : (
             <Church className="w-16 h-16 md:w-24 md:h-24" />
@@ -1282,6 +1285,42 @@ export function Dashboard() {
       {/* KPIs Principais */}
       <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 ${gridColsDesktop} gap-4`}>
         {isPastor ? (
+          isRadicaisMode ? (
+            /* Modo Radicais Livres — dados reais das células dos líderes radicais */
+            <>
+              <KpiCard 
+                title="Discipuladores" 
+                value={statistics?.totalDiscipuladores || 0} 
+                icon={Users} 
+                subtitle="Cadastrados no Radicais Livres"
+              />
+              <KpiCard 
+                title="Células" 
+                value={statistics?.totalLeaders || 0} 
+                icon={Users} 
+                subtitle="Cadastradas no Radicais Livres"
+              />
+              <KpiCard 
+                title="Membros" 
+                value={statistics?.totalMembers || 0} 
+                icon={Users} 
+                subtitle="Ativos nas células"
+              />
+              <KpiCard 
+                title="Frequentadores" 
+                value={statistics?.totalFrequentadores || 0} 
+                icon={Users} 
+                subtitle="Ativos nas células"
+              />
+              <KpiCard 
+                title="Total" 
+                value={(statistics?.totalMembers || 0) + (statistics?.totalFrequentadores || 0)}
+                icon={Users}
+                subtitle="Membros + Frequentadores"
+                color="primary"
+              />
+            </>
+          ) : (
           <>
             <KpiCard 
               title={isKidsMode ? "Discipuladoras" : "Discipuladores"} 
@@ -1313,14 +1352,45 @@ export function Dashboard() {
             />
             
             <KpiCard 
-              title="Próximos Eventos" 
-              value={events.length}
-              icon={Calendar}
-              subtitle="Eventos agendados"
+              title={isKidsMode ? "Total Geral" : "Total"} 
+              value={(statistics?.totalMembers || 0) + (statistics?.totalFrequentadores || 0)}
+              icon={Users}
+              subtitle="Membros + Frequentadores"
               color="primary"
             />
           </>
+          )
         ) : isDiscipulador ? (
+          isRadicaisMode ? (
+            /* Discipulador no modo Radicais Livres — dados reais */
+            <>
+              <KpiCard
+                title="Líderes da Rede"
+                value={statistics?.totalLeaders || 0}
+                icon={Users}
+                subtitle="Sob sua supervisão no Radicais Livres"
+              />
+              <KpiCard
+                title="Total de Membros"
+                value={statistics?.totalMembers || 0}
+                icon={Users}
+                subtitle="Na rede do Radicais Livres"
+              />
+              <KpiCard
+                title="Frequentadores"
+                value={statistics?.totalFrequentadores || 0}
+                icon={Users}
+                subtitle="Na rede do Radicais Livres"
+              />
+              <KpiCard
+                title="Relatórios Pendentes"
+                value={pendingReports}
+                icon={FileText}
+                subtitle="Para aprovação"
+                color={pendingReports > 5 ? "warning" : "primary"}
+              />
+            </>
+          ) : (
           <>
             <KpiCard
               title="Líderes da Rede"
@@ -1351,7 +1421,41 @@ export function Dashboard() {
               color={performanceMetrics && performanceMetrics.attendanceRate >= 75 ? "success" : "warning"}
             />
           </>
+          )
         ) : (
+          isRadicaisMode ? (
+            /* Líder no modo Radicais Livres — dados reais da célula */
+            <>
+              <KpiCard
+                title="Membros da Célula"
+                value={(statistics?.totalMembers || 0) + (statistics?.totalFrequentadores || 0)}
+                icon={Users}
+                subtitle={`Membros: ${statistics?.totalMembers || 0} · Frequentadores: ${statistics?.totalFrequentadores || 0}`}
+                trend={statistics?.growthRate ? { value: Math.round(statistics.growthRate), label: "vs mês anterior" } : undefined}
+              />
+              <KpiCard
+                title="Relatórios Pendentes"
+                value={pendingReports}
+                icon={FileText}
+                subtitle="A corrigir"
+                color={pendingReports > 0 ? "warning" : "success"}
+              />
+              <KpiCard
+                title="Taxa de Presença"
+                value={`${performanceMetrics?.attendanceRate || 0}%`}
+                icon={Target}
+                subtitle="Último relatório"
+                color={performanceMetrics && performanceMetrics.attendanceRate >= 70 ? "success" : "warning"}
+              />
+              <KpiCard
+                title="Meta de Crescimento"
+                value={`${performanceMetrics?.currentGrowth >= 0 ? '+' : ''}${Math.round(performanceMetrics?.currentGrowth || 0)}%`}
+                icon={TrendingUp}
+                subtitle={`Meta: ${performanceMetrics?.growthTarget || 0}%`}
+                color={performanceMetrics && performanceMetrics.currentGrowth >= performanceMetrics.growthTarget ? "success" : "warning"}
+              />
+            </>
+          ) : (
           <>
             <KpiCard
               title="Membros da Célula"
@@ -1382,6 +1486,7 @@ export function Dashboard() {
               color={performanceMetrics && performanceMetrics.currentGrowth >= performanceMetrics.growthTarget ? "success" : "warning"}
             />
           </>
+          )
         )}
       </div>
 
@@ -1399,9 +1504,9 @@ export function Dashboard() {
               <p className="text-sm text-muted-foreground">
                 Envie lembretes automáticos via WhatsApp para líderes que ainda não preencheram o relatório semanal desta semana.
               </p>
-              <SendWeeklyRemindersButton 
-                pastorId={user.id} 
-                isKids={isKidsMode}
+              <SendWeeklyRemindersButton
+                pastorId={getPastorScopeId(user)} 
+                mode={mode}
                 onError={(error) => {
                   toast({
                     title: "Erro ao enviar lembretes",
@@ -1418,6 +1523,140 @@ export function Dashboard() {
       
       {/* Gráficos e Visualizações */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {isRadicaisMode ? (
+          /* ===== GRÁFICOS ESPECÍFICOS DO MODO RADICAIS LIVRES ===== */
+          <>
+            {/* Gráfico: Membros e Frequentadores por Célula (Líder) */}
+            <Card className="hover:grape-glow transition-smooth lg:col-span-2">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="w-5 h-5 text-orange-500" />
+                  Membros e Frequentadores por Célula
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="h-[350px]">
+                {(() => {
+                  // Extrair todos os líderes de todos os discipuladores
+                  const allLeaders = (statistics?.networkData?.discipuladores ?? [])
+                    .flatMap(d => d.leaders)
+                    .map(l => ({
+                      name: l.celula && l.celula !== 'Sem célula' ? l.celula : l.name,
+                      membros: l.members,
+                      frequentadores: l.frequentadores,
+                      total: l.members + l.frequentadores,
+                    }))
+                    .sort((a, b) => b.total - a.total);
+
+                  if (allLeaders.length === 0) {
+                    return (
+                      <div className="flex items-center justify-center h-full">
+                        <p className="text-center text-muted-foreground">Nenhum líder com membros cadastrados ainda.</p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={allLeaders} layout="vertical" margin={{ left: 10, right: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis type="number" />
+                        <YAxis
+                          dataKey="name"
+                          type="category"
+                          tick={{ fontSize: 12 }}
+                          width={120}
+                        />
+                        <Tooltip
+                          formatter={(value: number, name: string) => [value, name]}
+                        />
+                        <Legend />
+                        <Bar dataKey="membros" name="Membros" fill="#f97316" radius={[0, 4, 4, 0]} stackId="a" />
+                        <Bar dataKey="frequentadores" name="Frequentadores" fill="#fbbf24" radius={[0, 4, 4, 0]} stackId="a" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  );
+                })()}
+              </CardContent>
+            </Card>
+
+            {/* Gráfico: Rede por Discipulador */}
+            {(statistics?.networkData?.discipuladores ?? []).length > 0 && (
+              <Card className="hover:grape-glow transition-smooth">
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5 text-orange-500" />
+                    Rede por Discipulador
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={(statistics?.networkData?.discipuladores ?? []).map(d => ({
+                      name: d.name.split(' ')[0], // Primeiro nome
+                      membros: d.totalMembers,
+                      frequentadores: d.totalFrequentadores,
+                      lideres: d.leaders.length,
+                    }))}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                      <YAxis />
+                      <Tooltip />
+                      <Legend />
+                      <Bar dataKey="membros" name="Membros" fill="#f97316" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="frequentadores" name="Frequentadores" fill="#fbbf24" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Distribuição Membros vs Frequentadores (Pizza) */}
+            <Card className="hover:grape-glow transition-smooth">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="w-5 h-5 text-orange-500" />
+                  Distribuição Geral
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="h-[300px]">
+                {!statistics ? (
+                  <div className="flex items-center justify-center h-full">
+                    <p className="text-center text-muted-foreground">Carregando dados...</p>
+                  </div>
+                ) : (statistics.totalMembers + statistics.totalFrequentadores) === 0 ? (
+                  <div className="flex items-center justify-center h-full">
+                    <p className="text-center text-muted-foreground">Sem dados para exibir.</p>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={[
+                          { name: 'Membros', value: statistics.totalMembers, color: '#f97316' },
+                          { name: 'Frequentadores', value: statistics.totalFrequentadores, color: '#fbbf24' },
+                        ]}
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={80}
+                        dataKey="value"
+                        label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
+                      >
+                        {[
+                          { color: '#f97316' },
+                          { color: '#fbbf24' },
+                        ].map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
+              </CardContent>
+            </Card>
+          </>
+        ) : (
+          /* ===== GRÁFICOS DO MODO NORMAL / KIDS ===== */
+          <>
         {/* Gráfico de Presenças (Semanal para Pastor, Mensal para outros) */}
         <Card className={`${isKidsMode ? 'hover:shadow-lg hover:shadow-pink-100 border-pink-200' : 'hover:grape-glow'} transition-smooth`}>
           <CardHeader className="pb-2">
@@ -1597,10 +1836,12 @@ export function Dashboard() {
             )}
           </CardContent>
         </Card>
+          </>
+        )}
       </div>
 
       {/* Seções Especiais para Modo Normal (Pastor) */}
-      {isPastor && !isKidsMode && (
+      {isPastor && !isKidsMode && !isRadicaisMode && (
         <div className="space-y-6">
           {/* Seção de Cultos */}
           {serviceReportsData && (

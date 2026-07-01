@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { getPastorScopeId } from "@/types/auth";
 import { useProfileMode } from "@/contexts/ProfileModeContext";
+import { profilesService } from "@/integrations/supabase/profiles";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -42,8 +44,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Plus, Edit, Trash2, Calendar, CheckCircle2, Clock, ExternalLink, BarChart3, TrendingUp, Download, Send, Search, Filter, Users, TrendingDown, Activity } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { Leader } from "@/types/church";
+import { Leader, Member } from "@/types/church";
 import FancyLoader from "@/components/FancyLoader";
 import { formatDateBR } from "@/lib/dateUtils";
 import { getCurrentWeekLeadersStatus, getLeadersWeeklyReportStatus, type LeaderWeeklyReportStatus } from "@/integrations/supabase/weekly-reports";
@@ -92,6 +95,8 @@ export function CellReportsWeekly() {
   const [frequentadoresCount, setFrequentadoresCount] = useState<number>(0);
   const [visitantesCount, setVisitantesCount] = useState<number>(0);
   const [observations, setObservations] = useState("");
+  const [cellMembers, setCellMembers] = useState<Member[]>([]);
+  const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(new Set());
   const [editingReport, setEditingReport] = useState<WeeklyReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [leadersStatus, setLeadersStatus] = useState<LeaderWeeklyReportStatus[]>([]);
@@ -272,35 +277,67 @@ export function CellReportsWeekly() {
   const loadLeaders = useCallback(async () => {
     if (!user || user.role !== "pastor") return;
 
-    let query = supabase
-      .from("profiles")
-      .select("id, name, email, celula, is_kids")
-      .eq("role", "lider")
-      .eq("pastor_uuid", user.id);
-    
-    // No modo Kids, mostrar apenas os do modo Kids. No modo normal, mostrar apenas os do modo normal
-    if (isKidsMode) {
-      query = query.eq('is_kids', true);
-    } else {
-      query = query.or('is_kids.is.null,is_kids.eq.false');
-    }
-    
-    const { data, error } = await query.order("name");
-
-    if (error) {
+    try {
+      const data = await profilesService.getLeaders(user, mode);
+      const formatted: Leader[] = data.map((l) => ({
+        id: l.id,
+        name: l.name,
+        email: l.email || "",
+        discipuladorId: "",
+        createdAt: new Date(),
+      }));
+      setLeaders(formatted);
+    } catch (error) {
       console.error("Error loading leaders:", error);
-      return;
     }
+  }, [user, mode]);
 
-    const formatted: Leader[] = (data || []).map((l) => ({
-      id: l.id,
-      name: l.name,
-      email: l.email || "",
-      discipuladorId: "",
-      createdAt: new Date(),
-    }));
-    setLeaders(formatted);
-  }, [user, isKidsMode]);
+  const loadCellMembers = async (liderId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("members")
+        .select("*")
+        .eq("lider_id", liderId)
+        .eq("active", true)
+        .order("name");
+
+      if (error) {
+        console.error("Error loading cell members:", error);
+        return;
+      }
+      
+      const formatted: Member[] = (data || []).map(m => ({
+        id: m.id,
+        name: m.name,
+        type: m.type as 'member' | 'frequentador',
+        liderId: m.lider_id,
+        joinDate: new Date(m.join_date),
+        active: m.active
+      }));
+      
+      setCellMembers(formatted);
+    } catch (err) {
+      console.error("Error fetching members:", err);
+    }
+  };
+
+  const parseObservations = (obs: string | undefined | null) => {
+    if (!obs) return { text: "", ids: new Set<string>() };
+    if (obs.startsWith("{")) {
+      try {
+        const json = JSON.parse(obs);
+        if (json.text !== undefined || json.presentIds) {
+           return {
+             text: json.text || "",
+             ids: new Set<string>(json.presentIds || [])
+           };
+        }
+      } catch (e) {
+        // Fallback if not valid JSON or doesn't match expected schema
+      }
+    }
+    return { text: obs, ids: new Set<string>() };
+  };
 
   // ---- data load -----------------------------------------------------------
   useEffect(() => {
@@ -335,6 +372,16 @@ export function CellReportsWeekly() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedWeekKey, mode]);
+
+  // Carregar membros quando dialogos abrirem
+  useEffect(() => {
+    if (isCreateDialogOpen || isEditDialogOpen) {
+      const currentLiderId = user?.role === "pastor" ? selectedLeaderId : user?.id;
+      if (currentLiderId) {
+        loadCellMembers(currentLiderId);
+      }
+    }
+  }, [isCreateDialogOpen, isEditDialogOpen, user, selectedLeaderId]);
 
   const loadReports = async () => {
     if (!user) {
@@ -414,6 +461,27 @@ export function CellReportsWeekly() {
     }
   };
 
+  const toggleMember = (memberId: string, memberType: 'member' | 'frequentador') => {
+    setSelectedMemberIds(prev => {
+      const next = new Set(prev);
+      let isAdding = false;
+      if (next.has(memberId)) {
+        next.delete(memberId);
+      } else {
+        next.add(memberId);
+        isAdding = true;
+      }
+      
+      if (memberType === 'member') {
+        setMembersCount(prevCount => isAdding ? prevCount + 1 : Math.max(0, prevCount - 1));
+      } else if (memberType === 'frequentador') {
+        setFrequentadoresCount(prevCount => isAdding ? prevCount + 1 : Math.max(0, prevCount - 1));
+      }
+      
+      return next;
+    });
+  };
+
   // ---- actions -------------------------------------------------------------
   const handleCreateReport = async () => {
     if (!user || !reportDate) return;
@@ -464,6 +532,8 @@ export function CellReportsWeekly() {
         .single();
 
       if (fullReport) {
+        const parsed = parseObservations(fullReport.observations);
+        
         setEditingReport({
           id: fullReport.id,
           liderId: fullReport.lider_id,
@@ -471,14 +541,15 @@ export function CellReportsWeekly() {
           membersCount: fullReport.members_count || 0,
           frequentadoresCount: fullReport.frequentadores_count || 0,
           visitantesCount: fullReport.visitantes_count || 0,
-          observations: fullReport.observations || undefined,
+          observations: parsed.text,
           createdAt: new Date(fullReport.created_at),
         });
         setReportDate(fullReport.report_date);
         setMembersCount(fullReport.members_count || 0);
         setFrequentadoresCount(fullReport.frequentadores_count || 0);
         setVisitantesCount(fullReport.visitantes_count || 0);
-        setObservations(fullReport.observations || "");
+        setObservations(parsed.text);
+        setSelectedMemberIds(parsed.ids);
         setIsCreateDialogOpen(false);
         setIsEditDialogOpen(true);
         
@@ -496,6 +567,11 @@ export function CellReportsWeekly() {
       return;
     }
 
+    const encodedObservations = JSON.stringify({
+      text: observations || "",
+      presentIds: Array.from(selectedMemberIds)
+    });
+
     const { error } = await supabase.from("cell_reports_weekly").insert([
       {
         lider_id: liderId,
@@ -503,7 +579,7 @@ export function CellReportsWeekly() {
         members_count: membersCount,
         frequentadores_count: frequentadoresCount,
         visitantes_count: visitantesCount,
-        observations: observations || null,
+        observations: encodedObservations,
       },
     ]);
 
@@ -557,12 +633,14 @@ export function CellReportsWeekly() {
   };
 
   const openEditReport = (report: WeeklyReport) => {
-    setEditingReport(report);
+    const parsed = parseObservations(report.observations);
+    setEditingReport({ ...report, observations: parsed.text });
     setReportDate(report.reportDate.toISOString().split("T")[0]);
     setMembersCount(report.membersCount);
     setFrequentadoresCount(report.frequentadoresCount);
     setVisitantesCount(report.visitantesCount);
-    setObservations(report.observations || "");
+    setObservations(parsed.text);
+    setSelectedMemberIds(parsed.ids);
     setIsEditDialogOpen(true);
   };
 
@@ -587,6 +665,11 @@ export function CellReportsWeekly() {
       return;
     }
 
+    const encodedObservations = JSON.stringify({
+      text: observations || "",
+      presentIds: Array.from(selectedMemberIds)
+    });
+
     const { error } = await supabase
       .from("cell_reports_weekly")
       .update({
@@ -594,7 +677,7 @@ export function CellReportsWeekly() {
         members_count: membersCount,
         frequentadores_count: frequentadoresCount,
         visitantes_count: visitantesCount,
-        observations: observations || null,
+        observations: encodedObservations,
       })
       .eq("id", editingReport.id);
 
@@ -706,19 +789,14 @@ export function CellReportsWeekly() {
       // Vamos buscar todos os líderes e verificar se têm relatório em qualquer dia da semana
       const { data: leadersData } = await supabase
         .from('profiles')
-        .select('id, name, email, phone, celula, is_kids')
+        .select('id, name, email, phone, celula, is_kids, is_radicais')
         .eq('role', 'lider')
-        .eq('pastor_uuid', user.id);
-      
-      if (isKidsMode) {
-        // Filtrar no código se necessário
-      } else {
-        // Filtrar no código se necessário
-      }
+        .eq('pastor_uuid', getPastorScopeId(user));
 
       const leaders = (leadersData || []).filter(l => {
-        if (isKidsMode) return l.is_kids === true;
-        return !l.is_kids || l.is_kids === false;
+        if (mode === 'kids') return l.is_kids === true;
+        if (mode === 'radicais') return l.is_radicais === true;
+        return (!l.is_kids || l.is_kids === false) && (!l.is_radicais || l.is_radicais === false);
       });
 
       if (leaders.length === 0) {
@@ -802,8 +880,9 @@ export function CellReportsWeekly() {
 
       const { data, error } = await supabase.functions.invoke("send-weekly-reports-whatsapp", {
         body: {
-          pastorId: user.id,
+          pastorId: getPastorScopeId(user),
           isKids: isKidsMode,
+          isRadicais: mode === 'radicais',
           baseUrl,
         },
       });
@@ -1046,39 +1125,80 @@ export function CellReportsWeekly() {
                     Somente quinta, sexta ou sábado.
                   </p>
                 </div>
+
+                {/* Lista de Presença Nominal */}
+                {user?.role !== 'pastor' || selectedLeaderId ? (
                 <div>
-                  <Label htmlFor="members">Quantidade de Membros</Label>
-                  <Input
-                    id="members"
-                    type="number"
-                    min="0"
-                    value={membersCount}
-                    onChange={(e) => setMembersCount(parseInt(e.target.value) || 0)}
-                    required
-                  />
+                  <Label>Lista de Presença Nominal</Label>
+                  <div className="border rounded-md p-3 max-h-56 overflow-y-auto space-y-2 mt-2 bg-muted/10">
+                    {cellMembers.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        Nenhum membro ou frequentador encontrado. Atualize as quantidades manualmente.
+                      </p>
+                    ) : (
+                      cellMembers.map(member => (
+                        <div key={member.id} className="flex items-center space-x-3 py-1.5 hover:bg-muted/30 px-2 rounded-sm transition-colors">
+                          <Checkbox 
+                            id={`member-${member.id}`} 
+                            checked={selectedMemberIds.has(member.id)}
+                            onCheckedChange={() => toggleMember(member.id, member.type)}
+                          />
+                          <label 
+                            htmlFor={`member-${member.id}`}
+                            className="text-sm font-medium leading-none flex-1 cursor-pointer select-none"
+                          >
+                            {member.name}
+                          </label>
+                          <Badge variant={member.type === 'member' ? "default" : "secondary"} className="text-[10px]">
+                            {member.type === 'member' ? 'Membro' : 'Frequentador'}
+                          </Badge>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <Label htmlFor="frequentadores">Quantidade de Frequentadores</Label>
-                  <Input
-                    id="frequentadores"
-                    type="number"
-                    min="0"
-                    value={frequentadoresCount}
-                    onChange={(e) => setFrequentadoresCount(parseInt(e.target.value) || 0)}
-                    required
-                  />
+                ) : null}
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <Label htmlFor="members">Membros {cellMembers.length > 0 && <span className="text-[10px] text-muted-foreground">(Auto)</span>}</Label>
+                    <Input
+                      id="members"
+                      type="number"
+                      min="0"
+                      value={membersCount}
+                      onChange={(e) => setMembersCount(parseInt(e.target.value) || 0)}
+                      readOnly={cellMembers.length > 0}
+                      className={cellMembers.length > 0 ? "bg-muted" : ""}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="frequentadores">Freq. {cellMembers.length > 0 && <span className="text-[10px] text-muted-foreground">(Auto)</span>}</Label>
+                    <Input
+                      id="frequentadores"
+                      type="number"
+                      min="0"
+                      value={frequentadoresCount}
+                      onChange={(e) => setFrequentadoresCount(parseInt(e.target.value) || 0)}
+                      readOnly={cellMembers.length > 0}
+                      className={cellMembers.length > 0 ? "bg-muted" : ""}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="visitantes">Visitantes</Label>
+                    <Input
+                      id="visitantes"
+                      type="number"
+                      min="0"
+                      value={visitantesCount}
+                      onChange={(e) => setVisitantesCount(parseInt(e.target.value) || 0)}
+                      required
+                    />
+                  </div>
                 </div>
-                <div>
-                  <Label htmlFor="visitantes">Quantidade de Visitantes</Label>
-                  <Input
-                    id="visitantes"
-                    type="number"
-                    min="0"
-                    value={visitantesCount}
-                    onChange={(e) => setVisitantesCount(parseInt(e.target.value) || 0)}
-                    required
-                  />
-                </div>
+                
                 <div>
                   <Label htmlFor="observations">Observações</Label>
                   <Textarea
@@ -1588,27 +1708,66 @@ export function CellReportsWeekly() {
                 Somente quinta, sexta ou sábado.
               </p>
             </div>
+              {/* Lista de Presença Nominal */}
+              {user?.role !== 'pastor' || selectedLeaderId ? (
               <div>
-                <Label htmlFor="edit-members">Quantidade de Membros</Label>
-                <Input
-                  id="edit-members"
-                  type="number"
-                  min="0"
-                  value={membersCount}
-                  onChange={(e) => setMembersCount(parseInt(e.target.value) || 0)}
-                  required
-                />
+                <Label>Lista de Presença Nominal</Label>
+                <div className="border rounded-md p-3 max-h-56 overflow-y-auto space-y-2 mt-2 bg-muted/10">
+                  {cellMembers.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      Nenhum membro ou frequentador encontrado. Atualize as quantidades manualmente.
+                    </p>
+                  ) : (
+                    cellMembers.map(member => (
+                      <div key={member.id} className="flex items-center space-x-3 py-1.5 hover:bg-muted/30 px-2 rounded-sm transition-colors">
+                        <Checkbox 
+                          id={`edit-member-${member.id}`} 
+                          checked={selectedMemberIds.has(member.id)}
+                          onCheckedChange={() => toggleMember(member.id, member.type)}
+                        />
+                        <label 
+                          htmlFor={`edit-member-${member.id}`}
+                          className="text-sm font-medium leading-none flex-1 cursor-pointer select-none"
+                        >
+                          {member.name}
+                        </label>
+                        <Badge variant={member.type === 'member' ? "default" : "secondary"} className="text-[10px]">
+                          {member.type === 'member' ? 'Membro' : 'Frequentador'}
+                        </Badge>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
-              <div>
-                <Label htmlFor="edit-frequentadores">Quantidade de Frequentadores</Label>
-                <Input
-                  id="edit-frequentadores"
-                  type="number"
-                  min="0"
-                  value={frequentadoresCount}
-                  onChange={(e) => setFrequentadoresCount(parseInt(e.target.value) || 0)}
-                  required
-                />
+              ) : null}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-members">Membros {cellMembers.length > 0 && <span className="text-[10px] text-muted-foreground">(Auto)</span>}</Label>
+                  <Input
+                    id="edit-members"
+                    type="number"
+                    min="0"
+                    value={membersCount}
+                    onChange={(e) => setMembersCount(parseInt(e.target.value) || 0)}
+                    readOnly={cellMembers.length > 0}
+                    className={cellMembers.length > 0 ? "bg-muted" : ""}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-frequentadores">Freq. {cellMembers.length > 0 && <span className="text-[10px] text-muted-foreground">(Auto)</span>}</Label>
+                  <Input
+                    id="edit-frequentadores"
+                    type="number"
+                    min="0"
+                    value={frequentadoresCount}
+                    onChange={(e) => setFrequentadoresCount(parseInt(e.target.value) || 0)}
+                    readOnly={cellMembers.length > 0}
+                    className={cellMembers.length > 0 ? "bg-muted" : ""}
+                    required
+                  />
+                </div>
               </div>
               <div>
                 <Label htmlFor="edit-observations">Observações</Label>
@@ -2157,27 +2316,66 @@ export function CellReportsWeekly() {
                 Somente quinta, sexta ou sábado.
               </p>
             </div>
+            {/* Lista de Presença Nominal */}
+            {user?.role !== 'pastor' || selectedLeaderId ? (
             <div>
-              <Label htmlFor="edit-members">Quantidade de Membros</Label>
-              <Input
-                id="edit-members"
-                type="number"
-                min="0"
-                value={membersCount}
-                onChange={(e) => setMembersCount(parseInt(e.target.value) || 0)}
-                required
-              />
+              <Label>Lista de Presença Nominal</Label>
+              <div className="border rounded-md p-3 max-h-56 overflow-y-auto space-y-2 mt-2 bg-muted/10">
+                {cellMembers.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    Nenhum membro ou frequentador encontrado. Atualize as quantidades manualmente.
+                  </p>
+                ) : (
+                  cellMembers.map(member => (
+                    <div key={member.id} className="flex items-center space-x-3 py-1.5 hover:bg-muted/30 px-2 rounded-sm transition-colors">
+                      <Checkbox 
+                        id={`edit-member-2-${member.id}`} 
+                        checked={selectedMemberIds.has(member.id)}
+                        onCheckedChange={() => toggleMember(member.id, member.type)}
+                      />
+                      <label 
+                        htmlFor={`edit-member-2-${member.id}`}
+                        className="text-sm font-medium leading-none flex-1 cursor-pointer select-none"
+                      >
+                        {member.name}
+                      </label>
+                      <Badge variant={member.type === 'member' ? "default" : "secondary"} className="text-[10px]">
+                        {member.type === 'member' ? 'Membro' : 'Frequentador'}
+                      </Badge>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
-            <div>
-              <Label htmlFor="edit-frequentadores">Quantidade de Frequentadores</Label>
-              <Input
-                id="edit-frequentadores"
-                type="number"
-                min="0"
-                value={frequentadoresCount}
-                onChange={(e) => setFrequentadoresCount(parseInt(e.target.value) || 0)}
-                required
-              />
+            ) : null}
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-members">Membros {cellMembers.length > 0 && <span className="text-[10px] text-muted-foreground">(Auto)</span>}</Label>
+                <Input
+                  id="edit-members"
+                  type="number"
+                  min="0"
+                  value={membersCount}
+                  onChange={(e) => setMembersCount(parseInt(e.target.value) || 0)}
+                  readOnly={cellMembers.length > 0}
+                  className={cellMembers.length > 0 ? "bg-muted" : ""}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-frequentadores">Freq. {cellMembers.length > 0 && <span className="text-[10px] text-muted-foreground">(Auto)</span>}</Label>
+                <Input
+                  id="edit-frequentadores"
+                  type="number"
+                  min="0"
+                  value={frequentadoresCount}
+                  onChange={(e) => setFrequentadoresCount(parseInt(e.target.value) || 0)}
+                  readOnly={cellMembers.length > 0}
+                  className={cellMembers.length > 0 ? "bg-muted" : ""}
+                  required
+                />
+              </div>
             </div>
             <div>
               <Label htmlFor="edit-visitantes">Quantidade de Visitantes</Label>

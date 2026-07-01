@@ -17,8 +17,7 @@ export function useStatistics() {
     try {
       setLoading(true);
       setError(null);
-      const isKidsMode = mode === 'kids';
-      const statistics = await statisticsService.getGeneralStatistics(user, isKidsMode);
+      const statistics = await statisticsService.getGeneralStatistics(user, mode);
       setData(statistics);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar estatísticas';
@@ -58,8 +57,7 @@ export function useNetworkStatistics() {
     try {
       setLoading(true);
       setError(null);
-      const isKidsMode = mode === 'kids';
-      const statistics = await statisticsService.getGeneralStatistics(user, isKidsMode);
+      const statistics = await statisticsService.getGeneralStatistics(user, mode);
       setNetworkData(statistics.networkData || null);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar dados da rede';

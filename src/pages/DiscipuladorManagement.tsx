@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfileMode } from '@/contexts/ProfileModeContext';
+import { profileScopeFlags } from '@/lib/profileScope';
+import { profilesService } from '@/integrations/supabase/profiles';
 import { supabase } from '@/integrations/supabase/client';
 import { supabaseAdmin } from '@/integrations/supabase/admin';
 import { useToast } from '@/hooks/use-toast';
@@ -10,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 import { Users, Plus, Phone, Mail, Edit, Trash2 } from 'lucide-react';
 import { Discipulador } from '@/types/church';
 import FancyLoader from '@/components/FancyLoader';
@@ -38,38 +41,24 @@ export function DiscipuladorManagement() {
       return;
     }
     setLoading(true);
-    let query = supabase
-      .from('profiles')
-      .select('id, name, email, phone, created_at, is_kids')
-      .eq('pastor_uuid', user.id)
-      .eq('role', 'discipulador');
-    
-    // No modo Kids, mostrar apenas os do modo Kids. No modo normal, mostrar apenas os do modo normal
-    if (isKidsMode) {
-      query = query.eq('is_kids', true);
-    } else {
-      query = query.or('is_kids.is.null,is_kids.eq.false');
-    }
-    
-    const { data, error } = await query.order('created_at', { ascending: false });
-
-    if (error) {
+    try {
+      const data = await profilesService.getDiscipuladores(user, mode);
+      const formatted: Discipulador[] = data.map((d) => ({
+        id: d.id,
+        name: d.name,
+        email: d.email || '',
+        phone: d.phone || undefined,
+        role: d.role,
+        pastorId: user.id,
+        createdAt: new Date(d.created_at),
+      }));
+      setDiscipuladores(formatted);
+    } catch (error) {
       console.error('Error loading discipuladores:', error);
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const formatted: Discipulador[] = (data || []).map((d) => ({
-      id: d.id,
-      name: d.name,
-      email: d.email,
-      phone: d.phone || undefined,
-      pastorId: user.id,
-      createdAt: new Date(d.created_at),
-    }));
-    setDiscipuladores(formatted);
-    setLoading(false);
-  }, [user]);
+  }, [user, mode]);
 
   useEffect(() => {
     if (user && user.role === 'pastor') {
@@ -126,9 +115,10 @@ export function DiscipuladorManagement() {
       email: newDiscipulador.email,
       phone: newDiscipulador.phone || null,
       discipulador_uuid: null,
-      pastor_uuid: user.id,
+      // Obreiro cria discipuladores sob o pastor real (acima dele), não sob si.
+      pastor_uuid: (user.role === 'pastor' && !user.isObreiro) ? user.id : (user.pastorId || user.id),
       role: 'discipulador' as const,
-      is_kids: isKidsMode,
+      ...profileScopeFlags(mode),
     };
 
     let profileId: string | null = null;
@@ -217,7 +207,7 @@ export function DiscipuladorManagement() {
         name: editingDiscipulador.name,
         email: editingDiscipulador.email,
         phone: editingDiscipulador.phone || null,
-        is_kids: isKidsMode,
+        ...profileScopeFlags(mode),
         updated_at: new Date().toISOString(),
       })
       .eq('id', editingDiscipulador.id);
@@ -363,7 +353,16 @@ export function DiscipuladorManagement() {
             <TableBody>
               {discipuladores.map((d) => (
                 <TableRow key={d.id}>
-                  <TableCell className="font-medium">{d.name}</TableCell>
+                  <TableCell className="font-medium">
+                    <div className="flex items-center gap-2">
+                      {d.name}
+                      {d.role && d.role !== 'discipulador' && (
+                        <Badge variant="secondary" className="capitalize text-[10px]">
+                          {d.role}
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1 text-sm">
                       <Mail className="w-3 h-3" />
@@ -379,6 +378,7 @@ export function DiscipuladorManagement() {
                     )}
                   </TableCell>
                   <TableCell>
+                    {(!d.role || d.role === 'discipulador') && (
                     <div className="flex gap-2">
                       <Button
                         size="sm"
@@ -412,6 +412,7 @@ export function DiscipuladorManagement() {
                         </AlertDialogContent>
                       </AlertDialog>
                     </div>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

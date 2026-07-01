@@ -137,6 +137,7 @@ export function PublicEncounterRegistration() {
       .select("id, name, role, is_kids")
       .eq("role", "pastor")
       .or("is_kids.is.null,is_kids.eq.false")
+        .or("is_radicais.is.null,is_radicais.eq.false")
       .order("name");
 
     if (pastorsError) {
@@ -162,6 +163,7 @@ export function PublicEncounterRegistration() {
         .select("id, name, is_kids")
         .eq("role", "discipulador")
         .or("is_kids.is.null,is_kids.eq.false")
+        .or("is_radicais.is.null,is_radicais.eq.false")
         .order("name");
 
       if (discipuladoresError) {
@@ -178,6 +180,7 @@ export function PublicEncounterRegistration() {
         .select("id, name, discipulador_id, discipulador_uuid, is_kids")
         .eq("role", "lider")
         .or("is_kids.is.null,is_kids.eq.false")
+        .or("is_radicais.is.null,is_radicais.eq.false")
         .order("name");
 
       if (leadersError) {

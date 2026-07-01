@@ -3,6 +3,7 @@ export interface Leader {
   name: string;
   email: string;
   phone?: string;
+  role?: string;
   discipuladorId: string;
   pastorId?: string;
   createdAt: Date;
@@ -13,6 +14,7 @@ export interface Discipulador {
   name: string;
   email: string;
   phone?: string;
+  role?: string;
   pastorId: string;
   createdAt: Date;
 }

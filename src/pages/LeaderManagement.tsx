@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfileMode } from '@/contexts/ProfileModeContext';
+import { profileScopeFlags } from '@/lib/profileScope';
+import { profilesService } from '@/integrations/supabase/profiles';
 import { supabase } from '@/integrations/supabase/client';
 import { supabaseAdmin } from '@/integrations/supabase/admin';
 import { useToast } from '@/hooks/use-toast';
@@ -11,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 import { Users, Plus, Phone, Mail, Edit, Trash2 } from 'lucide-react';
 import { Leader, Discipulador } from '@/types/church';
 import FancyLoader from '@/components/FancyLoader';
@@ -37,32 +40,19 @@ export function LeaderManagement() {
 
   const loadDiscipuladores = useCallback(async () => {
     if (!user || user.role !== 'pastor') return;
-    
-    let query = supabase
-      .from('profiles')
-      .select('id, name, email, phone, created_at, is_kids')
-      .eq('pastor_uuid', user.id)
-      .eq('role', 'discipulador');
-    
-    // No modo Kids, mostrar apenas os do modo Kids. No modo normal, mostrar apenas os do modo normal
-    if (isKidsMode) {
-      query = query.eq('is_kids', true);
-    } else {
-      query = query.or('is_kids.is.null,is_kids.eq.false');
-    }
-    
-    const { data } = await query.order('created_at', { ascending: false });
 
-    const formatted: Discipulador[] = (data || []).map((d) => ({
+    const data = await profilesService.getDiscipuladores(user, mode);
+
+    const formatted: Discipulador[] = data.map((d) => ({
       id: d.id,
       name: d.name,
-      email: d.email,
+      email: d.email || '',
       phone: d.phone || undefined,
       pastorId: user.id,
       createdAt: new Date(d.created_at),
     }));
     setDiscipuladores(formatted);
-  }, [user]);
+  }, [user, mode]);
 
   const loadLeaders = useCallback(async () => {
     if (!user) {
@@ -71,44 +61,25 @@ export function LeaderManagement() {
     }
 
     setLoading(true);
-    let query = supabase
-      .from('profiles')
-      .select('id, name, email, phone, created_at, pastor_uuid, discipulador_uuid, is_kids')
-      .eq('role', 'lider');
-
-    // No modo Kids, mostrar apenas os do modo Kids. No modo normal, mostrar apenas os do modo normal
-    if (isKidsMode) {
-      query = query.eq('is_kids', true);
-    } else {
-      query = query.or('is_kids.is.null,is_kids.eq.false');
-    }
-
-    if (user.role === 'discipulador') {
-      query = query.eq('discipulador_uuid', user.id);
-    } else if (user.role === 'pastor') {
-      query = query.eq('pastor_uuid', user.id);
-    }
-
-    const { data, error } = await query.order('created_at', { ascending: false });
-
-    if (error) {
+    try {
+      const data = await profilesService.getLeaders(user, mode);
+      const formatted: Leader[] = data.map((l) => ({
+        id: l.id,
+        name: l.name,
+        email: l.email || '',
+        phone: l.phone || undefined,
+        role: l.role,
+        discipuladorId: l.discipulador_uuid || user.id,
+        pastorId: l.pastor_uuid || undefined,
+        createdAt: new Date(l.created_at),
+      }));
+      setLeaders(formatted);
+    } catch (error) {
       console.error('Error loading leaders:', error);
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const formatted: Leader[] = (data || []).map((l) => ({
-      id: l.id,
-      name: l.name,
-      email: l.email,
-      phone: l.phone || undefined,
-      discipuladorId: l.discipulador_uuid || user.id,
-      pastorId: l.pastor_uuid || undefined,
-      createdAt: new Date(l.created_at),
-    }));
-    setLeaders(formatted);
-    setLoading(false);
-  }, [user]);
+  }, [user, mode]);
 
   useEffect(() => {
     if (user && (user.role === 'discipulador' || user.role === 'pastor')) {
@@ -179,9 +150,10 @@ export function LeaderManagement() {
       email: newLeader.email,
       phone: newLeader.phone || null,
       discipulador_uuid: discipuladorId,
-      pastor_uuid: user.role === 'pastor' ? user.id : (user.pastorId || null),
+      // Só um pastor de verdade é a raiz; obreiro/discipulador apontam para o pastor acima.
+      pastor_uuid: (user.role === 'pastor' && !user.isObreiro) ? user.id : (user.pastorId || null),
       role: 'lider' as const,
-      is_kids: isKidsMode,
+      ...profileScopeFlags(mode),
     };
 
     let profileId: string | null = null;
@@ -272,7 +244,7 @@ export function LeaderManagement() {
         email: editingLeader.email,
         phone: editingLeader.phone || null,
         discipulador_uuid: editingLeader.discipuladorId,
-        is_kids: isKidsMode,
+        ...profileScopeFlags(mode),
         updated_at: new Date().toISOString(),
       })
       .eq('id', editingLeader.id);
@@ -421,7 +393,16 @@ export function LeaderManagement() {
             <TableBody>
               {leaders.map((leader) => (
                 <TableRow key={leader.id}>
-                  <TableCell className="font-medium">{leader.name}</TableCell>
+                  <TableCell className="font-medium">
+                    <div className="flex items-center gap-2">
+                      {leader.name}
+                      {leader.role && leader.role !== 'lider' && (
+                        <Badge variant="secondary" className="capitalize text-[10px]">
+                          {leader.role}
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1 text-sm">
                       <Mail className="w-3 h-3" />
@@ -438,6 +419,7 @@ export function LeaderManagement() {
                   </TableCell>
                   {user.role === 'pastor' && (
                     <TableCell>
+                      {(!leader.role || leader.role === 'lider') && (
                       <div className="flex gap-2">
                         <Button
                           size="sm"
@@ -471,6 +453,7 @@ export function LeaderManagement() {
                           </AlertDialogContent>
                         </AlertDialog>
                       </div>
+                      )}
                     </TableCell>
                   )}
                 </TableRow>

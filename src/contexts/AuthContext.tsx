@@ -62,17 +62,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(null);
         } else if (profile) {
           console.log('Profile loaded:', profile);
+          // Obreiro tem acesso de nível pastor: mapeamos o papel efetivo para
+          // 'pastor' (libera menu e caminhos de código), mantendo isObreiro
+          // para exibir o rótulo correto e escopar consultas pelo pastor real.
+          const isObreiro = profile.role === 'obreiro';
           const userData: User = {
             id: profile.id,
             name: profile.name,
             email: profile.email,
-            role: profile.role,
+            role: isObreiro ? 'pastor' : profile.role,
             phone: profile.phone,
             discipuladorId: profile.discipulador_uuid,
             pastorId: profile.pastor_uuid,
             celula: profile.celula,
             isTesoureiro: profile.is_tesoureiro || false,
             isCursoCoordenador: profile.is_curso_coordenador || false,
+            isObreiro,
             createdAt: new Date(profile.created_at),
           };
           console.log('User data created:', userData);

@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { useProfileMode } from '@/contexts/ProfileModeContext';
+import { profilesService } from '@/integrations/supabase/profiles';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Select,
@@ -71,53 +73,15 @@ export function Statistics() {
   const loadUsers = async () => {
     if (!user) return;
 
-    const isKidsMode = mode === 'kids';
-    
     if (user.role === 'pastor' || user.role === 'obreiro') {
-      let discipulosQuery = supabase
-        .from('profiles')
-        .select('id, name')
-        .eq('role', 'discipulador')
-        .eq('pastor_uuid', user.id);
-      
-      if (isKidsMode) {
-        discipulosQuery = discipulosQuery.eq('is_kids', true);
-      } else {
-        discipulosQuery = discipulosQuery.or('is_kids.is.null,is_kids.eq.false');
-      }
-      
-      const { data: discipulos } = await discipulosQuery.order('name');
-      setDiscipuladores((discipulos || []).map((d) => ({ id: d.id, name: d.name })));
+      const discipulos = await profilesService.getDiscipuladores(user, mode);
+      setDiscipuladores(discipulos.map((d) => ({ id: d.id, name: d.name })));
 
-      let leadersQuery = supabase
-        .from('profiles')
-        .select('id, name')
-        .eq('role', 'lider')
-        .eq('pastor_uuid', user.id);
-      
-      if (isKidsMode) {
-        leadersQuery = leadersQuery.eq('is_kids', true);
-      } else {
-        leadersQuery = leadersQuery.or('is_kids.is.null,is_kids.eq.false');
-      }
-      
-      const { data: lData } = await leadersQuery.order('name');
-      setLeaders((lData || []).map((l) => ({ id: l.id, name: l.name })));
+      const lData = await profilesService.getLeaders(user, mode);
+      setLeaders(lData.map((l) => ({ id: l.id, name: l.name })));
     } else if (user.role === 'discipulador') {
-      let leadersQuery = supabase
-        .from('profiles')
-        .select('id, name')
-        .eq('role', 'lider')
-        .eq('discipulador_uuid', user.id);
-      
-      if (isKidsMode) {
-        leadersQuery = leadersQuery.eq('is_kids', true);
-      } else {
-        leadersQuery = leadersQuery.or('is_kids.is.null,is_kids.eq.false');
-      }
-      
-      const { data: lData } = await leadersQuery.order('name');
-      setLeaders((lData || []).map((l) => ({ id: l.id, name: l.name })));
+      const lData = await profilesService.getLeaders(user, mode);
+      setLeaders(lData.map((l) => ({ id: l.id, name: l.name })));
     }
 
     await loadReports();

@@ -181,6 +181,7 @@ export function PublicEncontroRegistrationsView() {
         .select("id, name")
         .eq("role", "discipulador")
         .or("is_kids.is.null,is_kids.eq.false")
+        .or("is_radicais.is.null,is_radicais.eq.false")
         .order("name");
 
       const { data: leadersData } = await (supabase as any)
@@ -188,6 +189,7 @@ export function PublicEncontroRegistrationsView() {
         .select("id, name, discipulador_id, discipulador_uuid")
         .eq("role", "lider")
         .or("is_kids.is.null,is_kids.eq.false")
+        .or("is_radicais.is.null,is_radicais.eq.false")
         .order("name");
 
       const { data: registrationsData, error: registrationsError } = await (supabase as any)

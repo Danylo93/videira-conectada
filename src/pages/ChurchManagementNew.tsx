@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import Tree from 'react-d3-tree';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfileMode } from '@/contexts/ProfileModeContext';
+import { applyProfileScope } from '@/lib/profileScope';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -31,7 +32,7 @@ interface Member {
   join_date: string;
 }
 
-interface PersonNode {
+export interface PersonNode {
   id?: string;
   name: string;
   role: string;
@@ -128,7 +129,7 @@ export function ChurchManagementNew() {
 
   useEffect(() => {
     loadChurchData();
-  }, [isKidsMode]);
+  }, [mode]);
 
   const loadChurchData = async () => {
     try {
@@ -139,15 +140,10 @@ export function ChurchManagementNew() {
         .from('profiles')
         .select('id, name, role, discipulador_uuid, pastor_uuid, celula, is_kids')
         .in('role', ['pastor', 'obreiro', 'discipulador', 'lider']);
-      
-      // No modo Kids, mostrar apenas perfis do modo Kids
-      // No modo normal, mostrar apenas perfis do modo normal
-      if (isKidsMode) {
-        profilesQuery = profilesQuery.eq('is_kids', true);
-      } else {
-        profilesQuery = profilesQuery.or('is_kids.is.null,is_kids.eq.false');
-      }
-      
+
+      // Restringe ao escopo do modo de perfil atual (normal / kids / radicais)
+      profilesQuery = applyProfileScope(profilesQuery, mode);
+
       const { data: profiles, error: profilesError } = await profilesQuery;
 
       if (profilesError) {

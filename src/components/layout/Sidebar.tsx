@@ -17,8 +17,7 @@ import {
   Droplets,
   LucideIcon
 } from 'lucide-react';
-import logoVideira from '@/assets/logo-videira.png';
-import logoKids from '@/assets/logo-kids.jpg';
+import { getProfileModeConfig } from '@/config/profileModes';
 import {
   Sidebar as SidebarComponent,
   SidebarContent,
@@ -179,6 +178,7 @@ export function Sidebar() {
 
   const collapsed = state === "collapsed";
   const isKidsMode = mode === 'kids';
+  const config = getProfileModeConfig(mode);
 
   const filteredItems = navigationItems.filter(item => {
     // Verifica se o item está disponível para o role do usuário
@@ -221,19 +221,19 @@ export function Sidebar() {
         <div className="p-4 border-b">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-md">
-              <img 
-                src={isKidsMode ? logoKids : logoVideira} 
-                alt={isKidsMode ? "Videira Kids Logo" : "Videira Logo"} 
-                className={`w-9 h-9 ${isKidsMode ? 'rounded-full' : ''}`}
+              <img
+                src={config.logo}
+                alt={`${config.sidebarTitle} Logo`}
+                className={`w-9 h-9 ${config.logoRounded ? 'rounded-full' : ''}`}
               />
             </div>
             {!collapsed && (
               <div>
-                <h2 className={`font-bold text-lg ${isKidsMode ? 'bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent' : 'bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent'}`}>
-                  {isKidsMode ? 'Videira Kids' : 'Videira'}
+                <h2 className={`font-bold text-lg ${config.titleGradientClass}`}>
+                  {config.sidebarTitle}
                 </h2>
-                {!isKidsMode && (
-                  <p className="text-xs text-muted-foreground">São Miguel</p>
+                {config.sidebarSubtitle && (
+                  <p className="text-xs text-muted-foreground">{config.sidebarSubtitle}</p>
                 )}
               </div>
             )}
@@ -301,8 +301,7 @@ export function Sidebar() {
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-success rounded-full animate-pulse"></div>
                 <span className="text-sm font-medium">
-                  {user.role === 'pastor' && 'Pastor'}
-                  {user.role === 'obreiro' && 'Obreiro'}
+                  {user.role === 'pastor' && (user.isObreiro ? 'Obreiro' : 'Pastor')}
                   {user.role === 'discipulador' && 'Discipulador'}
                   {user.role === 'lider' && 'Líder'}
                 </span>

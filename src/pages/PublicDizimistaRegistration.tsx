@@ -45,6 +45,7 @@ export function PublicDizimistaRegistration() {
         .select("id, name, is_kids")
         .eq("role", "discipulador")
         .or("is_kids.is.null,is_kids.eq.false")
+        .or("is_radicais.is.null,is_radicais.eq.false")
         .order("name");
 
       if (error) {

@@ -25,6 +25,7 @@ interface LeaderWeeklyReportStatus {
   reportLink: string;
   fillLink: string; // Link direto para o líder preencher
   isKids?: boolean;
+  isRadicais?: boolean;
 }
 
 const allowedReportDays = new Set([4, 5, 6]); // quinta, sexta, sábado
@@ -108,6 +109,7 @@ serve(async (req) => {
     const reportDate = requestBody?.date || url.searchParams.get("date");
     const pastorId = requestBody?.pastor_id || url.searchParams.get("pastor_id");
     const isKids = requestBody?.is_kids === true || requestBody?.is_kids === "true" || url.searchParams.get("is_kids") === "true";
+    const isRadicais = requestBody?.is_radicais === true || requestBody?.is_radicais === "true" || url.searchParams.get("is_radicais") === "true";
 
     const baseDate = reportDate ? parseDateInput(reportDate) : null;
     if (reportDate && !baseDate) {
@@ -125,17 +127,21 @@ serve(async (req) => {
     // Buscar todos os líderes
     let leadersQuery = supabase
       .from("profiles")
-      .select("id, name, email, phone, celula, is_kids, pastor_uuid")
+      .select("id, name, email, phone, celula, is_kids, is_radicais, pastor_uuid")
       .eq("role", "lider");
 
     if (pastorId) {
       leadersQuery = leadersQuery.eq("pastor_uuid", pastorId);
     }
 
-    if (isKids) {
+    if (isRadicais) {
+      leadersQuery = leadersQuery.eq("is_radicais", true);
+    } else if (isKids) {
       leadersQuery = leadersQuery.eq("is_kids", true);
-    } else if (isKids === false) {
-      leadersQuery = leadersQuery.or("is_kids.is.null,is_kids.eq.false");
+    } else {
+      leadersQuery = leadersQuery
+        .or("is_kids.is.null,is_kids.eq.false")
+        .or("is_radicais.is.null,is_radicais.eq.false");
     }
 
     const { data: leaders, error: leadersError } = await leadersQuery.order("name");
@@ -229,6 +235,7 @@ serve(async (req) => {
         reportLink,
         fillLink,
         isKids: leader.is_kids || false,
+        isRadicais: leader.is_radicais || false,
       };
     });
 

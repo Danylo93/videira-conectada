@@ -13,6 +13,7 @@ const corsHeaders = {
 interface SendWhatsAppRequest {
   pastorId: string;
   isKids?: boolean;
+  isRadicais?: boolean;
   n8nWebhookUrl?: string;
   baseUrl?: string;
 }
@@ -34,7 +35,7 @@ serve(async (req) => {
 
     // Obter dados do body
     const body: SendWhatsAppRequest = await req.json();
-    const { pastorId, isKids = false, n8nWebhookUrl: customWebhookUrl, baseUrl } = body;
+    const { pastorId, isKids = false, isRadicais = false, n8nWebhookUrl: customWebhookUrl, baseUrl } = body;
 
     if (!pastorId) {
       throw new Error("pastorId é obrigatório");
@@ -59,14 +60,18 @@ serve(async (req) => {
     // Buscar líderes do pastor
     let leadersQuery = supabase
       .from("profiles")
-      .select("id, name, email, phone, celula, is_kids")
+      .select("id, name, email, phone, celula, is_kids, is_radicais")
       .eq("role", "lider")
       .eq("pastor_uuid", pastorId);
 
-    if (isKids) {
+    if (isRadicais) {
+      leadersQuery = leadersQuery.eq("is_radicais", true);
+    } else if (isKids) {
       leadersQuery = leadersQuery.eq("is_kids", true);
     } else {
-      leadersQuery = leadersQuery.or("is_kids.is.null,is_kids.eq.false");
+      leadersQuery = leadersQuery
+        .or("is_kids.is.null,is_kids.eq.false")
+        .or("is_radicais.is.null,is_radicais.eq.false");
     }
 
     const { data: leaders, error: leadersError } = await leadersQuery.order("name");
@@ -163,6 +168,7 @@ serve(async (req) => {
         weekEndDate,
         pastorId,
         isKids,
+        isRadicais,
       }),
     });
 

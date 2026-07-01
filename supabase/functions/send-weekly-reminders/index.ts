@@ -15,6 +15,7 @@ const corsHeaders = {
 interface SendReminderRequest {
   pastorId?: string;
   isKids?: boolean;
+  isRadicais?: boolean;
   n8nWebhookUrl?: string;
   baseUrl?: string;
   sendViaWhatsApp?: boolean;
@@ -49,6 +50,7 @@ serve(async (req) => {
       body = {
         pastorId: url.searchParams.get("pastor_id") || undefined,
         isKids: url.searchParams.get("is_kids") === "true",
+        isRadicais: url.searchParams.get("is_radicais") === "true",
         n8nWebhookUrl: url.searchParams.get("n8n_webhook_url") || undefined,
         baseUrl: url.searchParams.get("base_url") || undefined,
         sendViaWhatsApp: url.searchParams.get("send_via_whatsapp") !== "false",
@@ -59,6 +61,7 @@ serve(async (req) => {
     const {
       pastorId,
       isKids = false,
+      isRadicais = false,
       n8nWebhookUrl: customWebhookUrl,
       baseUrl,
       sendViaWhatsApp = true,
@@ -129,17 +132,21 @@ serve(async (req) => {
     // Buscar líderes
     let leadersQuery = supabase
       .from("profiles")
-      .select("id, name, email, phone, celula, is_kids, pastor_uuid")
+      .select("id, name, email, phone, celula, is_kids, is_radicais, pastor_uuid")
       .eq("role", "lider");
 
     if (pastorId) {
       leadersQuery = leadersQuery.eq("pastor_uuid", pastorId);
     }
 
-    if (isKids) {
+    if (isRadicais) {
+      leadersQuery = leadersQuery.eq("is_radicais", true);
+    } else if (isKids) {
       leadersQuery = leadersQuery.eq("is_kids", true);
     } else {
-      leadersQuery = leadersQuery.or("is_kids.is.null,is_kids.eq.false");
+      leadersQuery = leadersQuery
+        .or("is_kids.is.null,is_kids.eq.false")
+        .or("is_radicais.is.null,is_radicais.eq.false");
     }
 
     const { data: leaders, error: leadersError } = await leadersQuery.order("name");
@@ -265,6 +272,7 @@ serve(async (req) => {
                 weekEndDate,
                 pastorId,
                 isKids,
+                isRadicais,
               }),
             });
 

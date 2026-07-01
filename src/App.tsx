@@ -1,5 +1,5 @@
 // src/App.tsx
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, type ComponentType, useEffect, useState, lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -9,66 +9,57 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProfileModeProvider } from "@/contexts/ProfileModeContext";
 import type { AuthTransition } from "@/types/auth";
 
+// Shell sempre presente (não faz parte do code-splitting de rotas)
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Dashboard } from "@/pages/Dashboard";
-import { CellManagement } from "@/pages/CellManagement";
-import { LeaderManagement } from "@/pages/LeaderManagement";
-import { DiscipuladorManagement } from "@/pages/DiscipuladorManagement";
-import { CellReports } from "@/pages/CellReports";
-import { CellReportsWeekly } from "@/pages/CellReportsWeekly";
-import { PublicWeeklyReport } from "@/pages/PublicWeeklyReport";
-import { PublicWeeklyReportsDashboard } from "@/pages/PublicWeeklyReportsDashboard";
-import { PublicDizimistaRegistration } from "@/pages/PublicDizimistaRegistration";
-import { PublicDizimistasView } from "@/pages/PublicDizimistasView";
-import { PublicBatismoRegistration } from "@/pages/PublicBatismoRegistration";
-import { PublicBatizantesView } from "@/pages/PublicBatizantesView";
-import { PublicEncounterRegistration } from "@/pages/PublicEncounterRegistration";
-import { PublicEncontroRegistrationsView } from "@/pages/PublicEncontroRegistrationsView";
-import {
-  PublicEncounterBabysRegistration,
-  PublicEncounterKidsRegistration,
-} from "@/pages/PublicEncounterKidsRegistration";
-import {
-  PublicEncounterBabysRegistrationsView,
-  PublicEncounterKidsRegistrationsView,
-} from "@/pages/PublicEncounterKidsRegistrationsView";
-import { PublicTrilhoCoursesWeeklyList } from "@/pages/PublicTrilhoCoursesWeeklyList";
-import { PublicEscalasView } from "@/pages/PublicEscalasView";
-import { PublicEscalasEdit } from "@/pages/PublicEscalasEdit";
-import { BatizantesView } from "@/pages/BatizantesView";
-import { NetworkReports } from "@/pages/NetworkReports";
-import { ServiceReports } from "@/pages/ServiceReports";
-import { StatisticsNew as Statistics } from "@/pages/StatisticsNew";
-import { ChurchManagementNew as ChurchManagement } from "@/pages/ChurchManagementNew";
-import { Profile } from "@/pages/Profile";
-import { Settings } from "@/pages/Settings";
-import NotFound from "./pages/NotFound";
-
 import FancyLoader from "./components/FancyLoader";
 import { useDelayedLoading } from "./hooks/useDelayedLoading";
 import { usePageTitle } from "./hooks/use-page-title";
 
-import { Auth } from "./pages/Auth";
+// Páginas carregadas sob demanda (code-splitting por rota) ------------------
+const named = <T extends Record<string, unknown>>(
+  factory: () => Promise<T>,
+  key: keyof T,
+) => lazy(() => factory().then((m) => ({ default: m[key] as ComponentType })));
 
-// CURSOS
-import Courses from "./pages/cursos/Courses";          // <-- roteador (Pastor/Discipulador/Líder)
-import CourseAdminNew from "./pages/cursos/CourseAdminNew";  // <-- admin do Pastor (rota separada /admin-cursos)
+const Dashboard = named(() => import("@/pages/Dashboard"), "Dashboard");
+const CellManagement = named(() => import("@/pages/CellManagement"), "CellManagement");
+const LeaderManagement = named(() => import("@/pages/LeaderManagement"), "LeaderManagement");
+const DiscipuladorManagement = named(() => import("@/pages/DiscipuladorManagement"), "DiscipuladorManagement");
+const CellReports = named(() => import("@/pages/CellReports"), "CellReports");
+const CellReportsWeekly = named(() => import("@/pages/CellReportsWeekly"), "CellReportsWeekly");
+const PublicWeeklyReport = named(() => import("@/pages/PublicWeeklyReport"), "PublicWeeklyReport");
+const PublicWeeklyReportsDashboard = named(() => import("@/pages/PublicWeeklyReportsDashboard"), "PublicWeeklyReportsDashboard");
+const PublicDizimistaRegistration = named(() => import("@/pages/PublicDizimistaRegistration"), "PublicDizimistaRegistration");
+const PublicDizimistasView = named(() => import("@/pages/PublicDizimistasView"), "PublicDizimistasView");
+const PublicBatismoRegistration = named(() => import("@/pages/PublicBatismoRegistration"), "PublicBatismoRegistration");
+const PublicBatizantesView = named(() => import("@/pages/PublicBatizantesView"), "PublicBatizantesView");
+const PublicEncounterRegistration = named(() => import("@/pages/PublicEncounterRegistration"), "PublicEncounterRegistration");
+const PublicEncontroRegistrationsView = named(() => import("@/pages/PublicEncontroRegistrationsView"), "PublicEncontroRegistrationsView");
+const PublicEncounterKidsRegistration = named(() => import("@/pages/PublicEncounterKidsRegistration"), "PublicEncounterKidsRegistration");
+const PublicEncounterBabysRegistration = named(() => import("@/pages/PublicEncounterKidsRegistration"), "PublicEncounterBabysRegistration");
+const PublicEncounterKidsRegistrationsView = named(() => import("@/pages/PublicEncounterKidsRegistrationsView"), "PublicEncounterKidsRegistrationsView");
+const PublicEncounterBabysRegistrationsView = named(() => import("@/pages/PublicEncounterKidsRegistrationsView"), "PublicEncounterBabysRegistrationsView");
+const PublicTrilhoCoursesWeeklyList = named(() => import("@/pages/PublicTrilhoCoursesWeeklyList"), "PublicTrilhoCoursesWeeklyList");
+const PublicEscalasView = named(() => import("@/pages/PublicEscalasView"), "PublicEscalasView");
+const PublicEscalasEdit = named(() => import("@/pages/PublicEscalasEdit"), "PublicEscalasEdit");
+const BatizantesView = named(() => import("@/pages/BatizantesView"), "BatizantesView");
+const NetworkReports = named(() => import("@/pages/NetworkReports"), "NetworkReports");
+const ServiceReports = named(() => import("@/pages/ServiceReports"), "ServiceReports");
+const Statistics = named(() => import("@/pages/StatisticsNew"), "StatisticsNew");
+const ChurchManagement = named(() => import("@/pages/ChurchManagementNew"), "ChurchManagementNew");
+const Profile = named(() => import("@/pages/Profile"), "Profile");
+const Settings = named(() => import("@/pages/Settings"), "Settings");
+const Auth = named(() => import("./pages/Auth"), "Auth");
+const TithesOfferings = named(() => import("./pages/TithesOfferings"), "TithesOfferings");
+const Financial = named(() => import("./pages/Financial"), "Financial");
+const Escalas = named(() => import("./pages/Escalas"), "Escalas");
 
-// EVENTOS
-import Events from "./pages/eventos/Events";           // <-- roteador (Pastor/Discipulador/Líder)
-
-// ENCONTROS
-import Encounters from "./pages/encounters/Encounters"; // <-- Encontro com Deus (Pastor/Discipulador)
-import EncounterEvents from "./pages/encounters/EncounterEvents"; // <-- Eventos de Encontro (Pastor/Discipulador)
-
-// DÍZIMOS E OFERTAS
-import { TithesOfferings } from "./pages/TithesOfferings"; // <-- Dízimos e Ofertas (Pastor/Obreiro)
-
-// FINANCEIRO
-import { Financial } from "./pages/Financial"; // <-- Financeiro (Pastor/Obreiro)
-
-// ESCALAS
-import { Escalas } from "./pages/Escalas"; // <-- Escalas (Pastor/Discipulador/Líder)
+const NotFound = lazy(() => import("./pages/NotFound"));
+const Courses = lazy(() => import("./pages/cursos/Courses"));
+const CourseAdminNew = lazy(() => import("./pages/cursos/CourseAdminNew"));
+const Events = lazy(() => import("./pages/eventos/Events"));
+const Encounters = lazy(() => import("./pages/encounters/Encounters"));
+const EncounterEvents = lazy(() => import("./pages/encounters/EncounterEvents"));
 
 const queryClient = new QueryClient();
 
@@ -181,8 +172,9 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 
 function AppContent() {
   usePageTitle();
-  
+
   return (
+    <Suspense fallback={<FancyLoader message="Carregando…" tips={["Preparando esta página…"]} />}>
     <Routes>
       {/* público */}
       <Route
@@ -288,6 +280,7 @@ function AppContent() {
       {/* 404 */}
       <Route path="*" element={<NotFound />} />
     </Routes>
+    </Suspense>
   );
 }
 

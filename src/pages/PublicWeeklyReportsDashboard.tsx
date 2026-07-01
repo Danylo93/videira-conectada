@@ -51,6 +51,7 @@ export function PublicWeeklyReportsDashboard() {
   const [weekEndDate, setWeekEndDate] = useState<string>("");
 
   const isKids = mode === "kids";
+  const isRadicais = mode === "radicais";
 
   // Funções para gerenciar semanas
   const getWeekStart = (date: Date): Date => {
@@ -148,7 +149,7 @@ export function PublicWeeklyReportsDashboard() {
     }
 
     loadStatus();
-  }, [pastorId, isKids, selectedWeekKey]);
+  }, [pastorId, isKids, isRadicais, selectedWeekKey]);
 
   const loadStatus = async () => {
     try {
@@ -180,6 +181,7 @@ export function PublicWeeklyReportsDashboard() {
       url.searchParams.set("date", weekStart);
       url.searchParams.set("pastor_id", pastorId);
       url.searchParams.set("is_kids", String(isKids));
+      url.searchParams.set("is_radicais", String(isRadicais));
       url.searchParams.set("base_url", window.location.origin);
 
       const response = await fetch(url.toString(), {

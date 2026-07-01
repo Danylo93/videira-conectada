@@ -160,7 +160,7 @@ export function PublicWeeklyReport() {
       try {
         const { data, error } = await supabase
           .from("profiles")
-          .select("id, name, celula, is_kids")
+          .select("id, name, celula, is_kids, is_radicais")
           .eq("role", "lider")
           .order("name");
 
@@ -179,10 +179,10 @@ export function PublicWeeklyReport() {
           return;
         }
 
-        // Filtrar líderes do modo Kids (excluir is_kids = true)
+        // Filtrar líderes dos modos Kids e Radicais (manter apenas o modo normal)
         if (isMounted) {
           setLeaders((data || [])
-            .filter((l: any) => !l.is_kids) // Excluir líderes do modo Kids
+            .filter((l: any) => !l.is_kids && !l.is_radicais) // Excluir líderes Kids/Radicais
             .map((l: any) => ({
               id: l.id,
               name: l.name,
