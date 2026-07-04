@@ -1,25 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useState, useEffect } from "react";
 
 /**
- * Mantém o loader visível por, no mínimo, `minDelayMs`.
- * Retorna `true` enquanto o overlay deve ser exibido.
+ * Hook original mantinha um loader visível por um tempo mínimo (minDelayMs).
+ * Agora retorna apenas o status real (!ready) para remover carregamentos artificiais.
  */
 export function useDelayedLoading(ready: boolean, minDelayMs = 1000) {
-  const start = useRef<number | null>(null);
-  const [show, setShow] = useState(true);
-
-  useEffect(() => {
-    if (start.current === null) start.current = Date.now();
-
-    if (ready) {
-      const elapsed = Date.now() - (start.current ?? Date.now());
-      const remain = Math.max(0, minDelayMs - elapsed);
-      const t = setTimeout(() => setShow(false), remain);
-      return () => clearTimeout(t);
-    } else {
-      setShow(true);
-    }
-  }, [ready, minDelayMs]);
-
-  return show;
+  return !ready;
 }

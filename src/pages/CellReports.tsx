@@ -91,7 +91,66 @@ export function CellReports() {
   const [allMembers, setAllMembers] = useState<Member[]>([]);
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
   const [selectedVisitorIds, setSelectedVisitorIds] = useState<string[]>([]);
+  // Visitantes avulsos (não cadastrados): adicionados por nome no relatório
+  const [newVisitorNames, setNewVisitorNames] = useState<string[]>([]);
+  const [visitorNameInput, setVisitorNameInput] = useState("");
   const [lostMembers, setLostMembers] = useState<Array<{id: string; reason: 'critico' | 'regular' | 'amarelo'}>>([]);
+
+  const addVisitorName = () => {
+    const name = visitorNameInput.trim();
+    if (!name) return;
+    setNewVisitorNames((prev) => [...prev, name]);
+    setVisitorNameInput("");
+  };
+  const removeVisitorName = (index: number) =>
+    setNewVisitorNames((prev) => prev.filter((_, i) => i !== index));
+
+  // Seção compartilhada (criar/editar): adicionar visitantes pelo nome
+  const renderNewVisitorsSection = () => (
+    <div>
+      <Label>Visitantes (novos)</Label>
+      <p className="text-xs text-muted-foreground mb-2">
+        Quem veio e ainda não está na lista. Ao salvar, entra como frequentador da célula.
+      </p>
+      <div className="flex gap-2">
+        <Input
+          value={visitorNameInput}
+          onChange={(e) => setVisitorNameInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              addVisitorName();
+            }
+          }}
+          placeholder="Nome do visitante"
+          className="min-h-[44px]"
+        />
+        <Button type="button" variant="secondary" onClick={addVisitorName} className="min-h-[44px]">
+          Adicionar
+        </Button>
+      </div>
+      {newVisitorNames.length > 0 && (
+        <div className="flex flex-wrap gap-2 mt-2">
+          {newVisitorNames.map((name, i) => (
+            <span
+              key={`${name}-${i}`}
+              className="inline-flex items-center gap-1 rounded-full bg-secondary px-3 py-1 text-sm"
+            >
+              {name}
+              <button
+                type="button"
+                onClick={() => removeVisitorName(i)}
+                className="text-muted-foreground hover:text-destructive"
+                aria-label={`Remover ${name}`}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
   const [editingReport, setEditingReport] = useState<CellReportType | null>(
     null
   );
@@ -414,6 +473,32 @@ export function CellReports() {
       return;
     }
 
+    // Cria os visitantes avulsos como frequentadores da célula e os inclui no relatório
+    let visitorsPresent = [...selectedVisitorIds];
+    if (newVisitorNames.length > 0) {
+      const { data: createdVisitors, error: visitorsError } = await supabase
+        .from("members")
+        .insert(
+          newVisitorNames.map((name) => ({
+            name,
+            lider_id: liderId,
+            type: "frequentador",
+            active: true,
+          })),
+        )
+        .select("id");
+
+      if (visitorsError) {
+        toast({
+          title: "Erro",
+          description: "Não foi possível adicionar os visitantes.",
+          variant: "destructive",
+        });
+        return;
+      }
+      visitorsPresent = [...visitorsPresent, ...(createdVisitors ?? []).map((v) => v.id)];
+    }
+
     const { error } = await supabase.from("cell_reports").insert([
       {
         lider_id: liderId,
@@ -421,7 +506,7 @@ export function CellReports() {
         multiplication_date: multiplicationDate || null,
         observations: observations || null,
         members_present: selectedMemberIds,
-        visitors_present: selectedVisitorIds,
+        visitors_present: visitorsPresent,
         phase: phase || null,
         lost_members: lostMembers.length > 0 ? lostMembers : null,
       },
@@ -444,6 +529,8 @@ export function CellReports() {
     setPhase("");
     setSelectedMemberIds([]);
     setSelectedVisitorIds([]);
+    setNewVisitorNames([]);
+    setVisitorNameInput("");
     setLostMembers([]);
 
     toast({ title: "Sucesso", description: "Relatório criado com sucesso!" });
@@ -461,12 +548,40 @@ export function CellReports() {
     setPhase(report.phase);
     setSelectedMemberIds(report.members.map((m) => m.id));
     setSelectedVisitorIds(report.frequentadores.map((f) => f.id));
+    setNewVisitorNames([]);
+    setVisitorNameInput("");
     setLostMembers(report.lostMembers || []);
     setIsEditDialogOpen(true);
   };
 
   const handleUpdateReport = async () => {
     if (!user || !editingReport) return;
+
+    // Visitantes avulsos adicionados na edição também viram frequentadores
+    let visitorsPresent = [...selectedVisitorIds];
+    if (newVisitorNames.length > 0) {
+      const { data: createdVisitors, error: visitorsError } = await supabase
+        .from("members")
+        .insert(
+          newVisitorNames.map((name) => ({
+            name,
+            lider_id: editingReport.liderId,
+            type: "frequentador",
+            active: true,
+          })),
+        )
+        .select("id");
+
+      if (visitorsError) {
+        toast({
+          title: "Erro",
+          description: "Não foi possível adicionar os visitantes.",
+          variant: "destructive",
+        });
+        return;
+      }
+      visitorsPresent = [...visitorsPresent, ...(createdVisitors ?? []).map((v) => v.id)];
+    }
 
     const { error } = await supabase
       .from("cell_reports")
@@ -475,7 +590,7 @@ export function CellReports() {
         multiplication_date: multiplicationDate || null,
         observations: observations || null,
         members_present: selectedMemberIds,
-        visitors_present: selectedVisitorIds,
+        visitors_present: visitorsPresent,
         phase: phase || null,
         lost_members: lostMembers.length > 0 ? lostMembers : null,
       })
@@ -500,6 +615,8 @@ export function CellReports() {
     setPhase(_);
     setSelectedMemberIds([]);
     setSelectedVisitorIds([]);
+    setNewVisitorNames([]);
+    setVisitorNameInput("");
     setLostMembers([]);
 
     toast({ title: "Sucesso", description: "Relatório atualizado com sucesso!" });
@@ -631,7 +748,7 @@ Observações: ${report.observations || ""}`;
                 <Label>Membros Presentes</Label>
                 <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
                   {memberOptions.map((m) => (
-                    <div key={m.id} className="flex items-center space-x-2">
+                    <div key={m.id} className="flex items-center space-x-2 py-2 px-1 rounded-md hover:bg-muted/50 active:bg-muted transition-colors">
                       <Checkbox
                         id={`member-${m.id}`}
                         checked={selectedMemberIds.includes(m.id)}
@@ -643,7 +760,7 @@ Observações: ${report.observations || ""}`;
                           )
                         }
                       />
-                      <label htmlFor={`member-${m.id}`} className="text-sm">
+                      <label htmlFor={`member-${m.id}`} className="text-sm flex-1 cursor-pointer">
                         {m.name}
                       </label>
                     </div>
@@ -654,7 +771,7 @@ Observações: ${report.observations || ""}`;
                 <Label>Frequentadores Presentes</Label>
                 <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
                   {visitorOptions.map((v) => (
-                    <div key={v.id} className="flex items-center space-x-2">
+                    <div key={v.id} className="flex items-center space-x-2 py-2 px-1 rounded-md hover:bg-muted/50 active:bg-muted transition-colors">
                       <Checkbox
                         id={`visitor-${v.id}`}
                         checked={selectedVisitorIds.includes(v.id)}
@@ -666,13 +783,14 @@ Observações: ${report.observations || ""}`;
                           )
                         }
                       />
-                      <label htmlFor={`visitor-${v.id}`} className="text-sm">
+                      <label htmlFor={`visitor-${v.id}`} className="text-sm flex-1 cursor-pointer">
                         {v.name}
                       </label>
                     </div>
                   ))}
                 </div>
               </div>
+              {renderNewVisitorsSection()}
               <div>
                 <Label>Perdidos</Label>
                 <p className="text-xs text-muted-foreground mb-2">
@@ -890,7 +1008,7 @@ Observações: ${report.observations || ""}`;
                 <Label>Membros Presentes</Label>
                 <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
                   {memberOptions.map((m) => (
-                    <div key={m.id} className="flex items-center space-x-2">
+                    <div key={m.id} className="flex items-center space-x-2 py-2 px-1 rounded-md hover:bg-muted/50 active:bg-muted transition-colors">
                       <Checkbox
                         id={`edit-member-${m.id}`}
                         checked={selectedMemberIds.includes(m.id)}
@@ -902,7 +1020,7 @@ Observações: ${report.observations || ""}`;
                           )
                         }
                       />
-                      <label htmlFor={`edit-member-${m.id}`} className="text-sm">
+                      <label htmlFor={`edit-member-${m.id}`} className="text-sm flex-1 cursor-pointer">
                         {m.name}
                       </label>
                     </div>
@@ -913,7 +1031,7 @@ Observações: ${report.observations || ""}`;
                 <Label>Frequentadores Presentes</Label>
                 <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
                   {visitorOptions.map((v) => (
-                    <div key={v.id} className="flex items-center space-x-2">
+                    <div key={v.id} className="flex items-center space-x-2 py-2 px-1 rounded-md hover:bg-muted/50 active:bg-muted transition-colors">
                       <Checkbox
                         id={`edit-visitor-${v.id}`}
                         checked={selectedVisitorIds.includes(v.id)}
@@ -925,13 +1043,14 @@ Observações: ${report.observations || ""}`;
                           )
                         }
                       />
-                      <label htmlFor={`edit-visitor-${v.id}`} className="text-sm">
+                      <label htmlFor={`edit-visitor-${v.id}`} className="text-sm flex-1 cursor-pointer">
                         {v.name}
                       </label>
                     </div>
                   ))}
                 </div>
               </div>
+              {renderNewVisitorsSection()}
               <div>
                 <Label>Fase da Célula</Label>
                 <Select value={phase} onValueChange={setPhase}>
@@ -1332,7 +1451,7 @@ Observações: ${report.observations || ""}`;
                   <Label>Membros Presentes</Label>
                   <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
                     {memberOptions.map((m) => (
-                      <div key={m.id} className="flex items-center space-x-2">
+                      <div key={m.id} className="flex items-center space-x-2 py-2 px-1 rounded-md hover:bg-muted/50 active:bg-muted transition-colors">
                         <Checkbox
                           id={`edit-member-view-${m.id}`}
                           checked={selectedMemberIds.includes(m.id)}
@@ -1344,7 +1463,7 @@ Observações: ${report.observations || ""}`;
                             )
                           }
                         />
-                        <label htmlFor={`edit-member-view-${m.id}`} className="text-sm">
+                        <label htmlFor={`edit-member-view-${m.id}`} className="text-sm flex-1 cursor-pointer">
                           {m.name}
                         </label>
                       </div>
@@ -1355,7 +1474,7 @@ Observações: ${report.observations || ""}`;
                   <Label>Frequentadores Presentes</Label>
                   <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
                     {visitorOptions.map((v) => (
-                      <div key={v.id} className="flex items-center space-x-2">
+                      <div key={v.id} className="flex items-center space-x-2 py-2 px-1 rounded-md hover:bg-muted/50 active:bg-muted transition-colors">
                         <Checkbox
                           id={`edit-visitor-view-${v.id}`}
                           checked={selectedVisitorIds.includes(v.id)}
@@ -1367,13 +1486,14 @@ Observações: ${report.observations || ""}`;
                             )
                           }
                         />
-                        <label htmlFor={`edit-visitor-view-${v.id}`} className="text-sm">
+                        <label htmlFor={`edit-visitor-view-${v.id}`} className="text-sm flex-1 cursor-pointer">
                           {v.name}
                         </label>
                       </div>
                     ))}
                   </div>
                 </div>
+                {renderNewVisitorsSection()}
                 <div>
                   <Label>Fase da Célula</Label>
                   <Select value={phase} onValueChange={setPhase}>
@@ -1528,7 +1648,7 @@ Observações: ${report.observations || ""}`;
                 <Label>Membros Presentes</Label>
                 <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
                   {memberOptions.map((m) => (
-                    <div key={m.id} className="flex items-center space-x-2">
+                    <div key={m.id} className="flex items-center space-x-2 py-2 px-1 rounded-md hover:bg-muted/50 active:bg-muted transition-colors">
                       <Checkbox
                         id={`member-${m.id}`}
                         checked={selectedMemberIds.includes(m.id)}
@@ -1540,7 +1660,7 @@ Observações: ${report.observations || ""}`;
                           )
                         }
                       />
-                      <label htmlFor={`member-${m.id}`} className="text-sm">
+                      <label htmlFor={`member-${m.id}`} className="text-sm flex-1 cursor-pointer">
                         {m.name}
                       </label>
                     </div>
@@ -1551,7 +1671,7 @@ Observações: ${report.observations || ""}`;
                 <Label>Frequentadores Presentes</Label>
                 <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
                   {visitorOptions.map((v) => (
-                    <div key={v.id} className="flex items-center space-x-2">
+                    <div key={v.id} className="flex items-center space-x-2 py-2 px-1 rounded-md hover:bg-muted/50 active:bg-muted transition-colors">
                       <Checkbox
                         id={`visitor-${v.id}`}
                         checked={selectedVisitorIds.includes(v.id)}
@@ -1563,13 +1683,14 @@ Observações: ${report.observations || ""}`;
                           )
                         }
                       />
-                      <label htmlFor={`visitor-${v.id}`} className="text-sm">
+                      <label htmlFor={`visitor-${v.id}`} className="text-sm flex-1 cursor-pointer">
                         {v.name}
                       </label>
                     </div>
                   ))}
                 </div>
               </div>
+              {renderNewVisitorsSection()}
               <div>
                 <Label>Fase da Célula</Label>
                 <Select value={phase} onValueChange={setPhase}>
@@ -1639,7 +1760,7 @@ Observações: ${report.observations || ""}`;
                 <Label>Membros Presentes</Label>
                 <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
                   {memberOptions.map((m) => (
-                    <div key={m.id} className="flex items-center space-x-2">
+                    <div key={m.id} className="flex items-center space-x-2 py-2 px-1 rounded-md hover:bg-muted/50 active:bg-muted transition-colors">
                       <Checkbox
                         id={`edit-member-${m.id}`}
                         checked={selectedMemberIds.includes(m.id)}
@@ -1651,7 +1772,7 @@ Observações: ${report.observations || ""}`;
                           )
                         }
                       />
-                      <label htmlFor={`edit-member-${m.id}`} className="text-sm">
+                      <label htmlFor={`edit-member-${m.id}`} className="text-sm flex-1 cursor-pointer">
                         {m.name}
                       </label>
                     </div>
@@ -1663,7 +1784,7 @@ Observações: ${report.observations || ""}`;
                 <Label>Frequentadores Presentes</Label>
                 <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
                   {visitorOptions.map((v) => (
-                    <div key={v.id} className="flex items-center space-x-2">
+                    <div key={v.id} className="flex items-center space-x-2 py-2 px-1 rounded-md hover:bg-muted/50 active:bg-muted transition-colors">
                       <Checkbox
                         id={`edit-visitor-${v.id}`}
                         checked={selectedVisitorIds.includes(v.id)}
@@ -1675,13 +1796,14 @@ Observações: ${report.observations || ""}`;
                           )
                         }
                       />
-                      <label htmlFor={`edit-visitor-${v.id}`} className="text-sm">
+                      <label htmlFor={`edit-visitor-${v.id}`} className="text-sm flex-1 cursor-pointer">
                         {v.name}
                       </label>
                     </div>
                   ))}
                 </div>
               </div>
+              {renderNewVisitorsSection()}
 
               <div>
                 <Label>Perdidos</Label>

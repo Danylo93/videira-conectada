@@ -1,16 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { getPastorScopeId } from "@/types/auth";
 import { useProfileMode, type ProfileMode } from "@/contexts/ProfileModeContext";
 import { applyProfileScope } from "@/lib/profileScope";
 import { supabase } from "@/integrations/supabase/client";
 import { eventsService } from "@/integrations/supabase/events";
 import FancyLoader from "@/components/FancyLoader";
 import { useStatistics } from "@/hooks/useStatistics";
-import { useToast } from "@/hooks/use-toast";
 import type { Event } from "@/types/event";
-import { formatDateBR, formatDateBRLong, formatDateShort, formatDateMedium, getWeekStartDate, isWeeklyRemindersAllowed } from "@/lib/dateUtils";
+import { formatDateBR, formatDateBRLong, formatDateShort, formatDateMedium } from "@/lib/dateUtils";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,8 +31,6 @@ import {
   XCircle,
   type LucideIcon,
   Grape,
-  Send,
-  Bell,
   Flame,
 } from "lucide-react";
 import logoVideira from "@/assets/logo-videira.png";
@@ -200,340 +196,12 @@ const MonthCalendar = ({ events }: { events: Event[] }) => {
   );
 };
 
-// Componente para botão de enviar lembretes
-function SendWeeklyRemindersButton({
-  pastorId,
-  mode = 'normal',
-  onSuccess,
-  onError
-}: {
-  pastorId: string;
-  mode?: ProfileMode;
-  onSuccess?: (result: { sent: number; failed: number; pending: number; leaders: Array<{ id: string; name: string }> }) => void;
-  onError?: (error: string) => void;
-}) {
-  const isKids = mode === 'kids';
-  const isRadicais = mode === 'radicais';
-  const [sending, setSending] = useState(false);
-  const [checkingStatus, setCheckingStatus] = useState(true);
-  const [allReportsSubmitted, setAllReportsSubmitted] = useState(false);
-  const [pendingCount, setPendingCount] = useState(0);
-  const { toast } = useToast();
-
-  // Chave única para localStorage baseada no pastorId e modo (normal/kids/radicais)
-  const storageKey = `lastReminderSent_${pastorId}_${mode}`;
-  
-  // Verificar período permitido
-  const periodCheck = isWeeklyRemindersAllowed();
-  const [isPeriodAllowed, setIsPeriodAllowed] = useState(periodCheck.isAllowed);
-  const [periodMessage, setPeriodMessage] = useState(periodCheck.message);
-  
-  // Resetar contador (limpar localStorage)
-  const resetCounter = () => {
-    localStorage.removeItem(storageKey);
-    setIsDisabled(false);
-    setTimeRemaining("");
-    toast({
-      title: "Contador resetado",
-      description: "Você pode enviar lembretes agora. O contador de 8 horas começará após o próximo envio.",
-      duration: 3000,
-    });
-  };
-  
-  // Verificar se pode enviar (8 horas desde o último envio E período permitido)
-  const canSend = (): boolean => {
-    // Primeiro verificar se está no período permitido
-    if (!isPeriodAllowed) return false;
-    
-    const lastSent = localStorage.getItem(storageKey);
-    if (!lastSent) return true;
-    
-    const lastSentTime = parseInt(lastSent, 10);
-    const now = Date.now();
-    const eightHoursInMs = 8 * 60 * 60 * 1000; // 8 horas em milissegundos
-    
-    return (now - lastSentTime) >= eightHoursInMs;
-  };
-
-  // Calcular tempo restante até poder enviar novamente
-  const getTimeRemaining = (): string => {
-    const lastSent = localStorage.getItem(storageKey);
-    if (!lastSent) return "";
-    
-    const lastSentTime = parseInt(lastSent, 10);
-    const now = Date.now();
-    const eightHoursInMs = 8 * 60 * 60 * 1000;
-    const timeRemaining = eightHoursInMs - (now - lastSentTime);
-    
-    if (timeRemaining <= 0) return "";
-    
-    const hours = Math.floor(timeRemaining / (60 * 60 * 1000));
-    const minutes = Math.floor((timeRemaining % (60 * 60 * 1000)) / (60 * 1000));
-    
-    return `${hours}h ${minutes}min`;
-  };
-
-  const [isDisabled, setIsDisabled] = useState(!canSend());
-  const [timeRemaining, setTimeRemaining] = useState(getTimeRemaining());
-  
-  // Atualizar verificação de período periodicamente
-  useEffect(() => {
-    const checkPeriod = () => {
-      const check = isWeeklyRemindersAllowed();
-      setIsPeriodAllowed(check.isAllowed);
-      setPeriodMessage(check.message);
-    };
-    
-    checkPeriod();
-    // Verificar a cada minuto
-    const periodInterval = setInterval(checkPeriod, 60000);
-    
-    return () => clearInterval(periodInterval);
-  }, []);
-
-  // Verificar status dos relatórios semanais
-  useEffect(() => {
-    const checkReportsStatus = async () => {
-      setCheckingStatus(true);
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
-
-        // Calcular início da semana (segunda-feira) usando a função utilitária
-        const today = new Date();
-        const monday = getWeekStartDate(today);
-        const weekStartDate = monday.toISOString().split("T")[0];
-
-        // Chamar edge function para verificar status
-        const { data, error } = await supabase.functions.invoke('weekly-reports-status', {
-          body: {
-            pastor_id: pastorId,
-            is_kids: isKids,
-            is_radicais: isRadicais,
-            date: weekStartDate,
-            base_url: 'https://videirasaomiguel.vercel.app',
-          },
-        });
-
-        if (error) {
-          console.error('Erro ao verificar status:', error);
-          return;
-        }
-
-        // Verificar quantos líderes não preencheram
-        const pending = (data || []).filter((leader: any) => !leader.hasReport);
-        setPendingCount(pending.length);
-        setAllReportsSubmitted(pending.length === 0);
-      } catch (error) {
-        console.error('Erro ao verificar status dos relatórios:', error);
-      } finally {
-        setCheckingStatus(false);
-      }
-    };
-
-    checkReportsStatus();
-    // Verificar a cada 5 minutos
-    const statusInterval = setInterval(checkReportsStatus, 5 * 60 * 1000);
-
-    return () => clearInterval(statusInterval);
-  }, [pastorId, mode]);
-
-  // Atualizar estado do botão periodicamente
-  useEffect(() => {
-    const checkInterval = setInterval(() => {
-      const canSendNow = canSend();
-      setIsDisabled(!canSendNow);
-      setTimeRemaining(getTimeRemaining());
-      
-      // Atualizar verificação de período também
-      const check = isWeeklyRemindersAllowed();
-      setIsPeriodAllowed(check.isAllowed);
-      setPeriodMessage(check.message);
-    }, 60000); // Verificar a cada minuto
-
-    return () => clearInterval(checkInterval);
-  }, [storageKey]);
-
-  const handleSendReminders = async () => {
-    // Verificar período permitido primeiro
-    if (!isPeriodAllowed) {
-      toast({
-        title: "Período não permitido",
-        description: periodMessage,
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    if (!canSend()) {
-      toast({
-        title: "Aguarde",
-        description: `Você pode enviar lembretes novamente em ${timeRemaining}`,
-        variant: "default",
-      });
-      return;
-    }
-
-    setSending(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error("Não autenticado");
-      }
-
-      // Usar supabase.functions.invoke para chamar a edge function
-      const { data, error } = await supabase.functions.invoke('send-weekly-reminders', {
-        body: {
-          pastorId,
-          isKids,
-          isRadicais,
-          sendViaWhatsApp: true,
-          sendViaEmail: false,
-        },
-      });
-
-      if (error) {
-        throw new Error(error.message || "Erro ao enviar lembretes");
-      }
-
-      // Salvar timestamp do envio
-      localStorage.setItem(storageKey, Date.now().toString());
-      setIsDisabled(true);
-      setTimeRemaining(getTimeRemaining());
-
-      // Mostrar toast com os líderes que receberam lembretes
-      const leaders = data?.leaders || [];
-      if (leaders.length > 0) {
-        const leaderNames = leaders.map((l: { name: string }) => l.name).join(", ");
-        toast({
-          title: "Lembretes enviados!",
-          description: `Enviados para: ${leaderNames}`,
-          duration: 8000, // 8 segundos para dar tempo de ler
-        });
-      }
-
-      if (onSuccess && data) {
-        onSuccess({
-          sent: data.sent || 0,
-          failed: data.failed || 0,
-          pending: data.pending || 0,
-          leaders: leaders,
-        });
-      }
-
-      // Atualizar status após envio
-      const { data: statusData } = await supabase.functions.invoke('weekly-reports-status', {
-        body: {
-          pastor_id: pastorId,
-          is_kids: isKids,
-          is_radicais: isRadicais,
-          date: new Date().toISOString().split('T')[0],
-          base_url: 'https://videirasaomiguel.vercel.app',
-        },
-      });
-      
-      const pending = (statusData || []).filter((leader: any) => !leader.hasReport);
-      setPendingCount(pending.length);
-      setAllReportsSubmitted(pending.length === 0);
-
-      // Atualizar dados do dashboard
-      window.location.reload();
-    } catch (error: any) {
-      const errorMessage = error.message || "Erro desconhecido ao enviar lembretes";
-      if (onError) {
-        onError(errorMessage);
-      }
-    } finally {
-      setSending(false);
-    }
-  };
-
-  // Se todos os relatórios foram preenchidos, mostrar mensagem
-  if (checkingStatus) {
-    return (
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <Clock className="w-4 h-4 animate-spin" />
-        <span className="text-sm">Verificando status...</span>
-      </div>
-    );
-  }
-
-  if (allReportsSubmitted) {
-    return (
-      <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
-        <CheckCircle className="w-5 h-5" />
-        <span className="font-medium">Relatórios em dia</span>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-2">
-      <div className="flex gap-2 flex-wrap">
-        <Button
-          onClick={handleSendReminders}
-          disabled={sending || isDisabled || !isPeriodAllowed}
-          className="flex-1 sm:flex-none"
-        >
-          {sending ? (
-            <>
-              <Clock className="w-4 h-4 mr-2 animate-spin" />
-              Enviando...
-            </>
-          ) : !isPeriodAllowed ? (
-            <>
-              <Clock className="w-4 h-4 mr-2" />
-              Período não permitido
-            </>
-          ) : isDisabled ? (
-            <>
-              <Clock className="w-4 h-4 mr-2" />
-              {timeRemaining ? `Aguarde ${timeRemaining}` : "Aguarde 8 horas"}
-            </>
-          ) : (
-            <>
-              <Send className="w-4 h-4 mr-2" />
-              Enviar Lembretes ({pendingCount} pendente{pendingCount !== 1 ? 's' : ''})
-            </>
-          )}
-        </Button>
-        {isDisabled && (
-          <Button
-            onClick={resetCounter}
-            variant="outline"
-            size="sm"
-            className="text-xs"
-            title="Resetar contador e permitir envio imediato"
-          >
-            Resetar
-          </Button>
-        )}
-      </div>
-      {isDisabled && timeRemaining && (
-        <p className="text-xs text-muted-foreground">
-          Próximo envio disponível em {timeRemaining}
-        </p>
-      )}
-      {!isPeriodAllowed && (
-        <p className="text-xs text-amber-600 dark:text-amber-400">
-          {periodMessage}
-        </p>
-      )}
-      {isPeriodAllowed && !isDisabled && pendingCount > 0 && (
-        <p className="text-xs text-muted-foreground">
-          {pendingCount} líder{pendingCount !== 1 ? 'es' : ''} ainda não preenche{pendingCount !== 1 ? 'ram' : ''} o relatório desta semana
-        </p>
-      )}
-    </div>
-  );
-}
 
 export function Dashboard() {
   const { user } = useAuth();
   const { mode } = useProfileMode();
   const navigate = useNavigate();
   const { data: statistics, loading: statsLoading } = useStatistics();
-  const { toast } = useToast();
 
   const [loading, setLoading] = useState(true);
 
@@ -559,20 +227,6 @@ export function Dashboard() {
   } | null>(null);
   
   const [monthEvents, setMonthEvents] = useState<Event[]>([]);
-
-  // gráfico (semanal para pastor, mensal para outros)
-  const [weeklyRows, setWeeklyRows] = useState<
-    { name: string; members: number; frequentadores: number; total: number }[]
-  >([]);
-  const [monthlyRows, setMonthlyRows] = useState<
-    { name: string; members: number; visitors: number; total: number }[]
-  >([]);
-  
-  // Totais baseados em cell_reports_weekly para o gráfico de pizza (apenas para pastor)
-  const [weeklyTotals, setWeeklyTotals] = useState<{
-    totalMembers: number;
-    totalFrequentadores: number;
-  } | null>(null);
 
   // Novos dados para métricas avançadas
   const [alerts, setAlerts] = useState<Array<{
@@ -854,167 +508,6 @@ export function Dashboard() {
       }
 
       setRecentActivity(activity);
-
-      /* ---- CRESCIMENTO + MENSAL ---- */
-      const now = new Date();
-      const yearStart = new Date(now.getFullYear(), 0, 1);
-      const yearEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
-
-      if (isPastor && !isKidsMode) {
-        // Para pastor: usar cell_reports_weekly para dados semanais
-        let reportsQuery = supabase
-          .from("cell_reports_weekly")
-          .select("report_date,members_count,frequentadores_count,lider_id")
-          .gte("report_date", yearStart.toISOString().split('T')[0])
-          .lte("report_date", yearEnd.toISOString().split('T')[0]);
-
-        // Filtrar por líderes do modo correto (radicais ou normal)
-        if (isRadicaisMode) {
-          const { data: radicaisLeaders } = await applyProfileScope(
-            supabase.from("profiles").select("id").eq("role", "lider"),
-            mode,
-          );
-          const ids = (radicaisLeaders ?? []).map((l: { id: string }) => l.id);
-          reportsQuery = ids.length ? reportsQuery.in("lider_id", ids) : reportsQuery.eq("lider_id", "");
-        }
-
-        const { data: yearReports } = await reportsQuery;
-
-        type WeeklyReportRow = {
-          report_date: string;
-          members_count: number;
-          frequentadores_count: number;
-        };
-
-        // Agrupar por semana (sábado da semana)
-        const weekly = new Map<string, { members: number; frequentadores: number; total: number }>();
-        
-        // Calcular totais para o gráfico de pizza (somar todos os relatórios)
-        let totalMembersWeekly = 0;
-        let totalFrequentadoresWeekly = 0;
-        
-        ((yearReports as WeeklyReportRow[] | null) ?? []).forEach((r) => {
-          const reportDate = new Date(r.report_date);
-          const weekStart = getWeekStartDate(reportDate);
-          const weekKey = weekStart.toISOString().split('T')[0]; // YYYY-MM-DD (sábado da semana)
-          
-          const m = r.members_count || 0;
-          const v = r.frequentadores_count || 0;
-          const sum = m + v;
-          
-          // Somar para totais do gráfico de pizza
-          totalMembersWeekly += m;
-          totalFrequentadoresWeekly += v;
-          
-          if (!weekly.has(weekKey)) {
-            weekly.set(weekKey, { members: 0, frequentadores: 0, total: 0 });
-          }
-          
-          const current = weekly.get(weekKey)!;
-          weekly.set(weekKey, {
-            members: current.members + m,
-            frequentadores: current.frequentadores + v,
-            total: current.total + sum,
-          });
-        });
-        
-        // Salvar totais para o gráfico de pizza
-        setWeeklyTotals({
-          totalMembers: totalMembersWeekly,
-          totalFrequentadores: totalFrequentadoresWeekly,
-        });
-
-        // Formatar label da semana (segunda a domingo)
-        const weeklyRows = Array.from(weekly.entries())
-          .sort(([a], [b]) => (a < b ? -1 : 1))
-          .map(([key, v]) => {
-            const weekStart = new Date(key + 'T00:00:00');
-            const weekEnd = new Date(weekStart);
-            weekEnd.setDate(weekStart.getDate() + 6); // Domingo (segunda + 6 dias)
-            
-            // Formato: "17 de nov. - 23 de nov." (segunda a domingo)
-            // Usar métodos UTC para garantir o dia correto
-            const startYear = weekStart.getUTCFullYear();
-            const startMonth = weekStart.getUTCMonth();
-            const startDay = weekStart.getUTCDate();
-            
-            const endYear = weekEnd.getUTCFullYear();
-            const endMonth = weekEnd.getUTCMonth();
-            const endDay = weekEnd.getUTCDate();
-            
-            // Criar datas locais para formatação
-            const startDateLocal = new Date(startYear, startMonth, startDay);
-            const endDateLocal = new Date(endYear, endMonth, endDay);
-            
-            const startMonthStr = startDateLocal.toLocaleDateString('pt-BR', { month: 'short' });
-            const endMonthStr = endDateLocal.toLocaleDateString('pt-BR', { month: 'short' });
-            
-            // Se for o mesmo mês, mostrar apenas uma vez: "17 - 23 de nov."
-            // Se for meses diferentes, mostrar: "30 de nov. - 1 de dez."
-            const name = startMonthStr === endMonthStr 
-              ? `${startDay} - ${endDay} de ${startMonthStr}`
-              : `${startDay} de ${startMonthStr} - ${endDay} de ${endMonthStr}`;
-            
-            return { 
-              name, 
-              members: v.members,
-              frequentadores: v.frequentadores,
-              total: v.total,
-            };
-          });
-        setWeeklyRows(weeklyRows);
-      } else {
-        // Para outros: dados mensais (usar cell_reports_weekly também)
-        let reportsQuery = supabase
-          .from("cell_reports_weekly")
-          .select("report_date,members_count,frequentadores_count")
-          .gte("report_date", yearStart.toISOString().split('T')[0])
-          .lte("report_date", yearEnd.toISOString().split('T')[0]);
-
-        if (isLeader) {
-          reportsQuery = reportsQuery.eq("lider_id", user.id);
-        } else if (isDiscipulador) {
-          let leaderQuery = supabase
-            .from("profiles")
-            .select("id")
-            .eq("role", "lider")
-            .eq("discipulador_uuid", user.id);
-
-          leaderQuery = applyProfileScope(leaderQuery, mode);
-
-          const { data: leaderIds } = await leaderQuery;
-          const ids = (leaderIds ?? []).map((l: { id: string }) => l.id);
-          reportsQuery = ids.length ? reportsQuery.in("lider_id", ids) : reportsQuery.eq("lider_id", "");
-        }
-
-        const { data: yearReports } = await reportsQuery;
-
-        type WeeklyReportRow = {
-          report_date: string;
-          members_count: number;
-          frequentadores_count: number;
-        };
-
-        const monthly = new Map<string, { members: number; visitors: number; total: number }>();
-
-        ((yearReports as WeeklyReportRow[] | null) ?? []).forEach((r) => {
-          const d = new Date(r.report_date);
-          const key = monthKeyOf(d);
-          const m = r.members_count || 0;
-          const v = r.frequentadores_count || 0;
-          const sum = m + v;
-          monthly.set(key, {
-            members: (monthly.get(key)?.members ?? 0) + m,
-            visitors: (monthly.get(key)?.visitors ?? 0) + v,
-            total: (monthly.get(key)?.total ?? 0) + sum,
-          });
-        });
-
-        const rows = Array.from(monthly.entries())
-          .sort(([a], [b]) => (a < b ? -1 : 1))
-          .map(([key, v]) => ({ name: labelMonth(key), ...v }));
-        setMonthlyRows(rows);
-      }
 
       /* ---- DADOS PARA DASHBOARD MELHORADO (MODO NORMAL - PASTOR) ---- */
       if (isPastor && !isKidsMode) {
@@ -1493,37 +986,6 @@ export function Dashboard() {
         )}
       </div>
 
-      {/* Card de Lembretes de Relatórios Semanais (apenas para pastor) */}
-      {isPastor && (
-        <Card className="border-l-4 border-l-blue-500">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Bell className="w-5 h-5 text-blue-500" />
-              Lembretes de Relatórios Semanais
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Envie lembretes automáticos via WhatsApp para líderes que ainda não preencheram o relatório semanal desta semana.
-              </p>
-              <SendWeeklyRemindersButton
-                pastorId={getPastorScopeId(user)} 
-                mode={mode}
-                onError={(error) => {
-                  toast({
-                    title: "Erro ao enviar lembretes",
-                    description: error,
-                    variant: "destructive",
-                  });
-                }}
-              />
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      
       {/* Gráficos e Visualizações */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {isRadicaisMode ? (
@@ -1660,67 +1122,16 @@ export function Dashboard() {
         ) : (
           /* ===== GRÁFICOS DO MODO NORMAL / KIDS ===== */
           <>
-        {/* Gráfico de Presenças (Semanal para Pastor, Mensal para outros) */}
+        {/* Gráfico de Presenças Mensais */}
         <Card className={`${isKidsMode ? 'hover:shadow-lg hover:shadow-pink-100 border-pink-200' : 'hover:grape-glow'} transition-smooth`}>
           <CardHeader className="pb-2">
             <CardTitle className={`flex items-center gap-2 ${isKidsMode ? 'text-pink-700' : ''}`}>
               <TrendingUp className={`w-5 h-5 ${isKidsMode ? 'text-pink-500' : 'text-primary'}`} />
-              {isPastor && !isKidsMode ? "Presenças Semanais" : "Presenças Mensais"}
+              Presenças Mensais
             </CardTitle>
           </CardHeader>
           <CardContent className="h-[300px]">
-            {isPastor && !isKidsMode ? (
-              // Dados semanais para pastor
-              weeklyRows.length === 0 ? (
-                <div className="flex items-center justify-center h-full">
-                  <p className="text-center text-muted-foreground">Sem dados para exibir.</p>
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={weeklyRows.slice(-12)}>
-                  <defs>
-                    <linearGradient id={isKidsMode ? "gradTotalKids" : "gradTotal"} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={isKidsMode ? "#ec4899" : "var(--primary)"} stopOpacity={0.4} />
-                      <stop offset="100%" stopColor={isKidsMode ? "#ec4899" : "var(--primary)"} stopOpacity={0.06} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-45} textAnchor="end" height={60} />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Area
-                    type="monotone"
-                    dataKey="total"
-                    name="Total"
-                    fill={`url(#${isKidsMode ? "gradTotalKids" : "gradTotal"})`}
-                    stroke={isKidsMode ? "#ec4899" : "var(--primary)"}
-                    strokeWidth={2}
-                    isAnimationActive
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="members"
-                    name="Membros"
-                    stroke={isKidsMode ? "#a855f7" : "#7c3aed"}
-                    strokeWidth={2}
-                    dot
-                    isAnimationActive
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="frequentadores"
-                    name="Frequentadores"
-                    stroke={isKidsMode ? "#f472b6" : "#f59e0b"}
-                    strokeWidth={2}
-                    dot
-                    isAnimationActive
-                  />
-                </ComposedChart>
-              </ResponsiveContainer>
-              )
-            ) : (
-              // Dados mensais para outros
+            {(
               !statistics?.monthlyData || statistics.monthlyData.length === 0 ? (
                 <div className="flex items-center justify-center h-full">
                   <p className="text-center text-muted-foreground">Sem dados para exibir.</p>
@@ -1787,30 +1198,7 @@ export function Dashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="h-[300px]">
-            {isPastor && !isKidsMode && weeklyTotals ? (
-              // Para pastor: usar dados de cell_reports_weekly
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={[
-                      { name: 'Membros', value: weeklyTotals.totalMembers, color: isKidsMode ? '#a855f7' : '#7c3aed' },
-                      { name: 'Frequentadores', value: weeklyTotals.totalFrequentadores, color: isKidsMode ? '#f472b6' : '#f59e0b' },
-                    ]}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    dataKey="value"
-                    label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
-                  >
-                    {[{ name: 'Membros', value: weeklyTotals.totalMembers, color: isKidsMode ? '#a855f7' : '#7c3aed' },
-                      { name: 'Frequentadores', value: weeklyTotals.totalFrequentadores, color: isKidsMode ? '#f472b6' : '#f59e0b' }].map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : !statistics ? (
+            {!statistics ? (
               <div className="flex items-center justify-center h-full">
                 <p className="text-center text-muted-foreground">Carregando dados...</p>
               </div>

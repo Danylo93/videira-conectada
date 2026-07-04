@@ -26,9 +26,6 @@ const CellManagement = named(() => import("@/pages/CellManagement"), "CellManage
 const LeaderManagement = named(() => import("@/pages/LeaderManagement"), "LeaderManagement");
 const DiscipuladorManagement = named(() => import("@/pages/DiscipuladorManagement"), "DiscipuladorManagement");
 const CellReports = named(() => import("@/pages/CellReports"), "CellReports");
-const CellReportsWeekly = named(() => import("@/pages/CellReportsWeekly"), "CellReportsWeekly");
-const PublicWeeklyReport = named(() => import("@/pages/PublicWeeklyReport"), "PublicWeeklyReport");
-const PublicWeeklyReportsDashboard = named(() => import("@/pages/PublicWeeklyReportsDashboard"), "PublicWeeklyReportsDashboard");
 const PublicDizimistaRegistration = named(() => import("@/pages/PublicDizimistaRegistration"), "PublicDizimistaRegistration");
 const PublicDizimistasView = named(() => import("@/pages/PublicDizimistasView"), "PublicDizimistasView");
 const PublicBatismoRegistration = named(() => import("@/pages/PublicBatismoRegistration"), "PublicBatismoRegistration");
@@ -186,18 +183,6 @@ function AppContent() {
         }
       />
       <Route
-        path="/preencher-relatorio"
-        element={<PublicWeeklyReport />}
-      />
-      <Route
-        path="/dashboard-relatorios-semanais/:pastorId"
-        element={<PublicWeeklyReportsDashboard />}
-      />
-      <Route
-        path="/dashboard-relatorios-semanais/:pastorId/:mode"
-        element={<PublicWeeklyReportsDashboard />}
-      />
-      <Route
         path="/cadastro-dizimista"
         element={<PublicDizimistaRegistration />}
       />
@@ -259,7 +244,6 @@ function AppContent() {
         <Route path="/lideres" element={<LeaderManagement />} />
         <Route path="/discipuladores" element={<DiscipuladorManagement />} />
         <Route path="/relatorios" element={<ReportsRouter />} />
-        <Route path="/relatorios-semanal" element={<CellReportsWeekly />} />
         <Route path="/relatorios-culto" element={<ServiceReports />} />
         <Route path="/cursos" element={<Courses />} />            {/* <- agora aponta pro roteador por papel */}
         <Route path="/admin-cursos" element={<CourseAdminNew />} />  {/* <- admin do Pastor direto */}

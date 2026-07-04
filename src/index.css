@@ -329,6 +329,13 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
+  html, body {
+    /* Rede de segurança em mobile: impede que um elemento largo demais
+       crie rolagem horizontal indesejada na página inteira. */
+    overflow-x: hidden;
+    width: 100%;
+  }
+
   body {
     @apply bg-background text-foreground font-inter;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
@@ -466,10 +473,12 @@ All colors MUST be HSL.
   }
 }
 
+/* Animações do FancyLoader — desativadas a pedido do usuário (comentadas,
+   não removidas, para reativação fácil se desejado no futuro).
+
 @keyframes spin-slow { to { transform: rotate(360deg); } }
 .animate-spin-slow { animation: spin-slow 3.5s linear infinite; }
 
-/* animations usadas no loader */
 @keyframes loader-bar {
   0% { transform: translateX(-100%); }
   50% { transform: translateX(50%); }
@@ -477,6 +486,7 @@ All colors MUST be HSL.
 }
 .animate-loader-bar { animation: loader-bar 1.6s infinite; }
 .animate-spin-slow { animation: spin 2.5s linear infinite; }
+*/
 
 /* Mobile optimizations */
 @layer utilities {

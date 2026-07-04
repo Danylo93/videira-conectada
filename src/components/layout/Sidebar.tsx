@@ -65,14 +65,8 @@ const navigationItems: NavigationItem[] = [
     roles: ['pastor'],
   },
   {
-    title: 'Relatório de Célula Mensal',
+    title: 'Relatórios',
     url: '/relatorios',
-    icon: FileText,
-    roles: ['pastor', 'obreiro', 'discipulador', 'lider'],
-  },
-  {
-    title: 'Relatório de Célula Semanal',
-    url: '/relatorios-semanal',
     icon: FileText,
     roles: ['pastor', 'obreiro', 'discipulador', 'lider'],
   },
@@ -180,16 +174,25 @@ export function Sidebar() {
   const isKidsMode = mode === 'kids';
   const config = getProfileModeConfig(mode);
 
+  // Navegação enxuta para líderes: apenas o essencial do dia a dia
+  const LIDER_ALLOWED_URLS = ['/', '/celula', '/relatorios'];
+
   const filteredItems = navigationItems.filter(item => {
     // Verifica se o item está disponível para o role do usuário
     const hasRoleAccess = item.roles.includes(user.role);
-    
+
     // Se for item financeiro (Financeiro ou Dizimistas), verifica também se é tesoureiro
     const isFinancialItem = item.url === '/financeiro' || item.url === '/dizimistas';
     const hasTesoureiroAccess = isFinancialItem && user.isTesoureiro === true;
-    
+
     if (!hasRoleAccess && !hasTesoureiroAccess) return false;
-    
+
+    // Líder vê somente: Dashboard, Minha Célula e Relatórios
+    // (tesoureiro mantém acesso aos itens financeiros)
+    if (user.role === 'lider' && !LIDER_ALLOWED_URLS.includes(item.url) && !hasTesoureiroAccess) {
+      return false;
+    }
+
     // Filtra por modo Kids
     if (isKidsMode) {
       // No modo Kids, mostra apenas itens sem kidsMode ou com kidsMode === true
@@ -198,7 +201,7 @@ export function Sidebar() {
       // No modo normal, mostra apenas itens sem kidsMode ou com kidsMode === false
       if (item.kidsMode === true) return false;
     }
-    
+
     return true;
   }).map(item => {
     // Renomeia "Relatórios de Culto" para "Domingo Kids" no modo Kids
@@ -208,9 +211,12 @@ export function Sidebar() {
     return item;
   });
 
-  const filteredAccountItems = accountItems.filter(item =>
-    item.roles.includes(user.role)
-  );
+  const filteredAccountItems = accountItems.filter(item => {
+    if (!item.roles.includes(user.role)) return false;
+    // Líder: apenas Perfil na seção de conta
+    if (user.role === 'lider' && item.url !== '/perfil') return false;
+    return true;
+  });
 
   const isActive = (path: string) => location.pathname === path;
 
