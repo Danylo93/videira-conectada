@@ -746,7 +746,7 @@ Observações: ${report.observations || ""}`;
               </div>
               <div>
                 <Label>Membros Presentes</Label>
-                <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
+                <div className="border rounded p-2 max-h-56 sm:max-h-64 overflow-y-auto space-y-2">
                   {memberOptions.map((m) => (
                     <div key={m.id} className="flex items-center space-x-2 py-2 px-1 rounded-md hover:bg-muted/50 active:bg-muted transition-colors">
                       <Checkbox
@@ -769,7 +769,7 @@ Observações: ${report.observations || ""}`;
               </div>
               <div>
                 <Label>Frequentadores Presentes</Label>
-                <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
+                <div className="border rounded p-2 max-h-56 sm:max-h-64 overflow-y-auto space-y-2">
                   {visitorOptions.map((v) => (
                     <div key={v.id} className="flex items-center space-x-2 py-2 px-1 rounded-md hover:bg-muted/50 active:bg-muted transition-colors">
                       <Checkbox
@@ -1006,7 +1006,7 @@ Observações: ${report.observations || ""}`;
               </div>
               <div>
                 <Label>Membros Presentes</Label>
-                <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
+                <div className="border rounded p-2 max-h-56 sm:max-h-64 overflow-y-auto space-y-2">
                   {memberOptions.map((m) => (
                     <div key={m.id} className="flex items-center space-x-2 py-2 px-1 rounded-md hover:bg-muted/50 active:bg-muted transition-colors">
                       <Checkbox
@@ -1029,7 +1029,7 @@ Observações: ${report.observations || ""}`;
               </div>
               <div>
                 <Label>Frequentadores Presentes</Label>
-                <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
+                <div className="border rounded p-2 max-h-56 sm:max-h-64 overflow-y-auto space-y-2">
                   {visitorOptions.map((v) => (
                     <div key={v.id} className="flex items-center space-x-2 py-2 px-1 rounded-md hover:bg-muted/50 active:bg-muted transition-colors">
                       <Checkbox
@@ -1449,7 +1449,7 @@ Observações: ${report.observations || ""}`;
                 </div>
                 <div>
                   <Label>Membros Presentes</Label>
-                  <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
+                  <div className="border rounded p-2 max-h-56 sm:max-h-64 overflow-y-auto space-y-2">
                     {memberOptions.map((m) => (
                       <div key={m.id} className="flex items-center space-x-2 py-2 px-1 rounded-md hover:bg-muted/50 active:bg-muted transition-colors">
                         <Checkbox
@@ -1472,7 +1472,7 @@ Observações: ${report.observations || ""}`;
                 </div>
                 <div>
                   <Label>Frequentadores Presentes</Label>
-                  <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
+                  <div className="border rounded p-2 max-h-56 sm:max-h-64 overflow-y-auto space-y-2">
                     {visitorOptions.map((v) => (
                       <div key={v.id} className="flex items-center space-x-2 py-2 px-1 rounded-md hover:bg-muted/50 active:bg-muted transition-colors">
                         <Checkbox
@@ -1603,7 +1603,7 @@ Observações: ${report.observations || ""}`;
 
   // Código original para líderes
   return (
-    <div className="space-y-10 animate-fade-in pb-16">
+    <div className="space-y-6 sm:space-y-10 animate-fade-in pb-16">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-foreground">
@@ -1614,7 +1614,7 @@ Observações: ${report.observations || ""}`;
 
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="gradient-primary">
+            <Button className="gradient-primary w-full sm:w-auto min-h-[48px]">
               <Plus className="w-4 h-4 mr-2" />
               Novo Relatório
             </Button>
@@ -1646,7 +1646,7 @@ Observações: ${report.observations || ""}`;
               </div>
               <div>
                 <Label>Membros Presentes</Label>
-                <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
+                <div className="border rounded p-2 max-h-56 sm:max-h-64 overflow-y-auto space-y-2">
                   {memberOptions.map((m) => (
                     <div key={m.id} className="flex items-center space-x-2 py-2 px-1 rounded-md hover:bg-muted/50 active:bg-muted transition-colors">
                       <Checkbox
@@ -1669,7 +1669,7 @@ Observações: ${report.observations || ""}`;
               </div>
               <div>
                 <Label>Frequentadores Presentes</Label>
-                <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
+                <div className="border rounded p-2 max-h-56 sm:max-h-64 overflow-y-auto space-y-2">
                   {visitorOptions.map((v) => (
                     <div key={v.id} className="flex items-center space-x-2 py-2 px-1 rounded-md hover:bg-muted/50 active:bg-muted transition-colors">
                       <Checkbox
@@ -1758,7 +1758,7 @@ Observações: ${report.observations || ""}`;
 
               <div>
                 <Label>Membros Presentes</Label>
-                <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
+                <div className="border rounded p-2 max-h-56 sm:max-h-64 overflow-y-auto space-y-2">
                   {memberOptions.map((m) => (
                     <div key={m.id} className="flex items-center space-x-2 py-2 px-1 rounded-md hover:bg-muted/50 active:bg-muted transition-colors">
                       <Checkbox
@@ -1782,7 +1782,7 @@ Observações: ${report.observations || ""}`;
 
               <div>
                 <Label>Frequentadores Presentes</Label>
-                <div className="border rounded p-2 max-h-40 overflow-y-auto space-y-2">
+                <div className="border rounded p-2 max-h-56 sm:max-h-64 overflow-y-auto space-y-2">
                   {visitorOptions.map((v) => (
                     <div key={v.id} className="flex items-center space-x-2 py-2 px-1 rounded-md hover:bg-muted/50 active:bg-muted transition-colors">
                       <Checkbox

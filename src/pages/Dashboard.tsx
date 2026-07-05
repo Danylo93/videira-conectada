@@ -6,6 +6,8 @@ import { applyProfileScope } from "@/lib/profileScope";
 import { supabase } from "@/integrations/supabase/client";
 import { eventsService } from "@/integrations/supabase/events";
 import FancyLoader from "@/components/FancyLoader";
+import { LeaderAssistantCard } from "@/components/dashboard/LeaderAssistantCard";
+import { computeMonthlyTrend } from "@/lib/monthlyTrend";
 import { useStatistics } from "@/hooks/useStatistics";
 import type { Event } from "@/types/event";
 import { formatDateBR, formatDateBRLong, formatDateShort, formatDateMedium } from "@/lib/dateUtils";
@@ -204,6 +206,40 @@ export function Dashboard() {
   const { data: statistics, loading: statsLoading } = useStatistics();
 
   const [loading, setLoading] = useState(true);
+
+  // Período do gráfico de frequência das células
+  const [chartPeriod, setChartPeriod] = useState<"semanal" | "mensal">("semanal");
+
+  // Variação real da presença média: último mês vs mês anterior
+  const monthlyTrend = useMemo(
+    () => computeMonthlyTrend(statistics?.monthlyData ?? []),
+    [statistics],
+  );
+
+  // Linhas do gráfico: semanal agrega os relatórios por semana; mensal usa as médias
+  const chartRows = useMemo(() => {
+    if (chartPeriod === "mensal") {
+      return (statistics?.monthlyData ?? []).map((month) => ({
+        name: `${month.month} ${month.year}`,
+        members: month.averageMembers,
+        frequentadores: month.averageFrequentadores,
+        total: month.averageTotal,
+      }));
+    }
+    const byWeek = new Map<string, { members: number; frequentadores: number; total: number }>();
+    for (const w of statistics?.weeklyData ?? []) {
+      const cur = byWeek.get(w.weekStart) ?? { members: 0, frequentadores: 0, total: 0 };
+      byWeek.set(w.weekStart, {
+        members: cur.members + w.members,
+        frequentadores: cur.frequentadores + w.frequentadores,
+        total: cur.total + w.total,
+      });
+    }
+    return Array.from(byWeek.entries())
+      .sort(([a], [b]) => (a < b ? -1 : 1))
+      .slice(-12)
+      .map(([weekStart, v]) => ({ name: formatDateShort(weekStart), ...v }));
+  }, [chartPeriod, statistics]);
 
   // pendências / eventos
   const [pendingReports, setPendingReports] = useState(0);
@@ -472,7 +508,8 @@ export function Dashboard() {
           attendanceRate,
           reportCompliance,
           growthTarget: isPastor ? 20 : isDiscipulador ? 15 : 10,
-          currentGrowth: statistics.growthRate || 0,
+          // Crescimento do mês: presença média do mês atual vs mês anterior
+          currentGrowth: computeMonthlyTrend(statistics.monthlyData ?? []) ?? 0,
         });
       }
 
@@ -721,7 +758,7 @@ export function Dashboard() {
   return (
     <div className="space-y-6 animate-fade-in pb-12">
       {/* Saudação */}
-      <div className={`animate-scale-in ${isRadicaisMode ? 'bg-gradient-to-br from-orange-500 via-amber-500 to-orange-600' : isKidsMode ? 'bg-gradient-to-br from-pink-400 via-pink-500 to-purple-500' : 'gradient-primary'} rounded-2xl p-6 md:p-8 text-white relative overflow-hidden shadow-strong ${isKidsMode ? 'shadow-pink-200' : isRadicaisMode ? 'shadow-orange-200' : ''}`}>
+      <div className={`animate-scale-in ${isRadicaisMode ? 'bg-gradient-to-br from-orange-500 via-amber-500 to-orange-600' : isKidsMode ? 'bg-gradient-to-br from-pink-400 via-pink-500 to-purple-500' : 'gradient-primary'} rounded-2xl p-4 sm:p-6 md:p-8 text-white relative overflow-hidden shadow-strong ${isKidsMode ? 'shadow-pink-200' : isRadicaisMode ? 'shadow-orange-200' : ''}`}>
         <div className="relative z-10">
           <div className="flex items-center gap-3 md:gap-4 mb-2 md:mb-4">
             <div className={`w-14 h-14 md:w-16 md:h-16 bg-white ${isKidsMode ? 'rounded-full shadow-xl' : 'rounded-full'} flex items-center justify-center ${isKidsMode ? 'shadow-pink-300' : 'shadow-lg'}`}>
@@ -779,7 +816,7 @@ export function Dashboard() {
       )}
 
       {/* KPIs Principais */}
-      <div className={`stagger grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 ${gridColsDesktop} gap-4`}>
+      <div className={`stagger grid grid-cols-2 md:grid-cols-3 ${gridColsDesktop} gap-3 sm:gap-4`}>
         {isPastor ? (
           isRadicaisMode ? (
             /* Modo Radicais Livres — dados reais das células dos líderes radicais */
@@ -818,33 +855,29 @@ export function Dashboard() {
             </>
           ) : (
           <>
-            <KpiCard 
-              title={isKidsMode ? "Discipuladoras" : "Discipuladores"} 
-              value={statistics?.totalDiscipuladores || 0} 
-              icon={Users} 
+            <KpiCard
+              title={isKidsMode ? "Discipuladoras" : "Discipuladores"}
+              value={statistics?.totalDiscipuladores || 0}
+              icon={Users}
               subtitle={isKidsMode ? "Total no ministério kids" : "Total na igreja"}
-              trend={statistics?.networkData ? { value: 12, label: "vs mês anterior" } : undefined}
             />
-            <KpiCard 
-              title={isKidsMode ? "Células Kids" : "Células"} 
-              value={statistics?.totalLeaders || 0} 
-              icon={Users} 
+            <KpiCard
+              title={isKidsMode ? "Células Kids" : "Células"}
+              value={statistics?.totalLeaders || 0}
+              icon={Users}
               subtitle={isKidsMode ? "Total no ministério kids" : "Total na igreja"}
-              trend={statistics?.networkData ? { value: 8, label: "vs mês anterior" } : undefined}
             />
-            <KpiCard 
-              title="Membros" 
-              value={statistics?.totalMembers || 0} 
-              icon={Users} 
+            <KpiCard
+              title="Membros"
+              value={statistics?.totalMembers || 0}
+              icon={Users}
               subtitle="Ativos cadastrados"
-              trend={statistics?.networkData ? { value: 15, label: "vs mês anterior" } : undefined}
             />
-            <KpiCard 
-              title="Frequentadores" 
-              value={statistics?.totalFrequentadores || 0} 
-              icon={Users} 
+            <KpiCard
+              title="Frequentadores"
+              value={statistics?.totalFrequentadores || 0}
+              icon={Users}
               subtitle="Ativos cadastrados"
-              trend={statistics?.networkData ? { value: 10, label: "vs mês anterior" } : undefined}
             />
             
             <KpiCard 
@@ -893,14 +926,12 @@ export function Dashboard() {
               value={statistics?.totalLeaders || 0}
               icon={Users}
               subtitle="Sob sua supervisão"
-              trend={statistics?.networkData ? { value: 5, label: "vs mês anterior" } : undefined}
             />
             <KpiCard
               title="Total de Membros"
               value={statistics?.totalMembers || 0}
               icon={Users}
               subtitle="Em toda a rede"
-              trend={statistics?.networkData ? { value: 10, label: "vs mês anterior" } : undefined}
             />
             <KpiCard
               title="Relatórios Pendentes"
@@ -927,7 +958,7 @@ export function Dashboard() {
                 value={(statistics?.totalMembers || 0) + (statistics?.totalFrequentadores || 0)}
                 icon={Users}
                 subtitle={`Membros: ${statistics?.totalMembers || 0} · Frequentadores: ${statistics?.totalFrequentadores || 0}`}
-                trend={statistics?.growthRate ? { value: Math.round(statistics.growthRate), label: "vs mês anterior" } : undefined}
+                trend={monthlyTrend !== null ? { value: monthlyTrend, label: "presença vs mês anterior" } : undefined}
               />
               <KpiCard
                 title="Relatórios Pendentes"
@@ -940,7 +971,7 @@ export function Dashboard() {
                 title="Taxa de Presença"
                 value={`${performanceMetrics?.attendanceRate || 0}%`}
                 icon={Target}
-                subtitle="Último relatório"
+                subtitle="Presença média do ano"
                 color={performanceMetrics && performanceMetrics.attendanceRate >= 70 ? "success" : "warning"}
               />
               <KpiCard
@@ -958,7 +989,7 @@ export function Dashboard() {
               value={statistics?.totalMembers || 0}
               icon={Users}
               subtitle={`Membros: ${statistics?.totalMembers || 0} · Frequentadores: ${statistics?.totalFrequentadores || 0}`}
-              trend={statistics?.growthRate ? { value: Math.round(statistics.growthRate), label: "vs mês anterior" } : undefined}
+              trend={monthlyTrend !== null ? { value: monthlyTrend, label: "presença vs mês anterior" } : undefined}
             />
             <KpiCard
               title="Relatórios Pendentes"
@@ -971,7 +1002,7 @@ export function Dashboard() {
               title="Taxa de Presença"
               value={`${performanceMetrics?.attendanceRate || 0}%`}
               icon={Target}
-              subtitle="Último relatório"
+              subtitle="Presença média do ano"
               color={performanceMetrics && performanceMetrics.attendanceRate >= 70 ? "success" : "warning"}
             />
             <KpiCard
@@ -985,6 +1016,9 @@ export function Dashboard() {
           )
         )}
       </div>
+
+      {/* Assistente da Célula (orientações inteligentes para o líder) */}
+      {isLeader && user && <LeaderAssistantCard liderId={user.id} />}
 
       {/* Gráficos e Visualizações */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1122,28 +1156,41 @@ export function Dashboard() {
         ) : (
           /* ===== GRÁFICOS DO MODO NORMAL / KIDS ===== */
           <>
-        {/* Gráfico de Presenças Mensais */}
+        {/* Evolução da frequência das células (semanal/mensal) */}
         <Card className={`${isKidsMode ? 'hover:shadow-lg hover:shadow-pink-100 border-pink-200' : 'hover:grape-glow'} transition-smooth`}>
           <CardHeader className="pb-2">
-            <CardTitle className={`flex items-center gap-2 ${isKidsMode ? 'text-pink-700' : ''}`}>
-              <TrendingUp className={`w-5 h-5 ${isKidsMode ? 'text-pink-500' : 'text-primary'}`} />
-              Presenças Mensais
-            </CardTitle>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <CardTitle className={`flex items-center gap-2 ${isKidsMode ? 'text-pink-700' : ''}`}>
+                <TrendingUp className={`w-5 h-5 ${isKidsMode ? 'text-pink-500' : 'text-primary'}`} />
+                Frequência das Células
+              </CardTitle>
+              <div className="flex rounded-lg bg-muted p-1 self-start">
+                {(["semanal", "mensal"] as const).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setChartPeriod(p)}
+                    className={`min-h-[36px] rounded-md px-3 text-xs font-medium capitalize transition-colors ${
+                      chartPeriod === p
+                        ? "bg-background shadow-soft text-foreground"
+                        : "text-muted-foreground"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
           </CardHeader>
-          <CardContent className="h-[300px]">
+          <CardContent className="h-[260px] sm:h-[300px]">
             {(
-              !statistics?.monthlyData || statistics.monthlyData.length === 0 ? (
+              chartRows.length === 0 ? (
                 <div className="flex items-center justify-center h-full">
                   <p className="text-center text-muted-foreground">Sem dados para exibir.</p>
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={statistics.monthlyData.map(month => ({
-                    name: `${month.month} ${month.year}`,
-                    members: month.averageMembers,
-                    frequentadores: month.averageFrequentadores,
-                    total: month.averageTotal,
-                  }))}>
+                  <ComposedChart data={chartRows}>
                     <defs>
                       <linearGradient id={isKidsMode ? "gradTotalKids" : "gradTotal"} x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor={isKidsMode ? "#ec4899" : "var(--primary)"} stopOpacity={0.4} />
@@ -1151,14 +1198,14 @@ export function Dashboard() {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                    <YAxis />
+                    <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" height={52} interval="preserveStartEnd" />
+                    <YAxis width={30} tick={{ fontSize: 11 }} />
                     <Tooltip />
-                    <Legend />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
                     <Area
                       type="monotone"
                       dataKey="total"
-                      name="Total (média)"
+                      name="Total"
                       fill={`url(#${isKidsMode ? "gradTotalKids" : "gradTotal"})`}
                       stroke={isKidsMode ? "#ec4899" : "var(--primary)"}
                       strokeWidth={2}
@@ -1167,7 +1214,7 @@ export function Dashboard() {
                     <Line
                       type="monotone"
                       dataKey="members"
-                      name="Membros (média)"
+                      name="Membros"
                       stroke={isKidsMode ? "#a855f7" : "#7c3aed"}
                       strokeWidth={2}
                       dot
@@ -1176,7 +1223,7 @@ export function Dashboard() {
                     <Line
                       type="monotone"
                       dataKey="frequentadores"
-                      name="Frequentadores (média)"
+                      name="Frequentadores"
                       stroke={isKidsMode ? "#f472b6" : "#f59e0b"}
                       strokeWidth={2}
                       dot
