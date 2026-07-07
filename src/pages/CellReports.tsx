@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { SaturdaySelect } from "@/components/reports/SaturdaySelect";
+import { recentSaturdays, isSaturdayISO } from "@/lib/saturdays";
 import {
   Dialog,
   DialogContent,
@@ -84,7 +86,8 @@ export function CellReports() {
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [viewingReport, setViewingReport] = useState<CellReportType | null>(null);
   const [deleteReportId, setDeleteReportId] = useState<string | null>(null);
-  const [selectedWeek, setSelectedWeek] = useState("");
+  // A célula é aos sábados: já abre no sábado mais recente
+  const [selectedWeek, setSelectedWeek] = useState(() => recentSaturdays(1)[0]);
   const [multiplicationDate, setMultiplicationDate] = useState("");
   const [observations, setObservations] = useState("");
   const [phase, setPhase] = useState("");
@@ -462,6 +465,15 @@ export function CellReports() {
   const handleCreateReport = async () => {
     if (!user || !selectedWeek) return;
 
+    if (!isSaturdayISO(selectedWeek)) {
+      toast({
+        title: "Data inválida",
+        description: "A célula é aos sábados — escolha um sábado como data do relatório.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const liderId = user.role === "pastor" ? selectedLeaderId : user.id;
     
     if (user.role === "pastor" && !selectedLeaderId) {
@@ -523,7 +535,7 @@ export function CellReports() {
 
     await loadReports();
     setIsCreateDialogOpen(false);
-    setSelectedWeek("");
+    setSelectedWeek(recentSaturdays(1)[0]);
     setMultiplicationDate("");
     setObservations("");
     setPhase("");
@@ -556,6 +568,15 @@ export function CellReports() {
 
   const handleUpdateReport = async () => {
     if (!user || !editingReport) return;
+
+    if (selectedWeek && !isSaturdayISO(selectedWeek)) {
+      toast({
+        title: "Data inválida",
+        description: "A célula é aos sábados — escolha um sábado como data do relatório.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     // Visitantes avulsos adicionados na edição também viram frequentadores
     let visitorsPresent = [...selectedVisitorIds];
@@ -608,7 +629,7 @@ export function CellReports() {
     await loadReports();
     setIsEditDialogOpen(false);
     setEditingReport(null);
-    setSelectedWeek("");
+    setSelectedWeek(recentSaturdays(1)[0]);
     let _ = "";
     setMultiplicationDate(_);
     setObservations(_);
@@ -814,12 +835,11 @@ Observações: ${report.observations || ""}`;
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <Label htmlFor="week">Semana</Label>
-                <Input
+                <Label htmlFor="week">Semana (sábado da célula)</Label>
+                <SaturdaySelect
                   id="week"
-                  type="date"
                   value={selectedWeek}
-                  onChange={(e) => setSelectedWeek(e.target.value)}
+                  onChange={setSelectedWeek}
                 />
               </div>
               <div>
@@ -1077,11 +1097,10 @@ Observações: ${report.observations || ""}`;
             <div className="space-y-4">
               <div>
                 <Label htmlFor="edit-week">Semana</Label>
-                <Input
+                <SaturdaySelect
                   id="edit-week"
-                  type="date"
                   value={selectedWeek}
-                  onChange={(e) => setSelectedWeek(e.target.value)}
+                  onChange={setSelectedWeek}
                 />
               </div>
               <div>
@@ -1465,11 +1484,10 @@ Observações: ${report.observations || ""}`;
               <div className="space-y-4">
                 <div>
                   <Label htmlFor="edit-week-view">Semana</Label>
-                  <Input
+                  <SaturdaySelect
                     id="edit-week-view"
-                    type="date"
                     value={selectedWeek}
-                    onChange={(e) => setSelectedWeek(e.target.value)}
+                    onChange={setSelectedWeek}
                   />
                 </div>
                 <div>
@@ -1659,12 +1677,11 @@ Observações: ${report.observations || ""}`;
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <Label htmlFor="week">Semana</Label>
-                <Input
+                <Label htmlFor="week">Semana (sábado da célula)</Label>
+                <SaturdaySelect
                   id="week"
-                  type="date"
                   value={selectedWeek}
-                  onChange={(e) => setSelectedWeek(e.target.value)}
+                  onChange={setSelectedWeek}
                 />
               </div>
               <div>
@@ -1772,11 +1789,10 @@ Observações: ${report.observations || ""}`;
             <div className="space-y-4">
               <div>
                 <Label htmlFor="edit-week">Semana</Label>
-                <Input
+                <SaturdaySelect
                   id="edit-week"
-                  type="date"
                   value={selectedWeek}
-                  onChange={(e) => setSelectedWeek(e.target.value)}
+                  onChange={setSelectedWeek}
                 />
               </div>
 
