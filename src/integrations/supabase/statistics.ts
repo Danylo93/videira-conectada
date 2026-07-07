@@ -459,8 +459,9 @@ export const statisticsService = {
       const { data: leaderIds } = await leaderQuery;
       const ids = (leaderIds || []).map(l => l.id);
       query = ids.length > 0 ? query.in('lider_id', ids) : query.eq('lider_id', '');
-    } else if (user.role === 'pastor' && mode !== 'normal') {
-      // Para pastores em modo Kids/Radicais, filtrar apenas líderes do escopo
+    } else if (user.role === 'pastor') {
+      // Pastor/obreiro: sempre restringir aos líderes do escopo do modo atual —
+      // no modo normal isso evita misturar relatórios de células kids/radicais.
       let leaderQuery = supabase
         .from('profiles')
         .select('id')
@@ -472,7 +473,6 @@ export const statisticsService = {
       const ids = (leaderIds || []).map(l => l.id);
       query = ids.length > 0 ? query.in('lider_id', ids) : query.eq('lider_id', '');
     }
-    // Para pastores no modo normal, busca todos os relatórios
 
     const { data } = await query;
     return data || [];

@@ -672,6 +672,95 @@ Observações: ${report.observations || ""}`;
     window.open(url, "_blank");
   };
 
+  // ---- render compartilhado do histórico (tabela desktop + cards mobile) ----
+  const renderReportActions = (report: CellReportType) => (
+    <div className="flex flex-wrap items-center justify-end gap-1 sm:gap-2">
+      <Button
+        size="icon"
+        variant="ghost"
+        onClick={() => openViewReport(report)}
+        aria-label="Visualizar relatório"
+        title="Visualizar"
+      >
+        <Eye className="w-4 h-4" />
+      </Button>
+      <Button
+        size="icon"
+        variant="ghost"
+        onClick={() => openEditReport(report)}
+        aria-label="Editar relatório"
+        title="Editar"
+      >
+        <Edit className="w-4 h-4" />
+      </Button>
+      <AlertDialog open={deleteReportId === report.id} onOpenChange={(open) => !open && setDeleteReportId(null)}>
+        <AlertDialogTrigger asChild>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => setDeleteReportId(report.id)}
+            aria-label="Excluir relatório"
+            title="Excluir"
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o relatório da semana de {formatDateBR(report.weekStart)}? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteReportId(null)}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteReport}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <Button
+        size="icon"
+        variant="ghost"
+        onClick={() => handleExportReport(report)}
+        aria-label="Exportar relatório"
+        title="Exportar"
+      >
+        <Download className="w-4 h-4" />
+      </Button>
+    </div>
+  );
+
+  // Lista em cards para telas pequenas (evita rolagem horizontal da tabela)
+  const renderMobileReportList = () => (
+    <div className="sm:hidden space-y-3">
+      {reports.map((report) => (
+        <div key={report.id} className="rounded-xl border border-border/70 bg-card p-4 shadow-soft space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-semibold">{formatDateBR(report.weekStart)}</p>
+            {report.phase && (
+              <Badge variant="secondary" className="shrink-0">{report.phase}</Badge>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {report.members.length} membro{report.members.length !== 1 ? "s" : ""} ·{" "}
+            {report.frequentadores.length} frequentador{report.frequentadores.length !== 1 ? "es" : ""}
+            {report.multiplicationDate ? ` · Mult.: ${formatDateBR(report.multiplicationDate)}` : ""}
+          </p>
+          <div className="border-t border-border/50 pt-2">
+            {renderReportActions(report)}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
   // ---- UI ------------------------------------------------------------------
   const selectedLeader = user.role === "pastor" ? leaders.find((l) => l.id === selectedLeaderId) : null;
   const cellName = user.role === "pastor"
@@ -1319,6 +1408,9 @@ Observações: ${report.observations || ""}`;
                   <p className="text-muted-foreground">Nenhum relatório criado ainda.</p>
                 </div>
               ) : (
+                <>
+                {renderMobileReportList()}
+                <div className="hidden sm:block">
                 <Table className="min-w-[820px]">
                   <TableHeader>
                     <TableRow>
@@ -1346,72 +1438,14 @@ Observações: ${report.observations || ""}`;
                           )}
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex flex-wrap items-center justify-end gap-2">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => openViewReport(report)}
-                              aria-label="Visualizar relatório"
-                              title="Visualizar"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => openEditReport(report)}
-                              aria-label="Editar relatório"
-                              title="Editar"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <AlertDialog open={deleteReportId === report.id} onOpenChange={(open) => !open && setDeleteReportId(null)}>
-                              <AlertDialogTrigger asChild>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  onClick={() => setDeleteReportId(report.id)}
-                                  aria-label="Excluir relatório"
-                                  title="Excluir"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Tem certeza que deseja excluir o relatório da semana de {formatDateBR(report.weekStart)}? Esta ação não pode ser desfeita.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel onClick={() => setDeleteReportId(null)}>
-                                    Cancelar
-                                  </AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={handleDeleteReport}
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                  >
-                                    Excluir
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => handleExportReport(report)}
-                              aria-label="Exportar relatório"
-                              title="Exportar"
-                            >
-                              <Download className="w-4 h-4" />
-                            </Button>
-                          </div>
+                          {renderReportActions(report)}
                         </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
+                </div>
+                </>
               )}
             </CardContent>
           </Card>
@@ -2117,6 +2151,9 @@ Observações: ${report.observations || ""}`;
               <p className="text-muted-foreground">Nenhum relatório criado ainda.</p>
             </div>
           ) : (
+            <>
+            {renderMobileReportList()}
+            <div className="hidden sm:block">
             <Table className="min-w-[820px]">
               <TableHeader>
                 <TableRow>
@@ -2144,74 +2181,14 @@ Observações: ${report.observations || ""}`;
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex flex-wrap items-center justify-end gap-2">
-                        {/* NOVO: Visualizar */}
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => openViewReport(report)}
-                          aria-label="Visualizar relatório"
-                          title="Visualizar"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Button>
-
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => openEditReport(report)}
-                          aria-label="Editar relatório"
-                          title="Editar"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <AlertDialog open={deleteReportId === report.id} onOpenChange={(open) => !open && setDeleteReportId(null)}>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => setDeleteReportId(report.id)}
-                              aria-label="Excluir relatório"
-                              title="Excluir"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Tem certeza que deseja excluir o relatório da semana de {report.weekStart.toLocaleDateString("pt-BR")}? Esta ação não pode ser desfeita.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel onClick={() => setDeleteReportId(null)}>
-                                Cancelar
-                              </AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={handleDeleteReport}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              >
-                                Excluir
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => handleExportReport(report)}
-                          aria-label="Exportar relatório"
-                          title="Exportar"
-                        >
-                          <Download className="w-4 h-4" />
-                        </Button>
-                      </div>
+                      {renderReportActions(report)}
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
+            </div>
+            </>
           )}
         </CardContent>
       </Card>

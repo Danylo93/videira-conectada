@@ -7,7 +7,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { eventsService } from "@/integrations/supabase/events";
 import FancyLoader from "@/components/FancyLoader";
 import { LeaderAssistantCard } from "@/components/dashboard/LeaderAssistantCard";
-import { computeMonthlyTrend } from "@/lib/monthlyTrend";
+import { CellsEvolutionChart } from "@/components/dashboard/CellsEvolutionChart";
+import { profilesService } from "@/integrations/supabase/profiles";
+import type { SeriesLeader } from "@/lib/cellSeries";
+import { computeMonthlyTrend, latestMonthAverage } from "@/lib/monthlyTrend";
+import { computeMonthOverdueWeeks } from "@/lib/overdueReports";
 import { useStatistics } from "@/hooks/useStatistics";
 import type { Event } from "@/types/event";
 import { formatDateBR, formatDateBRLong, formatDateShort, formatDateMedium } from "@/lib/dateUtils";
@@ -216,6 +220,51 @@ export function Dashboard() {
     [statistics],
   );
 
+  // Células para os gráficos por líder:
+  // discipulador → seus líderes; pastor/obreiro → todas, agrupadas por discipulador
+  const [networkLeaders, setNetworkLeaders] = useState<SeriesLeader[]>([]);
+  const [cellGroups, setCellGroups] = useState<
+    Array<{ id: string; name: string; leaders: SeriesLeader[] }>
+  >([]);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        if (user.role === "discipulador") {
+          const leaders = await profilesService.getLeaders(user, mode);
+          if (!cancelled) {
+            setNetworkLeaders(leaders.map((l) => ({ id: l.id, name: l.name })));
+          }
+        } else if (user.role === "pastor") {
+          const [discipuladores, allLeaders] = await Promise.all([
+            profilesService.getDiscipuladores(user, mode),
+            profilesService.getLeaders(user, mode),
+          ]);
+          if (cancelled) return;
+          const groups = discipuladores
+            .map((d) => ({
+              id: d.id,
+              name: d.name,
+              leaders: allLeaders
+                .filter((l) => l.discipulador_uuid === d.id)
+                .map((l) => ({ id: l.id, name: l.name })),
+            }))
+            .filter((g) => g.leaders.length > 0);
+          setCellGroups(groups);
+        }
+      } catch (error) {
+        console.error("Erro ao carregar células para os gráficos:", error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, mode]);
+
   // Linhas do gráfico: semanal agrega os relatórios por semana; mensal usa as médias
   const chartRows = useMemo(() => {
     if (chartPeriod === "mensal") {
@@ -353,25 +402,34 @@ export function Dashboard() {
         action?: string;
       }> = [];
 
-      // Verificar relatórios em atraso
+      // Relatório em atraso: semanas do mês já fechadas (domingo passou) sem relatório
       const today = new Date();
-      const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-      
+
       if (isLeader) {
-        const { data: overdueReports } = await supabase
+        // Busca os relatórios desde a semana que abre o mês (segunda que contém o dia 1º)
+        const monthWindowStart = new Date(today.getFullYear(), today.getMonth(), 1);
+        monthWindowStart.setDate(monthWindowStart.getDate() - 7);
+
+        const { data: monthReports } = await supabase
           .from("cell_reports")
           .select("week_start")
           .eq("lider_id", user.id)
-          .lt("week_start", lastWeek.toISOString())
-          .order("week_start", { ascending: false })
-          .limit(1);
+          .gte("week_start", monthWindowStart.toISOString());
 
-        if (overdueReports && overdueReports.length > 0) {
+        const missingWeeks = computeMonthOverdueWeeks(
+          (monthReports ?? []).map((r) => r.week_start),
+          today,
+        );
+
+        if (missingWeeks.length > 0) {
           newAlerts.push({
             id: "overdue-report",
             type: "warning",
             title: "Relatório em Atraso",
-            message: `Você tem relatórios pendentes desde ${formatDateBR(overdueReports[0].week_start)}`,
+            message:
+              missingWeeks.length === 1
+                ? `A semana de ${formatDateBR(missingWeeks[0])} está sem relatório.`
+                : `${missingWeeks.length} semanas deste mês estão sem relatório (desde ${formatDateBR(missingWeeks[0])}).`,
             action: "Ver Relatórios"
           });
         }
@@ -402,8 +460,10 @@ export function Dashboard() {
 
       /* ---- MÉTRICAS DE PERFORMANCE ---- */
       if (statistics) {
-        const attendanceRate = statistics.totalMembers > 0 
-          ? Math.round((statistics.averagePresence / statistics.totalMembers) * 100)
+        // Taxa de presença MENSAL: média do mês mais recente vs total cadastrado
+        const monthAverage = latestMonthAverage(statistics.monthlyData ?? []);
+        const attendanceRate = statistics.totalMembers > 0
+          ? Math.round((monthAverage / statistics.totalMembers) * 100)
           : 0;
         
         // Calcular compliance real baseado em relatórios
@@ -944,7 +1004,7 @@ export function Dashboard() {
               title="Taxa de Presença"
               value={`${performanceMetrics?.attendanceRate || 0}%`}
               icon={Target}
-              subtitle="Média da rede"
+              subtitle="Média da rede no mês"
               color={performanceMetrics && performanceMetrics.attendanceRate >= 75 ? "success" : "warning"}
             />
           </>
@@ -971,7 +1031,7 @@ export function Dashboard() {
                 title="Taxa de Presença"
                 value={`${performanceMetrics?.attendanceRate || 0}%`}
                 icon={Target}
-                subtitle="Presença média do ano"
+                subtitle="Presença média do mês"
                 color={performanceMetrics && performanceMetrics.attendanceRate >= 70 ? "success" : "warning"}
               />
               <KpiCard
@@ -1002,7 +1062,7 @@ export function Dashboard() {
               title="Taxa de Presença"
               value={`${performanceMetrics?.attendanceRate || 0}%`}
               icon={Target}
-              subtitle="Presença média do ano"
+              subtitle="Presença média do mês"
               color={performanceMetrics && performanceMetrics.attendanceRate >= 70 ? "success" : "warning"}
             />
             <KpiCard
@@ -1035,21 +1095,38 @@ export function Dashboard() {
               </CardHeader>
               <CardContent className="h-[350px]">
                 {(() => {
-                  // Extrair todos os líderes de todos os discipuladores
-                  const allLeaders = (statistics?.networkData?.discipuladores ?? [])
-                    .flatMap(d => d.leaders)
-                    .map(l => ({
-                      name: l.celula && l.celula !== 'Sem célula' ? l.celula : l.name,
-                      membros: l.members,
-                      frequentadores: l.frequentadores,
-                      total: l.members + l.frequentadores,
-                    }))
-                    .sort((a, b) => b.total - a.total);
+                  // Pastor/discipulador: todas as células da rede.
+                  // Líder: networkData não existe — usa a própria célula
+                  // (totalMembers/totalFrequentadores já são os dele).
+                  const allLeaders = isLeader
+                    ? [
+                        {
+                          name: user?.celula || "Minha célula",
+                          membros: statistics?.totalMembers || 0,
+                          frequentadores: statistics?.totalFrequentadores || 0,
+                          total:
+                            (statistics?.totalMembers || 0) +
+                            (statistics?.totalFrequentadores || 0),
+                        },
+                      ].filter((c) => c.total > 0)
+                    : (statistics?.networkData?.discipuladores ?? [])
+                        .flatMap(d => d.leaders)
+                        .map(l => ({
+                          name: l.celula && l.celula !== 'Sem célula' ? l.celula : l.name,
+                          membros: l.members,
+                          frequentadores: l.frequentadores,
+                          total: l.members + l.frequentadores,
+                        }))
+                        .sort((a, b) => b.total - a.total);
 
                   if (allLeaders.length === 0) {
                     return (
                       <div className="flex items-center justify-center h-full">
-                        <p className="text-center text-muted-foreground">Nenhum líder com membros cadastrados ainda.</p>
+                        <p className="text-center text-muted-foreground">
+                          {isLeader
+                            ? "Nenhum membro cadastrado na sua célula ainda."
+                            : "Nenhum líder com membros cadastrados ainda."}
+                        </p>
                       </div>
                     );
                   }
@@ -1277,6 +1354,39 @@ export function Dashboard() {
           </>
         )}
       </div>
+
+      {/* Evolução por célula — gráfico dos relatórios de cada líder */}
+      {isLeader && user && (
+        <CellsEvolutionChart
+          title="Evolução da minha célula"
+          subtitle="Presença semanal registrada nos seus relatórios"
+          leaders={[{ id: user.id, name: user.celula || "Minha célula" }]}
+        />
+      )}
+      {isDiscipulador && networkLeaders.length > 0 && (
+        <CellsEvolutionChart
+          title="Células da sua rede"
+          subtitle="Uma linha por célula — presença semanal dos relatórios"
+          leaders={networkLeaders}
+        />
+      )}
+      {isPastor && cellGroups.length > 0 && (
+        <div className="space-y-4 sm:space-y-6">
+          <h2 className="font-display text-lg sm:text-xl font-bold tracking-tight">
+            Células por discipulador
+          </h2>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+            {cellGroups.map((g) => (
+              <CellsEvolutionChart
+                key={g.id}
+                title={`Rede de ${g.name}`}
+                subtitle={`${g.leaders.length} célula${g.leaders.length !== 1 ? "s" : ""}`}
+                leaders={g.leaders}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Seções Especiais para Modo Normal (Pastor) */}
       {isPastor && !isKidsMode && !isRadicaisMode && (

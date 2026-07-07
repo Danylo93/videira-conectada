@@ -5,6 +5,16 @@
  * devolve a variação % inteira do último mês em relação ao anterior, ou null
  * quando não há base de comparação (menos de 2 meses ou mês anterior zerado).
  */
+/**
+ * Presença média do mês mais recente da série (0 quando não há dados).
+ * Usada na Taxa de Presença do Dashboard, que é mensal.
+ */
+export function latestMonthAverage(
+  monthlyData: Array<{ averageTotal: number }>,
+): number {
+  return monthlyData.length > 0 ? monthlyData[monthlyData.length - 1].averageTotal : 0;
+}
+
 export function computeMonthlyTrend(
   monthlyData: Array<{ averageTotal: number }>,
 ): number | null {

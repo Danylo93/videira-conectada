@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeMonthlyTrend } from "./monthlyTrend";
+import { computeMonthlyTrend, latestMonthAverage } from "./monthlyTrend";
 
 const month = (averageTotal: number) => ({ averageTotal });
 
@@ -24,5 +24,15 @@ describe("computeMonthlyTrend", () => {
 
   it("arredonda para inteiro", () => {
     expect(computeMonthlyTrend([month(3), month(4)])).toBe(33);
+  });
+});
+
+describe("latestMonthAverage", () => {
+  it("retorna a presença média do mês mais recente da série", () => {
+    expect(latestMonthAverage([month(10), month(14)])).toBe(14);
+  });
+
+  it("retorna 0 sem dados", () => {
+    expect(latestMonthAverage([])).toBe(0);
   });
 });

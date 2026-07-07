@@ -468,6 +468,45 @@ export function NetworkReports() {
 
   /* ===================== UI (responsivo) ===================== */
 
+  const statusBadge = (r: CellReportType) => (
+    <Badge variant={r.status === 'approved' ? 'default' : r.status === 'needs_correction' ? 'destructive' : 'secondary'}>
+      {r.status === 'submitted' ? 'Enviado' : r.status === 'approved' ? 'Aprovado' : r.status === 'needs_correction' ? 'Correção' : 'Rascunho'}
+    </Badge>
+  );
+
+  // Lista em cards para telas pequenas (evita a rolagem horizontal das tabelas)
+  const renderMobileReportCards = (list: CellReportType[], showLeader: boolean) => (
+    <div className="sm:hidden space-y-3">
+      {list.map((r) => (
+        <div key={r.id} className="rounded-xl border border-border/70 bg-card p-4 shadow-soft space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-semibold text-sm">
+              {showLeader
+                ? leaders.find((l) => l.id === r.liderId)?.name || 'Líder'
+                : r.weekStart.toLocaleDateString('pt-BR')}
+            </p>
+            {statusBadge(r)}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {showLeader ? `Semana: ${r.weekStart.toLocaleDateString('pt-BR')} · ` : ''}
+            Fase: {r.phase || '—'} · Envio: {r.submittedAt.toLocaleDateString('pt-BR')}
+            {r.multiplicationDate ? ` · Mult.: ${r.multiplicationDate.toLocaleDateString('pt-BR')}` : ''}
+          </p>
+          {r.status === 'submitted' && (
+            <div className="flex gap-2 pt-2 border-t border-border/50">
+              <Button size="sm" className="flex-1 min-h-[40px] inline-flex items-center gap-1" onClick={() => handleApprove(r.id)}>
+                <CheckCircle2 className="w-4 h-4" /> Aprovar
+              </Button>
+              <Button size="sm" variant="secondary" className="flex-1 min-h-[40px] inline-flex items-center gap-1" onClick={() => handleRequestCorrection(r)}>
+                <XCircle className="w-4 h-4" /> Correção
+              </Button>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+
   const ChartShell = ({ data }: { data: ChartPoint[] }) => (
     <div className="h-[220px] xs:h-[260px] sm:h-[300px] md:h-[340px] lg:h-[380px]">
       <ResponsiveContainer width="100%" height="100%">
@@ -626,6 +665,9 @@ export function NetworkReports() {
                     <p className="text-muted-foreground">Nenhum relatório encontrado.</p>
                   </div>
                 ) : (
+                  <>
+                  {renderMobileReportCards(churchReports, true)}
+                  <div className="hidden sm:block">
                   <Table className="min-w-[880px] sm:min-w-full">
                     <TableHeader>
                       <TableRow>
@@ -683,6 +725,8 @@ export function NetworkReports() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
+                  </>
                 )}
               </CardContent>
             </Card>
@@ -897,6 +941,9 @@ export function NetworkReports() {
                       <p className="text-muted-foreground">Nenhum relatório encontrado.</p>
                     </div>
                   ) : (
+                    <>
+                    {renderMobileReportCards(reports, false)}
+                    <div className="hidden sm:block">
                     <Table className="min-w-[760px]">
                       <TableHeader>
                         <TableRow>
@@ -950,6 +997,8 @@ export function NetworkReports() {
                         ))}
                       </TableBody>
                     </Table>
+                    </div>
+                    </>
                   )}
                 </CardContent>
               </Card>
