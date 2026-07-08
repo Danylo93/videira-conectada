@@ -203,14 +203,16 @@ export function CellManagement() {
     toast({ title: 'Sucesso', description: 'Pessoa adicionada com sucesso!' });
   };
 
+  const canManageMembers = user.role === 'pastor' || user.role === 'lider';
+
   const handleEditMember = (member: Member) => {
-    if (user?.role !== 'pastor') return;
+    if (!canManageMembers) return;
     setEditingMember(member);
     setIsEditDialogOpen(true);
   };
 
   const handleUpdateMember = async () => {
-    if (!user || !editingMember || user.role !== 'pastor') return;
+    if (!user || !editingMember || !canManageMembers) return;
 
     const { error } = await supabase
       .from('members')
@@ -240,7 +242,7 @@ export function CellManagement() {
   };
 
   const handleDeleteMember = async (memberId: string) => {
-    if (!user || user.role !== 'pastor') return;
+    if (!user || !canManageMembers) return;
 
     const { error } = await supabase
       .from('members')
@@ -431,7 +433,7 @@ export function CellManagement() {
                       }
                     </Badge>
                   </div>
-                  {user.role === 'pastor' && (
+                  {canManageMembers && (
                     <div className="flex gap-2 shrink-0">
                       <Button
                         size="sm"
@@ -506,7 +508,7 @@ export function CellManagement() {
                 <TableHead className="min-w-[160px]">Contato</TableHead>
                 <TableHead className="min-w-[150px]">Data de Entrada</TableHead>
                 <TableHead className="min-w-[150px]">Última Presença</TableHead>
-                {user.role === 'pastor' && (
+                {canManageMembers && (
                   <TableHead className="min-w-[110px] sticky right-0 bg-card">Ações</TableHead>
                 )}
               </TableRow>
@@ -553,7 +555,7 @@ export function CellManagement() {
                       </div>
                     )}
                   </TableCell>
-                  {user.role === 'pastor' && (
+                  {canManageMembers && (
                     <TableCell className="sticky right-0 bg-card">
                       <div className="flex flex-wrap gap-2">
                         <Button
