@@ -1543,7 +1543,7 @@ export default function Encounters() {
                 <TableHead>Cobrança</TableHead>
                 <TableHead>Líder</TableHead>
                 <TableHead>Discipulador</TableHead>
-                <TableHead>Ações</TableHead>
+                <TableHead className="sticky right-0 bg-card">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1626,7 +1626,7 @@ export default function Encounters() {
                   <TableCell>
                     {encounter.discipulador?.name || '-'}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="sticky right-0 bg-card">
                     <div className="flex items-center gap-2">
                       <Button
                         variant="ghost"

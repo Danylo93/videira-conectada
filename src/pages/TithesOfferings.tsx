@@ -983,7 +983,7 @@ export function TithesOfferings() {
                 <TableHead>Valor</TableHead>
                 <TableHead>Método</TableHead>
                 <TableHead>Data</TableHead>
-                <TableHead>Ações</TableHead>
+                <TableHead className="sticky right-0 bg-card">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1019,7 +1019,7 @@ export function TithesOfferings() {
                     {item.paymentMethod === 'bank_transfer' && 'Transferência'}
                   </TableCell>
                   <TableCell>{item.receivedAt.toLocaleDateString('pt-BR')}</TableCell>
-                  <TableCell>
+                  <TableCell className="sticky right-0 bg-card">
                     <div className="flex items-center gap-2">
                       <Button
                         variant="ghost"

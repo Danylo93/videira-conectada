@@ -677,7 +677,7 @@ export function NetworkReports() {
                         <TableHead className="min-w-[130px]">Fase</TableHead>
                         <TableHead className="min-w-[200px]">Data de Multiplicação</TableHead>
                         <TableHead className="min-w-[180px]">Data de Envio</TableHead>
-                        <TableHead className="min-w-[220px] text-right">Ações</TableHead>
+                        <TableHead className="min-w-[220px] text-right sticky right-0 bg-card">Ações</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -709,7 +709,7 @@ export function NetworkReports() {
                               {r.submittedAt.toLocaleDateString('pt-BR')}
                             </div>
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="text-right sticky right-0 bg-card">
                             {r.status === 'submitted' && (
                               <div className="flex flex-col items-end gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
                                 <Button size="sm" className="inline-flex items-center gap-1" onClick={() => handleApprove(r.id)}>
@@ -952,7 +952,7 @@ export function NetworkReports() {
                           <TableHead className="min-w-[130px]">Fase</TableHead>
                           <TableHead className="min-w-[200px]">Data de Multiplicação</TableHead>
                           <TableHead className="min-w-[170px]">Data de Envio</TableHead>
-                          <TableHead className="min-w-[200px] text-right">Ações</TableHead>
+                          <TableHead className="min-w-[200px] text-right sticky right-0 bg-card">Ações</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -981,7 +981,7 @@ export function NetworkReports() {
                                 {r.submittedAt.toLocaleDateString('pt-BR')}
                               </div>
                             </TableCell>
-                            <TableCell className="text-right">
+                            <TableCell className="text-right sticky right-0 bg-card">
                               {r.status === 'submitted' && (
                                 <div className="flex flex-col items-end gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
                                   <Button size="sm" className="inline-flex items-center gap-1" onClick={() => handleApprove(r.id)}>

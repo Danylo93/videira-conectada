@@ -603,7 +603,7 @@ export default function CourseAdmin() {
                         <TableHead>Aluno</TableHead>
                         <TableHead>Último Pagamento</TableHead>
                         <TableHead>Total Pago</TableHead>
-                        <TableHead className="text-right">Ações</TableHead>
+                        <TableHead className="text-right sticky right-0 bg-card">Ações</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -616,7 +616,7 @@ export default function CourseAdmin() {
                             <TableCell className="font-medium">{r.member?.name ?? r.member_id}</TableCell>
                             <TableCell>{last ? new Date(last).toLocaleDateString("pt-BR") : "—"}</TableCell>
                             <TableCell>R$ {total.toFixed(2)}</TableCell>
-                            <TableCell className="text-right">
+                            <TableCell className="text-right sticky right-0 bg-card">
                               <Dialog open={openNewPayment === r.id} onOpenChange={(o) => setOpenNewPayment(o ? r.id : null)}>
                                 <DialogTrigger asChild>
                                   <Button size="sm" variant="outline"><DollarSign className="w-4 h-4 mr-1" /> Registrar</Button>

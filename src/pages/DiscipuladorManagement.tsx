@@ -347,7 +347,7 @@ export function DiscipuladorManagement() {
                 <TableHead className="min-w-[200px]">Nome</TableHead>
                 <TableHead className="min-w-[220px]">Email</TableHead>
                 <TableHead className="min-w-[160px]">Telefone</TableHead>
-                <TableHead className="min-w-[120px]">Ações</TableHead>
+                <TableHead className="min-w-[120px] sticky right-0 bg-card">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -377,7 +377,7 @@ export function DiscipuladorManagement() {
                       </div>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="sticky right-0 bg-card">
                     {(!d.role || d.role === 'discipulador') && (
                     <div className="flex gap-2">
                       <Button

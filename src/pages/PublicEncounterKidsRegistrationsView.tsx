@@ -673,7 +673,7 @@ function EncounterKidsRegistrationsView({ config }: { config: KidsRegistrationsV
                       <TableHead className="min-w-[170px]">Líder</TableHead>
                       <TableHead className="min-w-[180px]">Participação</TableHead>
                       <TableHead className="min-w-[150px]">Data de Cadastro</TableHead>
-                      <TableHead className="min-w-[110px]">Ações</TableHead>
+                      <TableHead className="min-w-[110px] sticky right-0 bg-card">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -704,7 +704,7 @@ function EncounterKidsRegistrationsView({ config }: { config: KidsRegistrationsV
                         <TableCell className="text-sm text-muted-foreground">
                           {formatDateBR(new Date(item.created_at))}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="sticky right-0 bg-card">
                           <Button
                             type="button"
                             variant="destructive"
