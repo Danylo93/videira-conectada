@@ -874,7 +874,7 @@ Observações: ${report.observations || ""}`;
                       <TableRow>
                         <TableHead className="min-w-[140px]">Data do Domingo Kids</TableHead>
                         <TableHead className="min-w-[170px]">Data de Envio</TableHead>
-                        <TableHead className="min-w-[260px] text-right">Ações</TableHead>
+                        <TableHead className="min-w-[260px] text-right sticky right-0 bg-card">Ações</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -889,7 +889,7 @@ Observações: ${report.observations || ""}`;
                               {formatDateBR(report.submittedAt)}
                             </div>
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="text-right sticky right-0 bg-card">
                             <div className="flex flex-wrap items-center justify-end gap-2">
                               <Button
                                 size="icon"
@@ -1729,7 +1729,7 @@ Observações: ${report.observations || ""}`;
                 <TableRow>
                   <TableHead className="min-w-[140px]">Data do Culto</TableHead>
                   <TableHead className="min-w-[170px]">Data de Envio</TableHead>
-                  <TableHead className="min-w-[260px] text-right">Ações</TableHead>
+                  <TableHead className="min-w-[260px] text-right sticky right-0 bg-card">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1744,7 +1744,7 @@ Observações: ${report.observations || ""}`;
                         {report.submittedAt.toLocaleDateString("pt-BR")}
                       </div>
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right sticky right-0 bg-card">
                           <div className="flex flex-wrap items-center justify-end gap-2">
                             <Button
                               size="icon"

@@ -1536,7 +1536,7 @@ export default function CourseAdminNew() {
                       <TableHead>Nome</TableHead>
                       <TableHead>Papel no Sistema</TableHead>
                       <TableHead>Função no Curso</TableHead>
-                      <TableHead className="text-right">Ações</TableHead>
+                      <TableHead className="text-right sticky right-0 bg-card">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1552,7 +1552,7 @@ export default function CourseAdminNew() {
                             {item.role === "evaluator" && "Avaliador"}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right sticky right-0 bg-card">
                           <Button
                             size="sm"
                             variant="destructive"

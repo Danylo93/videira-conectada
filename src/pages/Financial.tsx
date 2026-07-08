@@ -434,7 +434,7 @@ export function Financial() {
                         <TableHead>Total</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Prestação OK?</TableHead>
-                        <TableHead className="text-right">Ações</TableHead>
+                        <TableHead className="text-right sticky right-0 bg-card">Ações</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -482,7 +482,7 @@ export function Financial() {
                               </Label>
                             </div>
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="text-right sticky right-0 bg-card">
                             <div className="flex justify-end gap-2">
                               <Button
                                 size="icon"

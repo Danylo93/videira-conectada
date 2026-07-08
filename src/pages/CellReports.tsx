@@ -1417,7 +1417,7 @@ Observações: ${report.observations || ""}`;
                       <TableHead className="min-w-[140px]">Semana</TableHead>
                       <TableHead className="min-w-[140px]">Fase</TableHead>
                       <TableHead className="min-w-[200px]">Data de Multiplicação</TableHead>
-                      <TableHead className="min-w-[260px] text-right">Ações</TableHead>
+                      <TableHead className="min-w-[260px] text-right sticky right-0 bg-card">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1437,7 +1437,7 @@ Observações: ${report.observations || ""}`;
                             <span className="text-muted-foreground">-</span>
                           )}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right sticky right-0 bg-card">
                           {renderReportActions(report)}
                         </TableCell>
                       </TableRow>
@@ -2160,7 +2160,7 @@ Observações: ${report.observations || ""}`;
                   <TableHead className="min-w-[140px]">Semana</TableHead>
                   <TableHead className="min-w-[140px]">Fase</TableHead>
                   <TableHead className="min-w-[200px]">Data de Multiplicação</TableHead>
-                  <TableHead className="min-w-[260px] text-right">Ações</TableHead>
+                  <TableHead className="min-w-[260px] text-right sticky right-0 bg-card">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -2180,7 +2180,7 @@ Observações: ${report.observations || ""}`;
                         <span className="text-muted-foreground">-</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right sticky right-0 bg-card">
                       {renderReportActions(report)}
                     </TableCell>
                   </TableRow>

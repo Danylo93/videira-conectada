@@ -561,7 +561,7 @@ export function PublicEncontroRegistrationsView() {
                       <TableHead className="min-w-[170px]">Pagamento</TableHead>
                       <TableHead className="min-w-[170px]">Presença</TableHead>
                       <TableHead className="min-w-[150px]">Data de Cadastro</TableHead>
-                      <TableHead className="min-w-[110px]">Ações</TableHead>
+                      <TableHead className="min-w-[110px] sticky right-0 bg-card">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -627,7 +627,7 @@ export function PublicEncontroRegistrationsView() {
                             {formatDateBR(new Date(item.created_at))}
                           </div>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="sticky right-0 bg-card">
                           <Button
                             type="button"
                             variant="destructive"

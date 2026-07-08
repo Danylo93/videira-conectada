@@ -394,7 +394,7 @@ export function LeaderManagement() {
                 <TableHead className="min-w-[220px]">Email</TableHead>
                 <TableHead className="min-w-[160px]">Telefone</TableHead>
                 {user.role === 'pastor' && (
-                  <TableHead className="min-w-[120px]">Ações</TableHead>
+                  <TableHead className="min-w-[120px] sticky right-0 bg-card">Ações</TableHead>
                 )}
               </TableRow>
             </TableHeader>
@@ -426,7 +426,7 @@ export function LeaderManagement() {
                     )}
                   </TableCell>
                   {user.role === 'pastor' && (
-                    <TableCell>
+                    <TableCell className="sticky right-0 bg-card">
                       {(!leader.role || leader.role === 'lider') && (
                       <div className="flex gap-2">
                         <Button

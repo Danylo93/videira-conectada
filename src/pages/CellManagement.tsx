@@ -411,7 +411,93 @@ export function CellManagement() {
             {isKidsMode ? 'Lista de Crianças' : 'Lista de Pessoas'}
           </CardTitle>
         </CardHeader>
-        <CardContent className="overflow-x-auto">
+        <CardContent>
+          {/* Lista em cartões no mobile: mostra todas as informações e ações sem scroll horizontal */}
+          <div className="space-y-3 md:hidden">
+            {members.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-6">
+                Nenhuma pessoa cadastrada.
+              </p>
+            )}
+            {members.map((member) => (
+              <div key={member.id} className="rounded-lg border p-4 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{member.name}</p>
+                    <Badge variant={member.type === 'member' ? 'default' : 'secondary'} className="mt-1">
+                      {member.type === 'member'
+                        ? (isKidsMode ? 'Criança' : 'Membro')
+                        : (isKidsMode ? 'Visitante' : 'Frequentador')
+                      }
+                    </Badge>
+                  </div>
+                  {user.role === 'pastor' && (
+                    <div className="flex gap-2 shrink-0">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleEditMember(member)}
+                        aria-label={`Editar ${member.name}`}
+                      >
+                        <Edit className="w-3 h-3" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button size="sm" variant="outline" aria-label={`Deletar ${member.name}`}>
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Tem certeza que deseja deletar {member.name}? Esta ação não pode ser desfeita.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDeleteMember(member.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Deletar
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-1 text-sm text-muted-foreground">
+                  {member.phone && (
+                    <div className="flex items-center gap-1">
+                      <Phone className="w-3 h-3 shrink-0" />
+                      {member.phone}
+                    </div>
+                  )}
+                  {member.email && (
+                    <div className="flex items-center gap-1">
+                      <Mail className="w-3 h-3 shrink-0" />
+                      <span className="truncate">{member.email}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-1">
+                    <Calendar className="w-3 h-3 shrink-0" />
+                    Entrada: {member.joinDate.toLocaleDateString('pt-BR')}
+                  </div>
+                  {member.lastPresence && (
+                    <div className="flex items-center gap-1">
+                      <Calendar className="w-3 h-3 shrink-0" />
+                      Última presença: {member.lastPresence.toLocaleDateString('pt-BR')}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Tabela completa em telas médias/grandes */}
+          <div className="hidden md:block overflow-x-auto">
           <Table className="min-w-[720px]">
             <TableHeader>
               <TableRow>
@@ -421,7 +507,7 @@ export function CellManagement() {
                 <TableHead className="min-w-[150px]">Data de Entrada</TableHead>
                 <TableHead className="min-w-[150px]">Última Presença</TableHead>
                 {user.role === 'pastor' && (
-                  <TableHead className="min-w-[110px]">Ações</TableHead>
+                  <TableHead className="min-w-[110px] sticky right-0 bg-card">Ações</TableHead>
                 )}
               </TableRow>
             </TableHeader>
@@ -468,7 +554,7 @@ export function CellManagement() {
                     )}
                   </TableCell>
                   {user.role === 'pastor' && (
-                    <TableCell>
+                    <TableCell className="sticky right-0 bg-card">
                       <div className="flex flex-wrap gap-2">
                         <Button
                           size="sm"
@@ -508,6 +594,7 @@ export function CellManagement() {
               ))}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 

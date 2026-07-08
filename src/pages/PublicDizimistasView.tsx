@@ -676,7 +676,7 @@ export function PublicDizimistasView() {
                       <TableHead className="text-xs sm:text-sm">Telefone</TableHead>
                       <TableHead className="text-xs sm:text-sm">Estado Civil</TableHead>
                       <TableHead className="text-xs sm:text-sm">Data de Cadastro</TableHead>
-                      <TableHead className="text-xs sm:text-sm w-20">Ações</TableHead>
+                      <TableHead className="text-xs sm:text-sm w-20 sticky right-0 bg-card">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -718,7 +718,7 @@ export function PublicDizimistasView() {
                             {formatDateBR(new Date(dizimista.created_at))}
                           </div>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="sticky right-0 bg-card">
                           <Button
                             variant="ghost"
                             size="sm"
