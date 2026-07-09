@@ -610,7 +610,9 @@ export function Dashboard() {
       setRecentActivity(activity);
 
       /* ---- DADOS PARA DASHBOARD MELHORADO (MODO NORMAL - PASTOR) ---- */
-      if (isPastor && !isKidsMode) {
+      // Só no modo normal: a seção não é renderizada em kids/radicais e estas
+      // consultas não têm escopo de modo (misturariam dados de outros escopos).
+      if (isPastor && !isKidsMode && !isRadicaisMode) {
         const now = new Date();
         const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
         const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
@@ -884,36 +886,41 @@ export function Dashboard() {
           isRadicaisMode ? (
             /* Modo Radicais Livres — dados reais das células dos líderes radicais */
             <>
-              <KpiCard 
-                title="Discipuladores" 
-                value={statistics?.totalDiscipuladores || 0} 
-                icon={Users} 
+              <KpiCard
+                title="Discipuladores"
+                value={statistics?.totalDiscipuladores || 0}
+                icon={Users}
                 subtitle="Cadastrados no Radicais Livres"
               />
-              <KpiCard 
-                title="Células" 
-                value={statistics?.totalLeaders || 0} 
-                icon={Users} 
+              <KpiCard
+                title="Células"
+                value={statistics?.totalLeaders || 0}
+                icon={Users}
                 subtitle="Cadastradas no Radicais Livres"
               />
-              <KpiCard 
-                title="Membros" 
-                value={statistics?.totalMembers || 0} 
-                icon={Users} 
-                subtitle="Ativos nas células"
-              />
-              <KpiCard 
-                title="Frequentadores" 
-                value={statistics?.totalFrequentadores || 0} 
-                icon={Users} 
-                subtitle="Ativos nas células"
-              />
-              <KpiCard 
-                title="Total" 
+              <KpiCard
+                title="Pessoas nas Células"
                 value={(statistics?.totalMembers || 0) + (statistics?.totalFrequentadores || 0)}
                 icon={Users}
-                subtitle="Membros + Frequentadores"
+                subtitle={`Membros: ${statistics?.totalMembers || 0} · Frequentadores: ${statistics?.totalFrequentadores || 0}`}
+                trend={monthlyTrend !== null ? { value: monthlyTrend, label: "presença vs mês anterior" } : undefined}
                 color="primary"
+              />
+              <KpiCard
+                title="Taxa de Presença"
+                value={`${performanceMetrics?.attendanceRate || 0}%`}
+                icon={Target}
+                subtitle={performanceMetrics && performanceMetrics.attendanceWeeks > 0
+                  ? `Presentes ÷ cadastrados · ${performanceMetrics.attendanceWeeks} semana(s) no mês`
+                  : "Sem relatórios no mês"}
+                color={performanceMetrics && performanceMetrics.attendanceRate >= 70 ? "success" : "warning"}
+              />
+              <KpiCard
+                title="Relatórios no Mês"
+                value={performanceMetrics?.attendanceWeeks || 0}
+                icon={FileText}
+                subtitle="Semanas com relatório de célula"
+                color={performanceMetrics && performanceMetrics.attendanceWeeks > 0 ? "primary" : "warning"}
               />
             </>
           ) : (
@@ -963,23 +970,27 @@ export function Dashboard() {
                 subtitle="Sob sua supervisão no Radicais Livres"
               />
               <KpiCard
-                title="Total de Membros"
-                value={statistics?.totalMembers || 0}
+                title="Pessoas na Rede"
+                value={(statistics?.totalMembers || 0) + (statistics?.totalFrequentadores || 0)}
                 icon={Users}
-                subtitle="Na rede do Radicais Livres"
-              />
-              <KpiCard
-                title="Frequentadores"
-                value={statistics?.totalFrequentadores || 0}
-                icon={Users}
-                subtitle="Na rede do Radicais Livres"
+                subtitle={`Membros: ${statistics?.totalMembers || 0} · Frequentadores: ${statistics?.totalFrequentadores || 0}`}
+                trend={monthlyTrend !== null ? { value: monthlyTrend, label: "presença vs mês anterior" } : undefined}
               />
               <KpiCard
                 title="Relatórios Pendentes"
                 value={pendingReports}
                 icon={FileText}
-                subtitle="Para aprovação"
-                color={pendingReports > 5 ? "warning" : "primary"}
+                subtitle="Aguardando sua aprovação"
+                color={pendingReports > 0 ? "warning" : "success"}
+              />
+              <KpiCard
+                title="Taxa de Presença"
+                value={`${performanceMetrics?.attendanceRate || 0}%`}
+                icon={Target}
+                subtitle={performanceMetrics && performanceMetrics.attendanceWeeks > 0
+                  ? `Presentes ÷ cadastrados · ${performanceMetrics.attendanceWeeks} semana(s) no mês`
+                  : "Sem relatórios no mês"}
+                color={performanceMetrics && performanceMetrics.attendanceRate >= 70 ? "success" : "warning"}
               />
             </>
           ) : (
@@ -1094,6 +1105,86 @@ export function Dashboard() {
         {isRadicaisMode ? (
           /* ===== GRÁFICOS ESPECÍFICOS DO MODO RADICAIS LIVRES ===== */
           <>
+            {/* Evolução da frequência (dados dos relatórios das células radicais) */}
+            <Card className="hover:grape-glow transition-smooth lg:col-span-2">
+              <CardHeader className="pb-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5 text-orange-500" />
+                    Frequência das Células
+                  </CardTitle>
+                  <div className="flex rounded-lg bg-muted p-1 self-start">
+                    {(["semanal", "mensal"] as const).map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setChartPeriod(p)}
+                        className={`min-h-[36px] rounded-md px-3 text-xs font-medium capitalize transition-colors ${
+                          chartPeriod === p
+                            ? "bg-background shadow-soft text-foreground"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="h-[260px] sm:h-[300px]">
+                {chartRows.length === 0 ? (
+                  <div className="flex items-center justify-center h-full">
+                    <p className="text-center text-muted-foreground">
+                      Sem relatórios para exibir ainda.
+                    </p>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={chartRows}>
+                      <defs>
+                        <linearGradient id="gradTotalRadicais" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#f97316" stopOpacity={0.4} />
+                          <stop offset="100%" stopColor="#f97316" stopOpacity={0.06} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" height={52} interval="preserveStartEnd" />
+                      <YAxis width={30} tick={{ fontSize: 11 }} />
+                      <Tooltip />
+                      <Legend wrapperStyle={{ fontSize: 12 }} />
+                      <Area
+                        type="monotone"
+                        dataKey="total"
+                        name="Total"
+                        fill="url(#gradTotalRadicais)"
+                        stroke="#f97316"
+                        strokeWidth={2}
+                        isAnimationActive
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="members"
+                        name="Membros"
+                        stroke="#ea580c"
+                        strokeWidth={2}
+                        dot
+                        isAnimationActive
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="frequentadores"
+                        name="Frequentadores"
+                        stroke="#fbbf24"
+                        strokeWidth={2}
+                        dot
+                        isAnimationActive
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Gráfico: Membros e Frequentadores por Célula (Líder) */}
             <Card className="hover:grape-glow transition-smooth lg:col-span-2">
               <CardHeader className="pb-2">

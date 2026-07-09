@@ -74,6 +74,7 @@ import { formatDateBR, formatDateBRLong } from "@/lib/dateUtils";
 export function CellReports() {
   const { user } = useAuth();
   const { mode } = useProfileMode();
+  const isRadicaisMode = mode === 'radicais';
   const { toast } = useToast();
   const isKidsMode = mode === 'kids';
 
@@ -521,6 +522,8 @@ export function CellReports() {
         visitors_present: visitorsPresent,
         phase: phase || null,
         lost_members: lostMembers.length > 0 ? lostMembers : null,
+        // Criar o relatório já é enviá-lo para aprovação do discipulador/obreiro.
+        status: "submitted",
       },
     ]);
 
@@ -614,6 +617,8 @@ export function CellReports() {
         visitors_present: visitorsPresent,
         phase: phase || null,
         lost_members: lostMembers.length > 0 ? lostMembers : null,
+        // Editar reenvia o relatório para aprovação (ex.: após correção pedida).
+        status: "submitted",
       })
       .eq("id", editingReport.id);
 
@@ -694,6 +699,29 @@ Observações: ${report.observations || ""}`;
   };
 
   // ---- render compartilhado do histórico (tabela desktop + cards mobile) ----
+
+  // Badge de status do relatório (visível no modo Radicais Livres): dá ao líder
+  // visibilidade de onde o relatório está no fluxo de aprovação.
+  const renderStatusBadge = (status: CellReportType["status"]) => (
+    <Badge
+      variant={
+        status === "approved"
+          ? "default"
+          : status === "needs_correction"
+            ? "destructive"
+            : "secondary"
+      }
+    >
+      {status === "approved"
+        ? "Aprovado"
+        : status === "needs_correction"
+          ? "Corrigir"
+          : status === "submitted"
+            ? "Enviado"
+            : "Rascunho"}
+    </Badge>
+  );
+
   const renderReportActions = (report: CellReportType) => (
     <div className="flex flex-wrap items-center justify-end gap-1 sm:gap-2">
       <Button
@@ -765,9 +793,12 @@ Observações: ${report.observations || ""}`;
         <div key={report.id} className="rounded-xl border border-border/70 bg-card p-4 shadow-soft space-y-2">
           <div className="flex items-center justify-between gap-2">
             <p className="font-semibold">{formatDateBR(report.weekStart)}</p>
-            {report.phase && (
-              <Badge variant="secondary" className="shrink-0">{report.phase}</Badge>
-            )}
+            <div className="flex items-center gap-1.5 shrink-0">
+              {isRadicaisMode && renderStatusBadge(report.status)}
+              {report.phase && (
+                <Badge variant="secondary">{report.phase}</Badge>
+              )}
+            </div>
           </div>
           <p className="text-xs text-muted-foreground">
             {report.members.length} membro{report.members.length !== 1 ? "s" : ""} ·{" "}
@@ -1434,6 +1465,7 @@ Observações: ${report.observations || ""}`;
                   <TableHeader>
                     <TableRow>
                       <TableHead className="min-w-[140px]">Semana</TableHead>
+                      {isRadicaisMode && <TableHead className="min-w-[110px]">Status</TableHead>}
                       <TableHead className="min-w-[140px]">Fase</TableHead>
                       <TableHead className="min-w-[200px]">Data de Multiplicação</TableHead>
                       <TableHead className="min-w-[260px] text-right sticky right-0 bg-card">Ações</TableHead>
@@ -1445,6 +1477,7 @@ Observações: ${report.observations || ""}`;
                         <TableCell className="font-medium">
                           {formatDateBR(report.weekStart)}
                         </TableCell>
+                        {isRadicaisMode && <TableCell>{renderStatusBadge(report.status)}</TableCell>}
                         <TableCell>{report.phase}</TableCell>
                         <TableCell>
                           {report.multiplicationDate ? (
@@ -2174,6 +2207,7 @@ Observações: ${report.observations || ""}`;
               <TableHeader>
                 <TableRow>
                   <TableHead className="min-w-[140px]">Semana</TableHead>
+                  {isRadicaisMode && <TableHead className="min-w-[110px]">Status</TableHead>}
                   <TableHead className="min-w-[140px]">Fase</TableHead>
                   <TableHead className="min-w-[200px]">Data de Multiplicação</TableHead>
                   <TableHead className="min-w-[260px] text-right sticky right-0 bg-card">Ações</TableHead>
@@ -2185,6 +2219,7 @@ Observações: ${report.observations || ""}`;
                     <TableCell className="font-medium">
                       {report.weekStart.toLocaleDateString("pt-BR")}
                     </TableCell>
+                    {isRadicaisMode && <TableCell>{renderStatusBadge(report.status)}</TableCell>}
                     <TableCell>{report.phase}</TableCell>
                     <TableCell>
                       {report.multiplicationDate ? (
