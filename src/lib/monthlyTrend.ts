@@ -15,6 +15,23 @@ export function latestMonthAverage(
   return monthlyData.length > 0 ? monthlyData[monthlyData.length - 1].averageTotal : 0;
 }
 
+/**
+ * Taxa de presença do mês mais recente: presença média semanal dividida pela
+ * base cadastrada (membros + frequentadores ativos), em % inteiro.
+ *
+ * Segue o modelo usado em gestão de pessoas (presentes ÷ esperados) e por isso
+ * é limitada a 0–100: presença acima do cadastro (ex.: visitantes avulsos que
+ * ainda não constavam na base) conta como casa cheia, nunca como mais de 100%.
+ */
+export function latestMonthAttendanceRate(
+  monthlyData: Array<{ averageTotal: number }>,
+  totalRoster: number,
+): number {
+  if (totalRoster <= 0) return 0;
+  const average = latestMonthAverage(monthlyData);
+  return Math.min(100, Math.max(0, Math.round((average / totalRoster) * 100)));
+}
+
 export function computeMonthlyTrend(
   monthlyData: Array<{ averageTotal: number }>,
 ): number | null {

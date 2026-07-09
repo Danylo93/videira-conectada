@@ -10,7 +10,7 @@ import { LeaderAssistantCard } from "@/components/dashboard/LeaderAssistantCard"
 import { CellsEvolutionChart } from "@/components/dashboard/CellsEvolutionChart";
 import { profilesService } from "@/integrations/supabase/profiles";
 import type { SeriesLeader } from "@/lib/cellSeries";
-import { computeMonthlyTrend, latestMonthAverage } from "@/lib/monthlyTrend";
+import { computeMonthlyTrend, latestMonthAttendanceRate } from "@/lib/monthlyTrend";
 import { computeMonthOverdueWeeks } from "@/lib/overdueReports";
 import { useStatistics } from "@/hooks/useStatistics";
 import type { Event } from "@/types/event";
@@ -324,6 +324,7 @@ export function Dashboard() {
   
   const [performanceMetrics, setPerformanceMetrics] = useState<{
     attendanceRate: number;
+    attendanceWeeks: number;
     reportCompliance: number;
     growthTarget: number;
     currentGrowth: number;
@@ -460,11 +461,12 @@ export function Dashboard() {
 
       /* ---- MÉTRICAS DE PERFORMANCE ---- */
       if (statistics) {
-        // Taxa de presença MENSAL: média do mês mais recente vs total cadastrado
-        const monthAverage = latestMonthAverage(statistics.monthlyData ?? []);
-        const attendanceRate = statistics.totalMembers > 0
-          ? Math.round((monthAverage / statistics.totalMembers) * 100)
-          : 0;
+        // Taxa de presença MENSAL: presentes ÷ base cadastrada (membros +
+        // frequentadores), limitada a 100% — modelo presentes/esperados.
+        const rosterSize = (statistics.totalMembers ?? 0) + (statistics.totalFrequentadores ?? 0);
+        const attendanceRate = latestMonthAttendanceRate(statistics.monthlyData ?? [], rosterSize);
+        const lastMonthData = (statistics.monthlyData ?? [])[(statistics.monthlyData ?? []).length - 1];
+        const attendanceWeeks = lastMonthData?.weeks ?? 0;
         
         // Calcular compliance real baseado em relatórios
         let reportCompliance = 0;
@@ -566,6 +568,7 @@ export function Dashboard() {
         
         setPerformanceMetrics({
           attendanceRate,
+          attendanceWeeks,
           reportCompliance,
           growthTarget: isPastor ? 20 : isDiscipulador ? 15 : 10,
           // Crescimento do mês: presença média do mês atual vs mês anterior
@@ -1004,7 +1007,9 @@ export function Dashboard() {
               title="Taxa de Presença"
               value={`${performanceMetrics?.attendanceRate || 0}%`}
               icon={Target}
-              subtitle="Média da rede no mês"
+              subtitle={performanceMetrics && performanceMetrics.attendanceWeeks > 0
+                ? `Presentes ÷ cadastrados · ${performanceMetrics.attendanceWeeks} semana(s) no mês`
+                : "Sem relatórios no mês"}
               color={performanceMetrics && performanceMetrics.attendanceRate >= 75 ? "success" : "warning"}
             />
           </>
@@ -1031,7 +1036,9 @@ export function Dashboard() {
                 title="Taxa de Presença"
                 value={`${performanceMetrics?.attendanceRate || 0}%`}
                 icon={Target}
-                subtitle="Presença média do mês"
+                subtitle={performanceMetrics && performanceMetrics.attendanceWeeks > 0
+                  ? `Presentes ÷ cadastrados · ${performanceMetrics.attendanceWeeks} semana(s) no mês`
+                  : "Sem relatórios no mês"}
                 color={performanceMetrics && performanceMetrics.attendanceRate >= 70 ? "success" : "warning"}
               />
               <KpiCard
@@ -1062,7 +1069,9 @@ export function Dashboard() {
               title="Taxa de Presença"
               value={`${performanceMetrics?.attendanceRate || 0}%`}
               icon={Target}
-              subtitle="Presença média do mês"
+              subtitle={performanceMetrics && performanceMetrics.attendanceWeeks > 0
+                ? `Presentes ÷ cadastrados · ${performanceMetrics.attendanceWeeks} semana(s) no mês`
+                : "Sem relatórios no mês"}
               color={performanceMetrics && performanceMetrics.attendanceRate >= 70 ? "success" : "warning"}
             />
             <KpiCard
