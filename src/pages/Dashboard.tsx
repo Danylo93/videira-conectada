@@ -977,11 +977,11 @@ export function Dashboard() {
                 trend={monthlyTrend !== null ? { value: monthlyTrend, label: "presença vs mês anterior" } : undefined}
               />
               <KpiCard
-                title="Relatórios Pendentes"
-                value={pendingReports}
+                title="Relatórios no Mês"
+                value={performanceMetrics?.attendanceWeeks || 0}
                 icon={FileText}
-                subtitle="Aguardando sua aprovação"
-                color={pendingReports > 0 ? "warning" : "success"}
+                subtitle="Semanas com relatório na rede"
+                color={performanceMetrics && performanceMetrics.attendanceWeeks > 0 ? "primary" : "warning"}
               />
               <KpiCard
                 title="Taxa de Presença"
@@ -1037,11 +1037,11 @@ export function Dashboard() {
                 trend={monthlyTrend !== null ? { value: monthlyTrend, label: "presença vs mês anterior" } : undefined}
               />
               <KpiCard
-                title="Relatórios Pendentes"
-                value={pendingReports}
+                title="Relatórios no Mês"
+                value={performanceMetrics?.attendanceWeeks || 0}
                 icon={FileText}
-                subtitle="A corrigir"
-                color={pendingReports > 0 ? "warning" : "success"}
+                subtitle="Semanas com relatório enviado"
+                color={performanceMetrics && performanceMetrics.attendanceWeeks > 0 ? "primary" : "warning"}
               />
               <KpiCard
                 title="Taxa de Presença"
