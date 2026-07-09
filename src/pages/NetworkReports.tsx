@@ -5,7 +5,6 @@ import { profilesService } from '@/integrations/supabase/profiles';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -21,10 +20,9 @@ import {
   Line,
   LabelList,
 } from 'recharts';
-import { FileText, Calendar, CheckCircle2, XCircle, Download } from 'lucide-react';
+import { FileText, Calendar, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Leader, Discipulador, CellReport as CellReportType } from '@/types/church';
-import { useToast } from '@/hooks/use-toast';
 import FancyLoader from '@/components/FancyLoader';
 
 /* ===================== helpers ===================== */
@@ -54,7 +52,6 @@ type ChartPoint = {
 export function NetworkReports() {
   const { user } = useAuth();
   const { mode } = useProfileMode();
-  const { toast } = useToast();
   const isMobile = useIsMobile();
 
   const [leaders, setLeaders] = useState<Leader[]>([]);
@@ -390,7 +387,6 @@ export function NetworkReports() {
       Fase: r.phase,
       Membros: r.members.length,
       Frequentadores: r.frequentadores.length,
-      Status: r.status,
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
@@ -405,42 +401,11 @@ export function NetworkReports() {
       Fase: r.phase,
       Membros: r.members.length,
       Frequentadores: r.frequentadores.length,
-      Status: r.status,
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Relatorios');
     XLSX.writeFile(wb, 'relatorios-rede.xlsx');
-  };
-
-  /* ========== ações rápidas ========== */
-
-  const handleApprove = async (id: string) => {
-    const { error } = await supabase.from('cell_reports').update({ status: 'approved' }).eq('id', id);
-    if (error) {
-      toast({ title: 'Erro', description: 'Não foi possível aprovar o relatório.', variant: 'destructive' });
-      return;
-    }
-    setReports((p) => p.map((r) => (r.id === id ? { ...r, status: 'approved' } : r)));
-    setNetworkReports((p) => p.map((r) => (r.id === id ? { ...r, status: 'approved' } : r)));
-    setChurchReports((p) => p.map((r) => (r.id === id ? { ...r, status: 'approved' } : r)));
-    toast({ title: 'Relatório aprovado!' });
-  };
-
-  const handleRequestCorrection = async (report: CellReportType) => {
-    const { error } = await supabase.from('cell_reports').update({ status: 'needs_correction' }).eq('id', report.id);
-    if (error) {
-      toast({ title: 'Erro', description: 'Não foi possível enviar para correção.', variant: 'destructive' });
-      return;
-    }
-    setReports((p) => p.map((r) => (r.id === report.id ? { ...r, status: 'needs_correction' } : r)));
-    setNetworkReports((p) => p.map((r) => (r.id === report.id ? { ...r, status: 'needs_correction' } : r)));
-    setChurchReports((p) => p.map((r) => (r.id === report.id ? { ...r, status: 'needs_correction' } : r)));
-    await supabase.from('notifications').insert({
-      user_id: report.liderId,
-      message: `Seu relatório da semana ${report.weekStart.toLocaleDateString('pt-BR')} precisa de correção.`,
-    });
-    toast({ title: 'Correção solicitada!' });
   };
 
   /* ========== guards/loading ========== */
@@ -468,40 +433,21 @@ export function NetworkReports() {
 
   /* ===================== UI (responsivo) ===================== */
 
-  const statusBadge = (r: CellReportType) => (
-    <Badge variant={r.status === 'approved' ? 'default' : r.status === 'needs_correction' ? 'destructive' : 'secondary'}>
-      {r.status === 'submitted' ? 'Enviado' : r.status === 'approved' ? 'Aprovado' : r.status === 'needs_correction' ? 'Correção' : 'Rascunho'}
-    </Badge>
-  );
-
   // Lista em cards para telas pequenas (evita a rolagem horizontal das tabelas)
   const renderMobileReportCards = (list: CellReportType[], showLeader: boolean) => (
     <div className="sm:hidden space-y-3">
       {list.map((r) => (
         <div key={r.id} className="rounded-xl border border-border/70 bg-card p-4 shadow-soft space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <p className="font-semibold text-sm">
-              {showLeader
-                ? leaders.find((l) => l.id === r.liderId)?.name || 'Líder'
-                : r.weekStart.toLocaleDateString('pt-BR')}
-            </p>
-            {statusBadge(r)}
-          </div>
+          <p className="font-semibold text-sm">
+            {showLeader
+              ? leaders.find((l) => l.id === r.liderId)?.name || 'Líder'
+              : r.weekStart.toLocaleDateString('pt-BR')}
+          </p>
           <p className="text-xs text-muted-foreground">
             {showLeader ? `Semana: ${r.weekStart.toLocaleDateString('pt-BR')} · ` : ''}
             Fase: {r.phase || '—'} · Envio: {r.submittedAt.toLocaleDateString('pt-BR')}
             {r.multiplicationDate ? ` · Mult.: ${r.multiplicationDate.toLocaleDateString('pt-BR')}` : ''}
           </p>
-          {r.status === 'submitted' && (
-            <div className="flex gap-2 pt-2 border-t border-border/50">
-              <Button size="sm" className="flex-1 min-h-[40px] inline-flex items-center gap-1" onClick={() => handleApprove(r.id)}>
-                <CheckCircle2 className="w-4 h-4" /> Aprovar
-              </Button>
-              <Button size="sm" variant="secondary" className="flex-1 min-h-[40px] inline-flex items-center gap-1" onClick={() => handleRequestCorrection(r)}>
-                <XCircle className="w-4 h-4" /> Correção
-              </Button>
-            </div>
-          )}
         </div>
       ))}
     </div>
@@ -673,11 +619,9 @@ export function NetworkReports() {
                       <TableRow>
                         <TableHead className="min-w-[200px]">Líder</TableHead>
                         <TableHead className="min-w-[130px]">Semana</TableHead>
-                        <TableHead className="min-w-[120px]">Status</TableHead>
                         <TableHead className="min-w-[130px]">Fase</TableHead>
                         <TableHead className="min-w-[200px]">Data de Multiplicação</TableHead>
                         <TableHead className="min-w-[180px]">Data de Envio</TableHead>
-                        <TableHead className="min-w-[220px] text-right sticky right-0 bg-card">Ações</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -687,11 +631,6 @@ export function NetworkReports() {
                             {leaders.find((l) => l.id === r.liderId)?.name || r.liderId}
                           </TableCell>
                           <TableCell>{r.weekStart.toLocaleDateString('pt-BR')}</TableCell>
-                          <TableCell>
-                            <Badge variant={r.status === 'approved' ? 'default' : r.status === 'needs_correction' ? 'destructive' : 'secondary'}>
-                              {r.status === 'submitted' ? 'Enviado' : r.status === 'approved' ? 'Aprovado' : r.status === 'needs_correction' ? 'Correção' : 'Rascunho'}
-                            </Badge>
-                          </TableCell>
                           <TableCell>{r.phase}</TableCell>
                           <TableCell>
                             {r.multiplicationDate ? (
@@ -708,18 +647,6 @@ export function NetworkReports() {
                               <Calendar className="w-3 h-3" />
                               {r.submittedAt.toLocaleDateString('pt-BR')}
                             </div>
-                          </TableCell>
-                          <TableCell className="text-right sticky right-0 bg-card">
-                            {r.status === 'submitted' && (
-                              <div className="flex flex-col items-end gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
-                                <Button size="sm" className="inline-flex items-center gap-1" onClick={() => handleApprove(r.id)}>
-                                  <CheckCircle2 className="w-4 h-4" /> Aprovar
-                                </Button>
-                                <Button size="sm" variant="secondary" className="inline-flex items-center gap-1" onClick={() => handleRequestCorrection(r)}>
-                                  <XCircle className="w-4 h-4" /> Correção
-                                </Button>
-                              </div>
-                            )}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -948,22 +875,15 @@ export function NetworkReports() {
                       <TableHeader>
                         <TableRow>
                           <TableHead className="min-w-[140px]">Semana</TableHead>
-                          <TableHead className="min-w-[120px]">Status</TableHead>
                           <TableHead className="min-w-[130px]">Fase</TableHead>
                           <TableHead className="min-w-[200px]">Data de Multiplicação</TableHead>
                           <TableHead className="min-w-[170px]">Data de Envio</TableHead>
-                          <TableHead className="min-w-[200px] text-right sticky right-0 bg-card">Ações</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {reports.map((r) => (
                           <TableRow key={r.id}>
                             <TableCell className="font-medium">{r.weekStart.toLocaleDateString('pt-BR')}</TableCell>
-                            <TableCell>
-                              <Badge variant={r.status === 'approved' ? 'default' : r.status === 'needs_correction' ? 'destructive' : 'secondary'}>
-                                {r.status === 'submitted' ? 'Enviado' : r.status === 'approved' ? 'Aprovado' : r.status === 'needs_correction' ? 'Correção' : 'Rascunho'}
-                              </Badge>
-                            </TableCell>
                             <TableCell>{r.phase}</TableCell>
                             <TableCell>
                               {r.multiplicationDate ? (
@@ -980,18 +900,6 @@ export function NetworkReports() {
                                 <Calendar className="w-3 h-3" />
                                 {r.submittedAt.toLocaleDateString('pt-BR')}
                               </div>
-                            </TableCell>
-                            <TableCell className="text-right sticky right-0 bg-card">
-                              {r.status === 'submitted' && (
-                                <div className="flex flex-col items-end gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
-                                  <Button size="sm" className="inline-flex items-center gap-1" onClick={() => handleApprove(r.id)}>
-                                    <CheckCircle2 className="w-4 h-4" /> Aprovar
-                                  </Button>
-                                  <Button size="sm" variant="secondary" className="inline-flex items-center gap-1" onClick={() => handleRequestCorrection(r)}>
-                                    <XCircle className="w-4 h-4" /> Correção
-                                  </Button>
-                                </div>
-                              )}
                             </TableCell>
                           </TableRow>
                         ))}
