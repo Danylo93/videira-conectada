@@ -15,11 +15,34 @@ import FancyLoader from "./components/FancyLoader";
 import { useDelayedLoading } from "./hooks/useDelayedLoading";
 import { usePageTitle } from "./hooks/use-page-title";
 
+// Recarrega uma única vez quando um chunk lazy falha ao ser importado.
+// Isso acontece tipicamente após um novo deploy: o index.html em cache aponta
+// para arquivos com hash que não existem mais, e a navegação para uma rota
+// sob demanda quebra. Um reload busca o HTML novo (com os hashes atuais).
+// A trava em sessionStorage evita loop de reload caso o erro seja real.
+function importWithRetry<T>(factory: () => Promise<T>): Promise<T> {
+  return factory().then(
+    (mod) => {
+      sessionStorage.removeItem("chunk-reload");
+      return mod;
+    },
+    (err) => {
+      if (typeof window !== "undefined" && !sessionStorage.getItem("chunk-reload")) {
+        sessionStorage.setItem("chunk-reload", "1");
+        window.location.reload();
+        // Devolve uma promise pendente: a página está recarregando.
+        return new Promise<T>(() => {});
+      }
+      throw err;
+    },
+  );
+}
+
 // Páginas carregadas sob demanda (code-splitting por rota) ------------------
 const named = <T extends Record<string, unknown>>(
   factory: () => Promise<T>,
   key: keyof T,
-) => lazy(() => factory().then((m) => ({ default: m[key] as ComponentType })));
+) => lazy(() => importWithRetry(factory).then((m) => ({ default: m[key] as ComponentType })));
 
 const Dashboard = named(() => import("@/pages/Dashboard"), "Dashboard");
 const CellManagement = named(() => import("@/pages/CellManagement"), "CellManagement");
@@ -51,12 +74,12 @@ const TithesOfferings = named(() => import("./pages/TithesOfferings"), "TithesOf
 const Financial = named(() => import("./pages/Financial"), "Financial");
 const Escalas = named(() => import("./pages/Escalas"), "Escalas");
 
-const NotFound = lazy(() => import("./pages/NotFound"));
-const Courses = lazy(() => import("./pages/cursos/Courses"));
-const CourseAdminNew = lazy(() => import("./pages/cursos/CourseAdminNew"));
-const Events = lazy(() => import("./pages/eventos/Events"));
-const Encounters = lazy(() => import("./pages/encounters/Encounters"));
-const EncounterEvents = lazy(() => import("./pages/encounters/EncounterEvents"));
+const NotFound = lazy(() => importWithRetry(() => import("./pages/NotFound")));
+const Courses = lazy(() => importWithRetry(() => import("./pages/cursos/Courses")));
+const CourseAdminNew = lazy(() => importWithRetry(() => import("./pages/cursos/CourseAdminNew")));
+const Events = lazy(() => importWithRetry(() => import("./pages/eventos/Events")));
+const Encounters = lazy(() => importWithRetry(() => import("./pages/encounters/Encounters")));
+const EncounterEvents = lazy(() => importWithRetry(() => import("./pages/encounters/EncounterEvents")));
 
 const queryClient = new QueryClient();
 
