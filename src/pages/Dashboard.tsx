@@ -589,19 +589,20 @@ export function Dashboard() {
       if (isLeader) {
         const { data: recentReports } = await supabase
           .from("cell_reports")
-          .select("week_start, status")
+          .select("week_start")
           .eq("lider_id", user.id)
           .order("week_start", { ascending: false })
           .limit(3);
 
         if (recentReports) {
-          recentReports.forEach((report, index) => {
+          recentReports.forEach((report) => {
             activity.push({
               id: `report-${report.week_start}`,
               type: 'report',
               title: `Relatório da semana ${formatDateBR(report.week_start)}`,
               date: report.week_start,
-              status: report.status === 'approved' ? 'completed' : report.status === 'needs_correction' ? 'overdue' : 'pending'
+              // Sem fluxo de aprovação: um relatório enviado já está concluído.
+              status: 'completed'
             });
           });
         }
