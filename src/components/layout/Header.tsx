@@ -32,6 +32,7 @@ export function Header() {
 
   const config = getProfileModeConfig(mode);
   const isObreiro = user.isObreiro === true;
+  const isRadicais = mode === 'radicais';
   // O apelido de pastor (ex.: Kids = Tainá) não se aplica a um obreiro.
   const pastorAlias = user.role === 'pastor' && !isObreiro ? config.pastorAlias : undefined;
   const displayName = pastorAlias?.name ?? user.name;
@@ -44,22 +45,36 @@ export function Header() {
     .toUpperCase();
 
   return (
-    <header className="h-16 border-b border-border/60 bg-card/80 backdrop-blur-md shadow-soft flex items-center justify-between gap-2 px-4 sm:px-6 sticky top-0 z-30">
+    <header className={`h-16 border-b shadow-soft flex items-center justify-between gap-2 px-4 sm:px-6 sticky top-0 z-30 ${
+      isRadicais
+        ? 'border-white/10 bg-black/50 backdrop-blur-xl'
+        : 'border-border/60 bg-card/80 backdrop-blur-md'
+    }`}>
       <div className="flex items-center gap-3 sm:gap-4 min-w-0">
         <SidebarTrigger />
         <div className="min-w-0">
           <div className="flex items-center gap-2 min-w-0">
-            <h1 className="truncate text-base sm:text-lg font-semibold text-foreground">
+            <h1 className={`truncate text-base sm:text-lg font-semibold ${
+              isRadicais
+                ? 'bg-gradient-to-r from-orange-400 via-amber-300 to-orange-500 bg-clip-text text-transparent'
+                : 'text-foreground'
+            }`}>
               {config.systemName}
             </h1>
             {config.badgeLabel && (
-              <Badge variant="secondary" className="shrink-0 bg-accent text-accent-foreground">
+              <Badge variant="secondary" className={`shrink-0 ${
+                isRadicais
+                  ? 'bg-orange-500/20 text-orange-300 border border-orange-500/30 shadow-[0_0_12px_hsl(22_95%_55%/0.2)]'
+                  : 'bg-accent text-accent-foreground'
+              }`}>
                 <config.icon className="w-3 h-3 mr-1" />
                 {config.badgeLabel}
               </Badge>
             )}
           </div>
-          <p className="truncate text-xs sm:text-sm text-muted-foreground">
+          <p className={`truncate text-xs sm:text-sm ${
+            isRadicais ? 'text-white/50' : 'text-muted-foreground'
+          }`}>
             {displayRole} - {displayName}
           </p>
         </div>
@@ -70,7 +85,10 @@ export function Header() {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-10 w-10 rounded-full">
               <Avatar className="h-10 w-10">
-                <AvatarFallback className="bg-primary text-primary-foreground">
+                <AvatarFallback className={isRadicais
+                  ? 'bg-gradient-to-br from-orange-500 to-amber-500 text-white font-bold'
+                  : 'bg-primary text-primary-foreground'
+                }>
                   {initials}
                 </AvatarFallback>
               </Avatar>

@@ -31,6 +31,8 @@ import {
 } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
 
+import logoRadicaisBranco from '@/assets/logo-rl-branco.png';
+
 interface NavigationItem {
   title: string;
   url: string;
@@ -172,6 +174,7 @@ export function Sidebar() {
 
   const collapsed = state === "collapsed";
   const isKidsMode = mode === 'kids';
+  const isRadicais = mode === 'radicais';
   const config = getProfileModeConfig(mode);
 
   // Navegação enxuta para líderes: apenas o essencial do dia a dia
@@ -224,22 +227,32 @@ export function Sidebar() {
     <SidebarComponent className={collapsed ? "w-14" : "w-64"}>
       <SidebarContent>
         {/* Logo Section */}
-        <div className="p-4 border-b">
+        <div className={`p-4 border-b ${isRadicais ? 'border-white/10' : ''}`}>
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-md">
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center shadow-md ${
+              isRadicais
+                ? 'bg-gradient-to-br from-orange-500/20 to-amber-500/20 ring-1 ring-orange-500/30'
+                : 'bg-white'
+            }`}>
               <img
-                src={config.logo}
+                src={isRadicais ? logoRadicaisBranco : config.logo}
                 alt={`${config.sidebarTitle} Logo`}
-                className={`w-9 h-9 ${config.logoRounded ? 'rounded-full' : ''}`}
+                className={`w-9 h-9 ${isRadicais ? 'brightness-200 drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]' : ''} ${config.logoRounded ? 'rounded-full' : ''}`}
               />
             </div>
             {!collapsed && (
               <div>
-                <h2 className={`font-bold text-lg ${config.titleGradientClass}`}>
+                <h2 className={`font-bold text-lg ${
+                  isRadicais
+                    ? 'bg-gradient-to-r from-orange-400 via-amber-300 to-orange-500 bg-clip-text text-transparent'
+                    : config.titleGradientClass
+                }`}>
                   {config.sidebarTitle}
                 </h2>
                 {config.sidebarSubtitle && (
-                  <p className="text-xs text-muted-foreground">{config.sidebarSubtitle}</p>
+                  <p className={`text-xs ${isRadicais ? 'text-white/40' : 'text-muted-foreground'}`}>
+                    {config.sidebarSubtitle}
+                  </p>
                 )}
               </div>
             )}
@@ -247,7 +260,9 @@ export function Sidebar() {
         </div>
 
         <SidebarGroup>
-          <SidebarGroupLabel>Navegação</SidebarGroupLabel>
+          <SidebarGroupLabel className={isRadicais ? 'text-white/30' : ''}>
+            Navegação
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu className="stagger">
               {filteredItems.map((item) => (
@@ -258,12 +273,16 @@ export function Sidebar() {
                     className={cn(
                       'group relative flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 hover:translate-x-0.5 active:scale-[0.98]',
                       isActive(item.url)
-                        ? 'bg-primary text-primary-foreground shadow-soft font-medium'
-                        : 'text-sidebar-foreground hover:bg-muted'
+                        ? isRadicais
+                          ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-lg shadow-orange-500/20 font-medium'
+                          : 'bg-primary text-primary-foreground shadow-soft font-medium'
+                        : isRadicais
+                          ? 'text-white/60 hover:text-white/90 hover:bg-white/5'
+                          : 'text-sidebar-foreground hover:bg-muted'
                     )}
                   >
                     <NavLink to={item.url}>
-                      {isActive(item.url) && (
+                      {isActive(item.url) && !isRadicais && (
                         <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary-foreground/80" />
                       )}
                       <item.icon className="w-5 h-5 flex-shrink-0 transition-transform group-hover:scale-110" />
@@ -277,7 +296,9 @@ export function Sidebar() {
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel>Conta</SidebarGroupLabel>
+          <SidebarGroupLabel className={isRadicais ? 'text-white/30' : ''}>
+            Conta
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {filteredAccountItems.map((item) => (
@@ -288,8 +309,12 @@ export function Sidebar() {
                     className={cn(
                       'flex items-center gap-3 px-3 py-2 rounded-lg transition-smooth',
                       isActive(item.url)
-                        ? 'bg-primary text-primary-foreground grape-glow'
-                        : 'text-sidebar-foreground hover:bg-muted'
+                        ? isRadicais
+                          ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-lg shadow-orange-500/20'
+                          : 'bg-primary text-primary-foreground grape-glow'
+                        : isRadicais
+                          ? 'text-white/60 hover:text-white/90 hover:bg-white/5'
+                          : 'text-sidebar-foreground hover:bg-muted'
                     )}
                   >
                     <NavLink to={item.url}>
@@ -305,18 +330,24 @@ export function Sidebar() {
 
         {/* User Role Badge */}
         {!collapsed && (
-          <div className="mt-auto p-4 border-t">
-            <div className="bg-muted rounded-lg p-3">
+          <div className={`mt-auto p-4 border-t ${isRadicais ? 'border-white/10' : ''}`}>
+            <div className={`rounded-lg p-3 ${
+              isRadicais
+                ? 'bg-orange-500/10 border border-orange-500/20'
+                : 'bg-muted'
+            }`}>
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-success rounded-full animate-pulse"></div>
-                <span className="text-sm font-medium">
+                <div className={`w-2 h-2 rounded-full animate-pulse ${
+                  isRadicais ? 'bg-orange-400' : 'bg-success'
+                }`}></div>
+                <span className={`text-sm font-medium ${isRadicais ? 'text-orange-200' : ''}`}>
                   {user.role === 'pastor' && (user.isObreiro ? 'Obreiro' : 'Pastor')}
                   {user.role === 'discipulador' && 'Discipulador'}
                   {user.role === 'lider' && 'Líder'}
                 </span>
               </div>
               {user.celula && (
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className={`text-xs mt-1 ${isRadicais ? 'text-orange-300/50' : 'text-muted-foreground'}`}>
                   {user.celula}
                 </p>
               )}
