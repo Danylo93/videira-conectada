@@ -6,11 +6,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Grape, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 import { useDelayedLoading } from '@/hooks/useDelayedLoading';
 import FancyLoader from '@/components/FancyLoader';
 import { AuthTransition } from '@/types/auth';
+import { useProfileMode } from '@/contexts/ProfileModeContext';
+import { getProfileModeConfig } from '@/config/profileModes';
 
 type AuthLoaderCopy = {
   message: string;
@@ -50,6 +52,8 @@ export function Auth() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const { login, authTransition} = useAuth();
+  const { mode } = useProfileMode();
+  const config = getProfileModeConfig(mode);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -97,12 +101,18 @@ export function Auth() {
         <div className="hidden flex-1 md:block">
           <div className="max-w-md">
             <div className="mb-6 flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/60 shadow-lg">
-                <Grape className="h-7 w-7 text-white" />
+              <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-lg ring-1 ring-primary/10">
+                <img
+                  src={config.logo}
+                  alt={config.brandName}
+                  className={`h-11 w-11 ${config.logoRounded ? 'rounded-full object-cover' : 'object-contain'}`}
+                />
               </div>
               <div>
-                <h1 className="text-2xl font-bold tracking-tight">Sistema de Gestão de Células</h1>
-                <p className="text-sm text-muted-foreground">Videira São Miguel</p>
+                <h1 className={`text-2xl font-bold tracking-tight ${config.titleGradientClass}`}>
+                  {config.brandName}
+                </h1>
+                <p className="text-sm text-muted-foreground">Sistema de Gestão de Células</p>
               </div>
             </div>
             <p className="text-muted-foreground">
@@ -169,12 +179,16 @@ export function Auth() {
 
           {/* Mobile brand footer */}
           <div className="mt-6 flex items-center justify-center gap-2 md:hidden">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/60 shadow">
-              <Grape className="h-5 w-5 text-white" />
+            <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg bg-white shadow ring-1 ring-primary/10">
+              <img
+                src={config.logo}
+                alt={config.brandName}
+                className={`h-7 w-7 ${config.logoRounded ? 'rounded-full object-cover' : 'object-contain'}`}
+              />
             </div>
             <div className="text-center">
-              <p className="text-sm font-medium">Sistema de Gestão de Células</p>
-              <p className="text-xs text-muted-foreground">Videira São Miguel</p>
+              <p className="text-sm font-medium">{config.brandName}</p>
+              <p className="text-xs text-muted-foreground">Sistema de Gestão de Células</p>
             </div>
           </div>
         </div>

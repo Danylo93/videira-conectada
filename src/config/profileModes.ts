@@ -17,6 +17,8 @@ export interface ProfileModeConfig {
   shortLabel: string;
   /** Nome do sistema exibido no Header. */
   systemName: string;
+  /** Marca curta do ministério (usada na tela de login). */
+  brandName: string;
   /** Título exibido na Sidebar. */
   sidebarTitle: string;
   /** Subtítulo opcional na Sidebar. */
@@ -45,6 +47,7 @@ export const PROFILE_MODE_CONFIG: Record<ProfileMode, ProfileModeConfig> = {
     menuLabel: 'Modo Normal',
     shortLabel: 'Normal',
     systemName: 'Sistema Videira São Miguel',
+    brandName: 'Videira São Miguel',
     sidebarTitle: 'Videira',
     sidebarSubtitle: 'São Miguel',
     icon: Users,
@@ -58,6 +61,7 @@ export const PROFILE_MODE_CONFIG: Record<ProfileMode, ProfileModeConfig> = {
     menuLabel: 'Modo Kids',
     shortLabel: 'Kids',
     systemName: 'Videira Kids',
+    brandName: 'Videira Kids',
     sidebarTitle: 'Videira Kids',
     badgeLabel: 'Kids',
     icon: Sparkles,
@@ -72,9 +76,10 @@ export const PROFILE_MODE_CONFIG: Record<ProfileMode, ProfileModeConfig> = {
     mode: 'radicais',
     menuLabel: 'Modo Radicais Livres',
     shortLabel: 'Radicais',
-    systemName: 'Videira Radicais Livres',
+    systemName: 'Radicais Livres São Miguel',
+    brandName: 'Radicais Livres São Miguel',
     sidebarTitle: 'Radicais Livres',
-    sidebarSubtitle: 'Videira Jovens',
+    sidebarSubtitle: 'São Miguel',
     badgeLabel: 'Radicais',
     icon: Flame,
     logo: logoRadicais,

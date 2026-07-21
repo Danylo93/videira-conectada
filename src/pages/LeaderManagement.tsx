@@ -379,7 +379,7 @@ export function LeaderManagement() {
             {isKidsMode ? 'Lista de Líderes Kids' : 'Lista de Líderes'}
           </CardTitle>
         </CardHeader>
-        <CardContent className="overflow-x-auto">
+        <CardContent>
           {leaders.length === 0 ? (
             <EmptyState
               icon={Users}
@@ -387,6 +387,74 @@ export function LeaderManagement() {
               description="Cadastre o primeiro líder para começar a acompanhar as células."
             />
           ) : (
+          <>
+          {/* Lista em cartões no mobile: nome, contato e ações sem scroll horizontal */}
+          <div className="space-y-3 md:hidden">
+            {leaders.map((leader) => (
+              <div key={leader.id} className="rounded-lg border p-4 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-medium">{leader.name}</p>
+                      {leader.role && leader.role !== 'lider' && (
+                        <Badge variant="secondary" className="capitalize text-[10px]">
+                          {leader.role}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  {user.role === 'pastor' && (!leader.role || leader.role === 'lider') && (
+                    <div className="flex gap-2 shrink-0">
+                      <Button size="sm" variant="outline" onClick={() => handleEditLeader(leader)} aria-label={`Editar ${leader.name}`}>
+                        <Edit className="w-3 h-3" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button size="sm" variant="outline" aria-label={`Deletar ${leader.name}`}>
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Tem certeza que deseja deletar o líder {leader.name}? Esta ação não pode ser desfeita.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDeleteLeader(leader.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Deletar
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-1 text-sm text-muted-foreground">
+                  {leader.email && (
+                    <div className="flex items-center gap-1">
+                      <Mail className="w-3 h-3 shrink-0" />
+                      <span className="truncate">{leader.email}</span>
+                    </div>
+                  )}
+                  {leader.phone && (
+                    <div className="flex items-center gap-1">
+                      <Phone className="w-3 h-3 shrink-0" />
+                      {leader.phone}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Tabela completa em telas médias/grandes */}
+          <div className="hidden md:block overflow-x-auto">
           <Table className="min-w-[640px]">
             <TableHeader>
               <TableRow>
@@ -468,6 +536,8 @@ export function LeaderManagement() {
               ))}
             </TableBody>
           </Table>
+          </div>
+          </>
           )}
         </CardContent>
       </Card>

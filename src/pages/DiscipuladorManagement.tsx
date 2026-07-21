@@ -340,7 +340,79 @@ export function DiscipuladorManagement() {
             {isKidsMode ? 'Lista de Discipuladoras Kids' : 'Lista de Discipuladores'}
           </CardTitle>
         </CardHeader>
-        <CardContent className="overflow-x-auto">
+        <CardContent>
+          {/* Lista em cartões no mobile: nome, contato e ações sem scroll horizontal */}
+          <div className="space-y-3 md:hidden">
+            {discipuladores.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-6">
+                Nenhum discipulador cadastrado.
+              </p>
+            )}
+            {discipuladores.map((d) => (
+              <div key={d.id} className="rounded-lg border p-4 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-medium">{d.name}</p>
+                      {d.role && d.role !== 'discipulador' && (
+                        <Badge variant="secondary" className="capitalize text-[10px]">
+                          {d.role}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  {(!d.role || d.role === 'discipulador') && (
+                    <div className="flex gap-2 shrink-0">
+                      <Button size="sm" variant="outline" onClick={() => handleEditDiscipulador(d)} aria-label={`Editar ${d.name}`}>
+                        <Edit className="w-3 h-3" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button size="sm" variant="outline" aria-label={`Deletar ${d.name}`}>
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Tem certeza que deseja deletar o discipulador {d.name}? Esta ação não pode ser desfeita.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDeleteDiscipulador(d.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Deletar
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-1 text-sm text-muted-foreground">
+                  {d.email && (
+                    <div className="flex items-center gap-1">
+                      <Mail className="w-3 h-3 shrink-0" />
+                      <span className="truncate">{d.email}</span>
+                    </div>
+                  )}
+                  {d.phone && (
+                    <div className="flex items-center gap-1">
+                      <Phone className="w-3 h-3 shrink-0" />
+                      {d.phone}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Tabela completa em telas médias/grandes */}
+          <div className="hidden md:block overflow-x-auto">
           <Table className="min-w-[640px]">
             <TableHeader>
               <TableRow>
@@ -418,6 +490,7 @@ export function DiscipuladorManagement() {
               ))}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 
