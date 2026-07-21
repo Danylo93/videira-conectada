@@ -91,17 +91,21 @@ export function Auth() {
 
   return (
     <div className="relative min-h-screen overflow-hidden">
-      {/* Background */}
-      <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/15 via-background to-background" />
-      <div className="pointer-events-none absolute -top-32 -left-32 h-80 w-80 rounded-full bg-primary/20 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-32 -right-32 h-80 w-80 rounded-full bg-accent/20 blur-3xl" />
+      {/* Fundo animado, jovem e temático por modo */}
+      <div className="auth-bg absolute inset-0 -z-20" />
+      <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+        <div className="auth-orb auth-orb--1 -top-24 -left-24 h-72 w-72 bg-primary/40 sm:h-96 sm:w-96" />
+        <div className="auth-orb auth-orb--2 top-1/3 -right-28 h-72 w-72 bg-accent/40 sm:h-96 sm:w-96" />
+        <div className="auth-orb auth-orb--3 -bottom-28 left-1/4 h-72 w-72 bg-primary-glow/40 sm:h-96 sm:w-96" />
+        <div className="auth-sparkles absolute inset-0" />
+      </div>
 
       <div className="mx-auto flex min-h-screen max-w-6xl items-center px-4">
         {/* Left side (brand) */}
         <div className="hidden flex-1 md:block">
           <div className="max-w-md">
             <div className="mb-6 flex items-center gap-3">
-              <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-lg ring-1 ring-primary/10">
+              <div className="auth-logo-float flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-lg ring-1 ring-primary/10">
                 <img
                   src={config.logo}
                   alt={config.brandName}
@@ -123,7 +127,7 @@ export function Auth() {
 
         {/* Auth Card */}
         <div className="mx-auto w-full max-w-md flex-1">
-          <Card className="border-primary/20 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-lg">
+          <Card className="auth-rise border-primary/20 bg-background/80 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60 shadow-lg">
             <CardContent className="p-6 md:p-8">
               <div className="mb-6 text-center md:text-left">
                 <h2 className="text-2xl font-semibold">Entrar</h2>
