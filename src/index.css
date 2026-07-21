@@ -606,10 +606,30 @@ All colors MUST be HSL.
   50% { transform: translateY(-6px) rotate(-2deg); }
 }
 
+/* Efeito de glow pulsante no logo da tela de login */
+.auth-logo-glow {
+  animation: auth-logo-float 5s ease-in-out infinite;
+}
+.auth-logo-glow::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  border-radius: 9999px;
+  background: radial-gradient(circle, hsl(var(--primary) / 0.35), transparent 70%);
+  animation: auth-glow-pulse 3s ease-in-out infinite;
+  z-index: -1;
+}
+
+@keyframes auth-glow-pulse {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.15); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .auth-bg,
   .auth-orb--1, .auth-orb--2, .auth-orb--3,
-  .auth-sparkles, .auth-rise, .auth-logo-float {
+  .auth-sparkles, .auth-rise, .auth-logo-float,
+  .auth-logo-glow, .auth-logo-glow::before {
     animation: none !important;
   }
 }

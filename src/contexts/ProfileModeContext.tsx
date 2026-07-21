@@ -35,7 +35,9 @@ function readModeFromUrl(): ProfileMode | null {
 export function ProfileModeProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   // Antes do login: só URL manda; padrão neutro.
-  const [mode, setModeState] = useState<ProfileMode>(() => readModeFromUrl() ?? 'normal');
+  // Antes do login, padrão é 'radicais' para exibir a marca dos Radicais Livres.
+  // A URL (?mode=kids ou ?mode=normal) pode sobrescrever.
+  const [mode, setModeState] = useState<ProfileMode>(() => readModeFromUrl() ?? 'radicais');
 
   // Ao logar (ou trocar de usuário): URL > preferência salva do usuário > escopo do perfil.
   useEffect(() => {
