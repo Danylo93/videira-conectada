@@ -462,6 +462,22 @@ export function CellReports() {
   }
 
   // ---- actions -------------------------------------------------------------
+  // Traduz erros do Supabase para uma mensagem útil ao usuário, sem esconder a
+  // causa real. O código 23505 é violação de unicidade (lider_id, week_start):
+  // já existe um relatório para aquela semana.
+  const describeSupabaseError = (
+    error: { code?: string; message?: string; details?: string } | null,
+    fallback: string,
+  ): string => {
+    if (!error) return fallback;
+    if (error.code === "23505") {
+      return "Já existe um relatório para esta semana. Edite o relatório existente em vez de criar outro.";
+    }
+    // Log completo no console para diagnóstico e mostra a mensagem real.
+    console.error("Erro Supabase:", error);
+    return error.message || error.details || fallback;
+  };
+
   const handleCreateReport = async () => {
     if (!user || !selectedWeek) return;
 
@@ -503,7 +519,7 @@ export function CellReports() {
       if (visitorsError) {
         toast({
           title: "Erro",
-          description: "Não foi possível adicionar os visitantes.",
+          description: describeSupabaseError(visitorsError, "Não foi possível adicionar os visitantes."),
           variant: "destructive",
         });
         return;
@@ -527,7 +543,7 @@ export function CellReports() {
     if (error) {
       toast({
         title: "Erro",
-        description: "Não foi possível criar o relatório.",
+        description: describeSupabaseError(error, "Não foi possível criar o relatório."),
         variant: "destructive",
       });
       return;
@@ -596,7 +612,7 @@ export function CellReports() {
       if (visitorsError) {
         toast({
           title: "Erro",
-          description: "Não foi possível adicionar os visitantes.",
+          description: describeSupabaseError(visitorsError, "Não foi possível adicionar os visitantes."),
           variant: "destructive",
         });
         return;
@@ -620,7 +636,7 @@ export function CellReports() {
     if (error) {
       toast({
         title: "Erro",
-        description: "Não foi possível atualizar o relatório.",
+        description: describeSupabaseError(error, "Não foi possível atualizar o relatório."),
         variant: "destructive",
       });
       return;
@@ -650,7 +666,7 @@ export function CellReports() {
     if (error) {
       toast({
         title: "Erro",
-        description: "Não foi possível excluir o relatório.",
+        description: describeSupabaseError(error, "Não foi possível excluir o relatório."),
         variant: "destructive",
       });
       setDeleteReportId(null);

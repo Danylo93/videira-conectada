@@ -60,11 +60,16 @@ export class ErrorBoundary extends React.Component<
           >
             Recarregar
           </button>
-          {import.meta.env.DEV && (
-            <pre className="mt-4 max-h-40 overflow-auto rounded-md bg-muted p-3 text-left text-[11px] text-muted-foreground">
-              {error.message}
+          {/* Detalhe técnico recolhível — ajuda a diagnosticar quando o erro é
+              relatado pelo usuário (fica escondido atrás de um clique). */}
+          <details className="mt-4 text-left">
+            <summary className="cursor-pointer text-xs text-muted-foreground">
+              Detalhes técnicos
+            </summary>
+            <pre className="mt-2 max-h-40 overflow-auto rounded-md bg-muted p-3 text-[11px] text-muted-foreground">
+              {error.name}: {error.message}
             </pre>
-          )}
+          </details>
         </div>
       </div>
     );

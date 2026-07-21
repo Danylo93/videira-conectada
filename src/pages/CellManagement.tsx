@@ -160,17 +160,23 @@ export function CellManagement() {
   const handleAddMember = async () => {
     if (!user) return;
 
-    const liderId = user.role === 'pastor' ? selectedLeaderId : user.id;
-    
-    if (user.role === 'pastor' && !selectedLeaderId) {
+    if (!newMember.name.trim()) {
+      toast({ title: 'Nome obrigatório', description: 'Informe o nome da pessoa.', variant: 'destructive' });
       return;
     }
-    
+
+    const liderId = user.role === 'pastor' ? selectedLeaderId : user.id;
+
+    if (user.role === 'pastor' && !selectedLeaderId) {
+      toast({ title: 'Selecione um líder', description: 'Escolha a célula antes de adicionar a pessoa.', variant: 'destructive' });
+      return;
+    }
+
     const { data, error } = await supabase
       .from('members')
       .insert([
         {
-          name: newMember.name,
+          name: newMember.name.trim(),
           phone: newMember.phone || null,
           email: newMember.email || null,
           type: newMember.type,
@@ -182,6 +188,11 @@ export function CellManagement() {
 
     if (error) {
       console.error('Error adding member:', error);
+      toast({
+        title: 'Erro',
+        description: error.message || 'Não foi possível adicionar a pessoa.',
+        variant: 'destructive',
+      });
       return;
     }
 
@@ -229,7 +240,7 @@ export function CellManagement() {
       console.error('Error updating member:', error);
       toast({
         title: 'Erro',
-        description: 'Falha ao atualizar a pessoa.',
+        description: error.message || 'Falha ao atualizar a pessoa.',
         variant: 'destructive',
       });
       return;
@@ -253,7 +264,7 @@ export function CellManagement() {
       console.error('Error deleting member:', error);
       toast({
         title: 'Erro',
-        description: 'Falha ao deletar a pessoa.',
+        description: error.message || 'Falha ao deletar a pessoa.',
         variant: 'destructive',
       });
       return;
