@@ -20,6 +20,16 @@ export class ErrorBoundary extends React.Component<
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error("ErrorBoundary capturou um erro:", error, info);
+
+    // Erro de carregamento de chunk (típico após um novo deploy): o HTML em
+    // cache aponta para arquivos com hash que já não existem. Recarrega uma vez
+    // para buscar a versão nova; a trava evita loop se o erro for real.
+    const msg = `${error?.name ?? ""} ${error?.message ?? ""}`;
+    const isChunkError = /chunkloaderror|dynamically imported module|importing a module script failed|failed to fetch dynamically/i.test(msg);
+    if (isChunkError && typeof window !== "undefined" && !sessionStorage.getItem("chunk-reload")) {
+      sessionStorage.setItem("chunk-reload", "1");
+      window.location.reload();
+    }
   }
 
   handleReload = () => {
