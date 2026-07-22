@@ -28,12 +28,13 @@ export function OrganogramaNode({
   onClick
 }: OrganogramaNodeProps) {
   const getRoleColor = (role: string) => {
+    // Tints translúcidos sobre bg-card: legível no tema claro e no escuro.
     switch (role) {
-      case 'pastor': return 'border-purple-500 bg-purple-50';
-      case 'obreiro': return 'border-blue-500 bg-blue-50';
-      case 'discipulador': return 'border-green-500 bg-green-50';
-      case 'lider': return 'border-orange-500 bg-orange-50';
-      default: return 'border-gray-500 bg-gray-50';
+      case 'pastor': return 'border-purple-500 bg-purple-500/10';
+      case 'obreiro': return 'border-blue-500 bg-blue-500/10';
+      case 'discipulador': return 'border-green-500 bg-green-500/10';
+      case 'lider': return 'border-orange-500 bg-orange-500/10';
+      default: return 'border-border bg-card';
     }
   };
 
@@ -48,10 +49,10 @@ export function OrganogramaNode({
   };
 
   const getPresenceStatus = (presence: number) => {
-    if (presence >= 80) return { status: 'excellent', color: 'text-green-600', bg: 'bg-green-100' };
-    if (presence >= 60) return { status: 'good', color: 'text-blue-600', bg: 'bg-blue-100' };
-    if (presence >= 40) return { status: 'average', color: 'text-yellow-600', bg: 'bg-yellow-100' };
-    return { status: 'low', color: 'text-red-600', bg: 'bg-red-100' };
+    if (presence >= 80) return { status: 'excellent', color: 'text-green-500', bg: 'bg-green-500/15' };
+    if (presence >= 60) return { status: 'good', color: 'text-blue-500', bg: 'bg-blue-500/15' };
+    if (presence >= 40) return { status: 'average', color: 'text-yellow-500', bg: 'bg-yellow-500/15' };
+    return { status: 'low', color: 'text-red-500', bg: 'bg-red-500/15' };
   };
 
   const presenceStatus = getPresenceStatus(averagePresence);
@@ -117,7 +118,7 @@ export function OrganogramaNode({
                 {averagePresence}%
               </span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+            <div className="w-full bg-muted rounded-full h-1.5 mt-1">
               <div 
                 className={`h-1.5 rounded-full ${
                   presenceStatus.status === 'excellent' ? 'bg-green-500' :

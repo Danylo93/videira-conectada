@@ -74,7 +74,7 @@ export function StatisticsChart({ data, loading = false, title = "Estatísticas"
     { name: 'Frequentadores', value: data.totalFrequentadores, color: COLORS.frequentadores },
   ];
 
-  const growthIcon = data.growthRate >= 0 ? TrendingUp : TrendingDown;
+  const GrowthIcon = data.growthRate >= 0 ? TrendingUp : TrendingDown;
   const growthColor = data.growthRate >= 0 ? 'text-green-600' : 'text-red-600';
 
   return (
@@ -126,7 +126,7 @@ export function StatisticsChart({ data, loading = false, title = "Estatísticas"
                   <p className={`text-2xl font-bold ${growthColor}`}>
                     {data.growthRate >= 0 ? '+' : ''}{data.growthRate.toFixed(1)}%
                   </p>
-                  <growthIcon className={`w-5 h-5 ${growthColor}`} />
+                  <GrowthIcon className={`w-5 h-5 ${growthColor}`} />
                 </div>
               </div>
               <TrendingUp className="w-8 h-8 text-muted-foreground/20" />

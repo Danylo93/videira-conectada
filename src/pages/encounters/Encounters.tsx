@@ -381,7 +381,7 @@ export default function Encounters() {
         {/* Stats Cards Skeleton */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="bg-white p-6 rounded-lg border shadow-sm">
+            <div key={i} className="bg-card p-6 rounded-lg border shadow-sm">
               <div className="space-y-3">
                 <div className="h-4 w-24 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse"></div>
                 <div className="h-8 w-16 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse"></div>
@@ -392,7 +392,7 @@ export default function Encounters() {
         </div>
 
         {/* Financial Summary Skeleton */}
-        <div className="bg-white p-6 rounded-lg border shadow-sm">
+        <div className="bg-card p-6 rounded-lg border shadow-sm">
           <div className="space-y-4">
             <div className="h-6 w-48 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse"></div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -407,7 +407,7 @@ export default function Encounters() {
         </div>
 
         {/* Filters Skeleton */}
-        <div className="bg-white p-6 rounded-lg border shadow-sm">
+        <div className="bg-card p-6 rounded-lg border shadow-sm">
           <div className="space-y-4">
             <div className="h-6 w-24 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse"></div>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -421,7 +421,7 @@ export default function Encounters() {
         {/* Cards por Função Skeleton */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {Array.from({ length: 2 }).map((_, i) => (
-            <div key={i} className="bg-white p-6 rounded-lg border shadow-sm">
+            <div key={i} className="bg-card p-6 rounded-lg border shadow-sm">
               <div className="space-y-4">
                 <div className="h-6 w-32 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse"></div>
                 <div className="grid grid-cols-2 gap-4">
@@ -438,7 +438,7 @@ export default function Encounters() {
         </div>
 
         {/* Ofertas Skeleton */}
-        <div className="bg-white p-6 rounded-lg border shadow-sm">
+        <div className="bg-card p-6 rounded-lg border shadow-sm">
           <div className="space-y-4">
             <div className="h-6 w-48 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse"></div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -453,7 +453,7 @@ export default function Encounters() {
         </div>
 
         {/* Table Skeleton */}
-        <div className="bg-white rounded-lg border shadow-sm">
+        <div className="bg-card rounded-lg border shadow-sm">
           <div className="p-6">
             <div className="h-6 w-32 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-pulse mb-4"></div>
             <div className="space-y-3">
@@ -933,7 +933,7 @@ export default function Encounters() {
                     onChange={(e) => setNewEncounter(prev => ({ ...prev, amountPaid: parseFloat(e.target.value) || 0 }))}
                     placeholder="170,00"
                     disabled={newEncounter.role === 'cozinha'}
-                    className={newEncounter.role === 'cozinha' ? 'bg-gray-100' : ''}
+                    className={newEncounter.role === 'cozinha' ? 'bg-muted' : ''}
                   />
                   <p className="text-xs text-muted-foreground">
                     {newEncounter.role === 'cozinha' 
@@ -988,33 +988,33 @@ export default function Encounters() {
           <CardContent>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div className="text-center p-3 bg-white rounded-lg border">
+                <div className="text-center p-3 bg-card rounded-lg border">
                   <div className="text-xl font-bold text-green-600">
                     {encounters.filter(e => e.role === 'equipe').length}
                   </div>
                   <div className="text-xs text-muted-foreground">Total</div>
                 </div>
-                <div className="text-center p-3 bg-white rounded-lg border">
+                <div className="text-center p-3 bg-card rounded-lg border">
                   <div className="text-xl font-bold text-green-600">
                     {encounters.filter(e => e.role === 'equipe' && e.attended).length}
                   </div>
                   <div className="text-xs text-muted-foreground">Compareceram</div>
                 </div>
               </div>
-              <div className="text-center p-3 bg-white rounded-lg border">
+              <div className="text-center p-3 bg-card rounded-lg border">
                 <div className="text-2xl font-bold text-green-600">
                   {formatCurrency(encounters.filter(e => e.role === 'equipe' && e.attended).length * 170)}
                 </div>
                 <div className="text-sm text-muted-foreground">Valor esperado da equipe</div>
               </div>
-              <div className="text-center p-3 bg-white rounded-lg border border-red-200">
+              <div className="text-center p-3 bg-card rounded-lg border border-red-200">
                 <div className="text-xl font-bold text-red-600">
                   {formatCurrency((encounters.filter(e => e.role === 'equipe' && e.attended).length * 170) - encounters.filter(e => e.role === 'equipe' && e.attended).reduce((sum, e) => sum + e.amountPaid, 0))}
                 </div>
                 <div className="text-sm text-muted-foreground">Valor faltante da equipe (sem ofertas)</div>
               </div>
              
-              <div className="text-center p-3 bg-white rounded-lg border border-orange-200">
+              <div className="text-center p-3 bg-card rounded-lg border border-orange-200">
                 <div className="text-xl font-bold text-orange-600">
                   {formatCurrency(((encounters.filter(e => e.role === 'equipe' && e.attended).length * 170) - encounters.filter(e => e.role === 'equipe' && e.attended).reduce((sum, e) => sum + e.amountPaid, 0)) - ((offeringsList.reduce((sum, offering) => sum + offering.amount, 0) * encounters.filter(e => e.role === 'equipe' && e.attended).length) / encounters.filter(e => e.attended && e.role !== 'cozinha').length))}
                 </div>
@@ -1035,33 +1035,33 @@ export default function Encounters() {
           <CardContent>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div className="text-center p-3 bg-white rounded-lg border">
+                <div className="text-center p-3 bg-card rounded-lg border">
                   <div className="text-xl font-bold text-blue-600">
                     {encounters.filter(e => e.role === 'encontrista').length}
                   </div>
                   <div className="text-xs text-muted-foreground">Total</div>
                 </div>
-                <div className="text-center p-3 bg-white rounded-lg border">
+                <div className="text-center p-3 bg-card rounded-lg border">
                   <div className="text-xl font-bold text-blue-600">
                     {encounters.filter(e => e.role === 'encontrista' && e.attended).length}
                   </div>
                   <div className="text-xs text-muted-foreground">Compareceram</div>
                 </div>
               </div>
-              <div className="text-center p-3 bg-white rounded-lg border">
+              <div className="text-center p-3 bg-card rounded-lg border">
                 <div className="text-2xl font-bold text-blue-600">
                   {formatCurrency(encounters.filter(e => e.role === 'encontrista' && e.attended).length * 170)}
                 </div>
                 <div className="text-sm text-muted-foreground">Valor esperado dos encontristas</div>
               </div>
-              <div className="text-center p-3 bg-white rounded-lg border border-red-200">
+              <div className="text-center p-3 bg-card rounded-lg border border-red-200">
                 <div className="text-xl font-bold text-red-600">
                   {formatCurrency((encounters.filter(e => e.role === 'encontrista' && e.attended).length * 170) - encounters.filter(e => e.role === 'encontrista' && e.attended).reduce((sum, e) => sum + e.amountPaid, 0))}
                 </div>
                 <div className="text-sm text-muted-foreground">Valor faltante dos encontristas (sem ofertas)</div>
               </div>
     
-              <div className="text-center p-3 bg-white rounded-lg border border-orange-200">
+              <div className="text-center p-3 bg-card rounded-lg border border-orange-200">
                 <div className="text-xl font-bold text-orange-600">
                   {formatCurrency(((encounters.filter(e => e.role === 'encontrista' && e.attended).length * 170) - encounters.filter(e => e.role === 'encontrista' && e.attended).reduce((sum, e) => sum + e.amountPaid, 0)) - ((offeringsList.reduce((sum, offering) => sum + offering.amount, 0) * encounters.filter(e => e.role === 'encontrista' && e.attended).length) / encounters.filter(e => e.attended && e.role !== 'cozinha').length))}
                 </div>
@@ -1088,19 +1088,19 @@ export default function Encounters() {
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="text-center p-4 bg-white rounded-lg border">
+            <div className="text-center p-4 bg-card rounded-lg border">
               <div className="text-2xl font-bold text-orange-600">
                 {formatCurrency((encounters.filter(e => e.attended && e.role !== 'cozinha').length * 170))}
               </div>
               <div className="text-sm text-muted-foreground">Valor total esperado</div>
             </div>
-            <div className="text-center p-4 bg-white rounded-lg border">
+            <div className="text-center p-4 bg-card rounded-lg border">
               <div className="text-2xl font-bold text-green-600">
                 {formatCurrency((stats?.totalAmount || 0) + (offeringsList.reduce((sum, offering) => sum + offering.amount, 0)))}
               </div>
               <div className="text-sm text-muted-foreground">Valor já recebido (inscrições + ofertas)</div>
             </div>
-            <div className="text-center p-4 bg-white rounded-lg border">
+            <div className="text-center p-4 bg-card rounded-lg border">
               <div className="text-2xl font-bold text-red-600">
                 {formatCurrency((encounters.filter(e => e.attended && e.role !== 'cozinha').length * 170) - (stats?.totalAmount || 0) - (offeringsList.reduce((sum, offering) => sum + offering.amount, 0)))}
               </div>
@@ -1170,19 +1170,19 @@ export default function Encounters() {
           ) : (
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="text-center p-4 bg-white rounded-lg border">
+                <div className="text-center p-4 bg-card rounded-lg border">
                   <div className="text-2xl font-bold text-purple-600">
                     {formatCurrency(offeringsList.reduce((sum, offering) => sum + offering.amount, 0))}
                   </div>
                   <div className="text-sm text-muted-foreground">Total em ofertas</div>
                 </div>
-                <div className="text-center p-4 bg-white rounded-lg border">
+                <div className="text-center p-4 bg-card rounded-lg border">
                   <div className="text-2xl font-bold text-purple-600">
                     {offeringsList.length}
                   </div>
                   <div className="text-sm text-muted-foreground">Ofertas registradas</div>
                 </div>
-                <div className="text-center p-4 bg-white rounded-lg border">
+                <div className="text-center p-4 bg-card rounded-lg border">
                   <div className="text-2xl font-bold text-purple-600">
                     {formatCurrency(offeringsList.reduce((sum, offering) => sum + offering.amount, 0) / offeringsList.length || 0)}
                   </div>
@@ -1192,7 +1192,7 @@ export default function Encounters() {
               
               <div className="space-y-2 max-h-60 overflow-y-auto">
                 {offeringsList.map((offering) => (
-                  <div key={offering.id} className="flex items-center justify-between p-3 bg-white rounded-lg border">
+                  <div key={offering.id} className="flex items-center justify-between p-3 bg-card rounded-lg border">
                     <div className="flex-1">
                       <div className="font-medium text-purple-800">
                         {formatCurrency(offering.amount)}
@@ -1256,11 +1256,11 @@ export default function Encounters() {
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="text-center p-2 bg-white rounded border">
+                      <div className="text-center p-2 bg-card rounded border">
                         <div className="font-bold text-purple-600">{discipuladorEncounters.length}</div>
                         <div className="text-muted-foreground">Total</div>
                       </div>
-                      <div className="text-center p-2 bg-white rounded border">
+                      <div className="text-center p-2 bg-card rounded border">
                         <div className="font-bold text-green-600">{attended.length}</div>
                         <div className="text-muted-foreground">Compareceram</div>
                       </div>
@@ -1281,7 +1281,7 @@ export default function Encounters() {
                       </div>
                     </div>
                     
-                    <div className="text-center p-2 bg-white rounded border">
+                    <div className="text-center p-2 bg-card rounded border">
                       <div className="font-bold text-purple-600">
                         {formatCurrency(attended.filter(e => e.role !== 'cozinha').length * 170)}
                       </div>
@@ -1289,7 +1289,7 @@ export default function Encounters() {
                         Valor esperado ({attended.filter(e => e.role !== 'cozinha').length} pessoas × R$ 170,00)
                       </div>
                     </div>
-                    <div className="text-center p-2 bg-white rounded border border-red-200">
+                    <div className="text-center p-2 bg-card rounded border border-red-200">
                       <div className="font-bold text-red-600">
                         {formatCurrency((attended.filter(e => e.role !== 'cozinha').length * 170) - attended.filter(e => e.role !== 'cozinha').reduce((sum, e) => sum + e.amountPaid, 0))}
                       </div>
@@ -1297,7 +1297,7 @@ export default function Encounters() {
                         Valor faltante (sem ofertas)
                       </div>
                     </div>
-                    <div className="text-center p-2 bg-white rounded border border-green-200">
+                    <div className="text-center p-2 bg-card rounded border border-green-200">
                       <div className="font-bold text-green-600">
                         {formatCurrency(offeringsList.reduce((sum, offering) => sum + offering.amount, 0) / discipuladores.filter(d => encounters.some(e => e.discipuladorId === d.id)).length)}
                       </div>
@@ -1305,7 +1305,7 @@ export default function Encounters() {
                         Ofertas divididas igualmente
                       </div>
                     </div>
-                    <div className="text-center p-2 bg-white rounded border border-orange-200">
+                    <div className="text-center p-2 bg-card rounded border border-orange-200">
                       <div className="font-bold text-orange-600">
                         {formatCurrency(((attended.filter(e => e.role !== 'cozinha').length * 170) - attended.filter(e => e.role !== 'cozinha').reduce((sum, e) => sum + e.amountPaid, 0)) - (offeringsList.reduce((sum, offering) => sum + offering.amount, 0) / discipuladores.filter(d => encounters.some(e => e.discipuladorId === d.id)).length))}
                       </div>
@@ -1593,7 +1593,7 @@ export default function Encounters() {
                   <TableCell>
                     <div className="flex items-center gap-2">
                       {encounter.role === 'cozinha' ? (
-                        <Badge variant="secondary" className="bg-gray-100 text-gray-600">
+                        <Badge variant="secondary" className="bg-muted text-muted-foreground">
                           Cozinha não paga
                         </Badge>
                       ) : encounter.attended ? (
@@ -1614,7 +1614,7 @@ export default function Encounters() {
                           }
                         })()
                       ) : (
-                        <Badge variant="secondary" className="bg-gray-100 text-gray-600">
+                        <Badge variant="secondary" className="bg-muted text-muted-foreground">
                           Não cobrar
                         </Badge>
                       )}
