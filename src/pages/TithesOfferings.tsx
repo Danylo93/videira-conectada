@@ -828,7 +828,7 @@ export function TithesOfferings() {
                     const percentage = stats.totalAmount > 0 ? ((item.totalAmount / stats.totalAmount) * 100).toFixed(1) : '0.0';
                     
                     return (
-                      <div key={item.personType} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div key={item.personType} className="flex items-center justify-between p-3 bg-muted rounded-lg">
                         <div className="flex items-center gap-3">
                           <div 
                             className="w-4 h-4 rounded-full" 
@@ -941,7 +941,7 @@ export function TithesOfferings() {
                     };
                     
                     return (
-                      <div key={item.paymentMethod} className="p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                      <div key={item.paymentMethod} className="p-4 bg-muted rounded-lg hover:bg-muted/70 transition-colors">
                         <div className="flex items-center gap-3 mb-2">
                           <span className="text-2xl">{iconMap[item.paymentMethod as keyof typeof iconMap]}</span>
                           <span className="font-medium text-sm">
