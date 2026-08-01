@@ -1,6 +1,7 @@
 /// <reference types="vitest" />
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
+import legacy from "@vitejs/plugin-legacy";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 
@@ -16,7 +17,20 @@ export default defineConfig(({ mode }) => ({
       usePolling: true,
     },
   },
-  plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+  plugins: [
+    react(),
+    // Suporte a Androids/navegadores antigos: gera um bundle legado (ES5 +
+    // polyfills via core-js) carregado por <script nomodule> em WebView/Chrome
+    // que não roda módulos ES (ex.: Android 7–9). Sem isso, o JS moderno
+    // (?., ??, etc.) dá erro de parse no boot e o app "nem abre".
+    // modernPolyfills injeta os polyfills necessários também no bundle moderno,
+    // ajudando aparelhos que rodam módulos mas não têm APIs recentes.
+    legacy({
+      targets: ["chrome >= 61", "safari >= 11", "firefox >= 60", "edge >= 18", "android >= 6"],
+      modernPolyfills: true,
+    }),
+    mode === "development" && componentTagger(),
+  ].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
