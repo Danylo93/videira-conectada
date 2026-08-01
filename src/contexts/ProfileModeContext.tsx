@@ -39,7 +39,13 @@ export function ProfileModeProvider({ children }: { children: React.ReactNode })
   // A URL (?mode=kids ou ?mode=normal) pode sobrescrever.
   const [mode, setModeState] = useState<ProfileMode>(() => readModeFromUrl() ?? 'radicais');
 
-  // Ao logar (ou trocar de usuário): URL > preferência salva do usuário > escopo do perfil.
+  // Ao logar (ou trocar de usuário): a URL manda primeiro. Depois:
+  // - Pastor/obreiro trocam de modo manualmente (têm o seletor no Header),
+  //   então respeitamos a preferência salva.
+  // - Líder e discipulador NÃO têm seletor: o modo segue SEMPRE o ministério
+  //   do perfil (is_radicais/is_kids). Sem isso, um líder marcado como Radicais
+  //   continuaria vendo o modo antigo gravado no navegador (ex.: quem usou o
+  //   app no modo normal antes de virar Radicais) sem nenhuma forma de trocar.
   useEffect(() => {
     const urlMode = readModeFromUrl();
     if (urlMode) {
@@ -47,8 +53,13 @@ export function ProfileModeProvider({ children }: { children: React.ReactNode })
       return;
     }
     if (!user) return;
-    const saved = localStorage.getItem(storageKeyFor(user.id));
-    setModeState(isValidMode(saved) ? saved : getDefaultModeForUser(user));
+    const profileDefault = getDefaultModeForUser(user);
+    if (user.role === 'pastor') {
+      const saved = localStorage.getItem(storageKeyFor(user.id));
+      setModeState(isValidMode(saved) ? saved : profileDefault);
+    } else {
+      setModeState(profileDefault);
+    }
   }, [user]);
 
   useEffect(() => {
