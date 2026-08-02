@@ -173,10 +173,13 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
   return <FancyLoader message={loaderCopy.message} tips={loaderCopy.tips} />;
     }
   if (!isAuthenticated) return <Navigate to="/auth" replace />;
-  // Acumula funções (obreiro/discipulador/líder) e ainda não escolheu: pede
-  // para escolher antes de entrar.
-  if (needsRoleChoice) return <RoleSelect />;
-  return <>{children}</>;
+  // Quem acumula funções e ainda não escolheu vê o pop-up por cima do app.
+  return (
+    <>
+      {children}
+      {needsRoleChoice && <RoleSelect />}
+    </>
+  );
 }
 
 
