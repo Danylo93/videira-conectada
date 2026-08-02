@@ -1,9 +1,8 @@
+import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { useAuth } from '@/contexts/AuthContext';
-import { useProfileMode } from '@/contexts/ProfileModeContext';
-import { getProfileModeConfig } from '@/config/profileModes';
 import { ACTIVE_ROLE_LABEL, ACTIVE_ROLE_DESCRIPTION, type ActiveRole } from '@/types/auth';
-import { Church, Users, UserCheck, Home, ChevronRight, LogOut } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Church, Users, Home, ChevronRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const ROLE_ICON: Record<ActiveRole, typeof Users> = {
   pastor: Church,
@@ -13,43 +12,38 @@ const ROLE_ICON: Record<ActiveRole, typeof Users> = {
 };
 
 /**
- * Escolha do papel para quem acumula funções (ex.: obreiro que também
- * discipula e lidera a própria célula). Aparece logo após o login e o app
- * inteiro passa a se comportar como o papel escolhido.
+ * Pop-up de escolha de função, exibido logo após o login para quem acumula
+ * papéis (ex.: obreiro que também discipula e lidera a própria célula). Abre
+ * por cima do app e não fecha sem escolha — são poucos toques e evita entrar
+ * num papel indefinido.
  */
 export function RoleSelect() {
-  const { availableRoles, setActiveRole, user, logout } = useAuth();
-  const { mode } = useProfileMode();
-  const config = getProfileModeConfig(mode);
+  const { availableRoles, setActiveRole, user } = useAuth();
   const primeiroNome = user?.name?.split(' ')[0] ?? '';
 
   return (
-    <div className="relative min-h-screen overflow-hidden">
-      <div className="auth-bg absolute inset-0 -z-20" />
-      <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-        <div className="auth-orb auth-orb--1 -top-24 -left-24 h-72 w-72 bg-primary/40 sm:h-96 sm:w-96" />
-        <div className="auth-orb auth-orb--2 top-1/3 -right-28 h-72 w-72 bg-accent/40 sm:h-96 sm:w-96" />
-      </div>
+    <DialogPrimitive.Root open>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm data-[state=open]:animate-in data-[state=open]:fade-in-0" />
+        <DialogPrimitive.Content
+          className={cn(
+            'fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2',
+            'rounded-2xl border border-border/70 bg-card p-5 shadow-2xl sm:p-6',
+            'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
+          )}
+          // Sem fechar por fora/ESC: a escolha define como o app vai se comportar.
+          onInteractOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+          onPointerDownOutside={(e) => e.preventDefault()}
+        >
+          <DialogPrimitive.Title className="text-xl font-bold tracking-tight">
+            Olá{primeiroNome ? `, ${primeiroNome}` : ''}!
+          </DialogPrimitive.Title>
+          <DialogPrimitive.Description className="mt-1 text-sm text-muted-foreground">
+            Você tem mais de uma função. Como quer entrar hoje?
+          </DialogPrimitive.Description>
 
-      <div className="mx-auto flex min-h-screen max-w-lg flex-col items-center justify-center px-4 py-10">
-        <div className="auth-rise w-full">
-          <div className="mb-8 text-center">
-            <div className="auth-logo-float mx-auto mb-4 flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-lg ring-1 ring-primary/10">
-              <img
-                src={config.logo}
-                alt={config.brandName}
-                className={`h-12 w-12 ${config.logoRounded ? 'rounded-full object-cover' : 'object-contain'}`}
-              />
-            </div>
-            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-              Olá{primeiroNome ? `, ${primeiroNome}` : ''}!
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Você tem mais de uma função. Como quer entrar hoje?
-            </p>
-          </div>
-
-          <div className="space-y-3">
+          <div className="mt-5 space-y-2.5">
             {availableRoles.map((papel) => {
               const Icone = ROLE_ICON[papel];
               return (
@@ -57,14 +51,14 @@ export function RoleSelect() {
                   key={papel}
                   type="button"
                   onClick={() => setActiveRole(papel)}
-                  className="group flex w-full items-center gap-4 rounded-2xl border border-border/70 bg-card p-4 text-left shadow-soft transition-all hover:border-primary/60 hover:shadow-lg active:scale-[0.99]"
+                  className="group flex w-full items-center gap-3 rounded-xl border border-border/70 bg-background/50 p-3 text-left transition-all hover:border-primary/60 hover:bg-background active:scale-[0.99]"
                 >
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                    <Icone className="h-6 w-6" />
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <Icone className="h-5 w-5" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold">{ACTIVE_ROLE_LABEL[papel]}</p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="font-semibold leading-tight">{ACTIVE_ROLE_LABEL[papel]}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
                       {ACTIVE_ROLE_DESCRIPTION[papel]}
                     </p>
                   </div>
@@ -74,18 +68,11 @@ export function RoleSelect() {
             })}
           </div>
 
-          <p className="mt-6 text-center text-xs text-muted-foreground">
+          <p className="mt-4 text-center text-xs text-muted-foreground">
             Dá para trocar de função depois, no menu do seu perfil.
           </p>
-
-          <div className="mt-4 flex justify-center">
-            <Button variant="ghost" size="sm" onClick={() => void logout()} className="text-muted-foreground">
-              <LogOut className="mr-2 h-4 w-4" />
-              Sair
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }
