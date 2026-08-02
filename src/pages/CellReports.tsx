@@ -70,6 +70,7 @@ import { Member, CellReport as CellReportType, Leader } from "@/types/church";
 import * as XLSX from "xlsx";
 import FancyLoader from "@/components/FancyLoader";
 import { formatDateBR, formatDateBRLong } from "@/lib/dateUtils";
+import { monthRange } from "@/lib/monthRange";
 
 export function CellReports() {
   const { user } = useAuth();
@@ -88,6 +89,9 @@ export function CellReports() {
   const [deleteReportId, setDeleteReportId] = useState<string | null>(null);
   // A célula é aos sábados: já abre no sábado mais recente
   const [selectedWeek, setSelectedWeek] = useState(() => recentSaturdays(1)[0]);
+  // Sábados que já têm relatório desta célula (todos os meses), para bloquear
+  // a escolha de uma semana repetida antes de bater no UNIQUE do banco.
+  const [usedWeeks, setUsedWeeks] = useState<string[]>([]);
   const [multiplicationDate, setMultiplicationDate] = useState("");
   const [observations, setObservations] = useState("");
   const [phase, setPhase] = useState("");
@@ -266,29 +270,67 @@ export function CellReports() {
     return formatted;
   };
 
+  /** Primeiro sábado recente ainda sem relatório (evita abrir numa data bloqueada). */
+  const firstFreeSaturday = (used: string[]): string => {
+    const livre = recentSaturdays(10).find((s) => !used.includes(s));
+    return livre ?? recentSaturdays(1)[0];
+  };
+
+  /** Abre o diálogo de criação já posicionado num sábado livre. */
+  const openCreateDialog = () => {
+    setSelectedWeek(firstFreeSaturday(usedWeeks));
+    setIsCreateDialogOpen(true);
+  };
+
+  /**
+   * Carrega TODAS as semanas já preenchidas por esta célula (sem filtro de
+   * mês), para bloquear no seletor os sábados repetidos.
+   */
+  const loadUsedWeeks = async (liderIdParam?: string) => {
+    if (!user) return;
+    const liderId = liderIdParam ?? (user.role === "pastor" ? selectedLeaderId : user.id);
+    if (!liderId) {
+      setUsedWeeks([]);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("cell_reports")
+      .select("week_start")
+      .eq("lider_id", liderId);
+
+    if (error) {
+      console.error("Erro ao carregar semanas já preenchidas:", error);
+      return;
+    }
+    setUsedWeeks((data ?? []).map((r) => String(r.week_start).slice(0, 10)));
+  };
+
   const loadReports = async () => {
     if (!user) return;
 
     const liderId = user.role === "pastor" ? selectedLeaderId : user.id;
-    
+
     if (user.role === "pastor" && !selectedLeaderId) {
       setReports([]);
       setLoading(false);
       return;
     }
 
+    void loadUsedWeeks(liderId);
+
     const membersList = allMembers.length === 0 ? await loadMembers() : allMembers;
 
-    // Criar filtro de data baseado no mês e ano selecionados
-    const startDate = new Date(selectedYear, selectedMonth - 1, 1);
-    const endDate = new Date(selectedYear, selectedMonth, 0); // Último dia do mês
+    // Filtro do mês em datas puras (YYYY-MM-DD): week_start é DATE, e usar
+    // toISOString aqui excluía o relatório do próprio dia 1º no fuso -03.
+    const { start, end } = monthRange(selectedYear, selectedMonth);
 
     const { data, error } = await supabase
       .from("cell_reports")
       .select("*")
       .eq("lider_id", liderId)
-      .gte("week_start", startDate.toISOString())
-      .lte("week_start", endDate.toISOString())
+      .gte("week_start", start)
+      .lte("week_start", end)
       .order("week_start", { ascending: false });
 
     if (error) {
@@ -485,6 +527,17 @@ export function CellReports() {
       toast({
         title: "Data inválida",
         description: "A célula é aos sábados — escolha um sábado como data do relatório.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Semana já preenchida: bloqueia antes de bater no UNIQUE do banco.
+    if (usedWeeks.includes(selectedWeek.slice(0, 10))) {
+      toast({
+        title: "Semana já preenchida",
+        description:
+          "Já existe um relatório para este sábado. Edite o relatório existente em vez de criar outro.",
         variant: "destructive",
       });
       return;
@@ -838,7 +891,7 @@ Observações: ${report.observations || ""}`;
               </div>
             </div>
 
-            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <Dialog open={isCreateDialogOpen} onOpenChange={(open) => (open ? openCreateDialog() : setIsCreateDialogOpen(false))}>
               <DialogTrigger asChild>
                 <Button className="gradient-primary" disabled={!selectedLeaderId}>
                   <Plus className="w-4 h-4 mr-2" />
@@ -856,6 +909,7 @@ Observações: ${report.observations || ""}`;
                   id="week"
                   value={selectedWeek}
                   onChange={setSelectedWeek}
+                  usedDates={usedWeeks}
                 />
               </div>
               <div>
@@ -1117,6 +1171,7 @@ Observações: ${report.observations || ""}`;
                   id="edit-week"
                   value={selectedWeek}
                   onChange={setSelectedWeek}
+                  usedDates={usedWeeks.filter((w) => w !== selectedWeek?.slice(0, 10))}
                 />
               </div>
               <div>
@@ -1504,6 +1559,7 @@ Observações: ${report.observations || ""}`;
                     id="edit-week-view"
                     value={selectedWeek}
                     onChange={setSelectedWeek}
+                    usedDates={usedWeeks.filter((w) => w !== selectedWeek?.slice(0, 10))}
                   />
                 </div>
                 <div>
@@ -1680,7 +1736,7 @@ Observações: ${report.observations || ""}`;
           <p className="text-sm md:text-base text-muted-foreground">{cellName}</p>
         </div>
 
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <Dialog open={isCreateDialogOpen} onOpenChange={(open) => (open ? openCreateDialog() : setIsCreateDialogOpen(false))}>
           <DialogTrigger asChild>
             <Button className="gradient-primary w-full sm:w-auto min-h-[48px]">
               <Plus className="w-4 h-4 mr-2" />
@@ -1698,6 +1754,7 @@ Observações: ${report.observations || ""}`;
                   id="week"
                   value={selectedWeek}
                   onChange={setSelectedWeek}
+                  usedDates={usedWeeks}
                 />
               </div>
               <div>
@@ -1809,6 +1866,7 @@ Observações: ${report.observations || ""}`;
                   id="edit-week"
                   value={selectedWeek}
                   onChange={setSelectedWeek}
+                  usedDates={usedWeeks.filter((w) => w !== selectedWeek?.slice(0, 10))}
                 />
               </div>
 

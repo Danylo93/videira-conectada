@@ -24,6 +24,7 @@ import { FileText, Calendar, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Leader, Discipulador, CellReport as CellReportType } from '@/types/church';
 import FancyLoader from '@/components/FancyLoader';
+import { monthRange } from '@/lib/monthRange';
 
 /* ===================== helpers ===================== */
 
@@ -79,15 +80,16 @@ export function NetworkReports() {
       }
       
       // Criar filtro de data baseado no mês e ano selecionados
-      const startDate = new Date(selectedYear, selectedMonth - 1, 1);
-      const endDate = new Date(selectedYear, selectedMonth, 0); // Último dia do mês
-      
+      // Datas puras (YYYY-MM-DD): week_start é DATE e o toISOString anterior
+      // excluía o relatório do próprio dia 1º no fuso -03.
+      const { start, end } = monthRange(selectedYear, selectedMonth);
+
       const { data } = await supabase
         .from('cell_reports')
         .select('*')
         .in('lider_id', leaderIds)
-        .gte('week_start', startDate.toISOString())
-        .lte('week_start', endDate.toISOString())
+        .gte('week_start', start)
+        .lte('week_start', end)
         .order('week_start', { ascending: true });
 
       const formatted: CellReportType[] = (data || []).map((r) => ({
