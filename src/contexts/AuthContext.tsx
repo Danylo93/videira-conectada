@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-import { User, AuthState, AuthTransition } from '@/types/auth';
+import { User, AuthState, AuthTransition, ActiveRole } from '@/types/auth';
 
 import { useDelayedLoading } from '@/hooks/useDelayedLoading';
 import FancyLoader from '@/components/FancyLoader';
@@ -41,10 +41,75 @@ const AUTH_LOADER_COPY: Record<AuthTransition, AuthLoaderCopy> = {
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
 
+/** Dados do perfil sem o papel aplicado — a base para montar o User. */
+type PerfilBase = Omit<User, 'role' | 'isObreiro'> & { papelCadastrado: string };
+
+const roleStorageKey = (userId: string) => `activeRole:${userId}`;
+
+/**
+ * Aplica o papel escolhido ao usuário. As telas continuam lendo `user.role`,
+ * então trocar de papel muda o app inteiro sem alterar cada tela.
+ */
+function comPapel(base: PerfilBase, papel: ActiveRole): User {
+  const { papelCadastrado: _ignorado, ...perfil } = base;
+  if (papel === 'obreiro') {
+    // Obreiro tem acesso de nível pastor, escopado pelo pastor real.
+    return { ...perfil, role: 'pastor', isObreiro: true };
+  }
+  if (papel === 'pastor') return { ...perfil, role: 'pastor', isObreiro: false };
+  if (papel === 'discipulador') return { ...perfil, role: 'discipulador', isObreiro: false };
+  return { ...perfil, role: 'lider', isObreiro: false };
+}
+
+/**
+ * Descobre os papéis que a pessoa pode assumir a partir das relações que já
+ * existem no banco — sem precisar de campo novo:
+ * - papel cadastrado em profiles.role;
+ * - discipulador, se há líderes apontando para ela (discipulador_uuid);
+ * - líder de célula, se há pessoas na célula dela (members.lider_id).
+ */
+async function descobrirPapeis(perfilId: string, papelCadastrado: string): Promise<ActiveRole[]> {
+  const papeis = new Set<ActiveRole>();
+  if (papelCadastrado === 'pastor') papeis.add('pastor');
+  if (papelCadastrado === 'obreiro') papeis.add('obreiro');
+  if (papelCadastrado === 'discipulador') papeis.add('discipulador');
+  if (papelCadastrado === 'lider') papeis.add('lider');
+
+  try {
+    const [{ count: lideresNaRede }, { count: pessoasNaCelula }] = await Promise.all([
+      supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('discipulador_uuid', perfilId),
+      supabase.from('members').select('id', { count: 'exact', head: true }).eq('lider_id', perfilId).eq('active', true),
+    ]);
+    if ((lideresNaRede ?? 0) > 0) papeis.add('discipulador');
+    if ((pessoasNaCelula ?? 0) > 0) papeis.add('lider');
+  } catch (erro) {
+    console.error('Erro ao descobrir papéis do usuário:', erro);
+  }
+
+  // Ordem do mais amplo para o mais específico.
+  const ordem: ActiveRole[] = ['pastor', 'obreiro', 'discipulador', 'lider'];
+  return ordem.filter((p) => papeis.has(p));
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [perfilBase, setPerfilBase] = useState<PerfilBase | null>(null);
+  const [availableRoles, setAvailableRoles] = useState<ActiveRole[]>([]);
+  const [activeRole, setActiveRoleState] = useState<ActiveRole | null>(null);
   const [loading, setLoading] = useState(true);
   const [authTransition, setAuthTransition] = useState<AuthTransition>('initial');
+
+  // Usuário exposto ao app: perfil + papel ativo aplicado. Enquanto a escolha
+  // não é feita, usamos o papel mais amplo apenas para nome/tema na tela de
+  // seleção — as rotas ficam bloqueadas por needsRoleChoice até escolher.
+  const papelEfetivo = activeRole ?? availableRoles[0] ?? null;
+  const user = perfilBase && papelEfetivo ? comPapel(perfilBase, papelEfetivo) : null;
+  const needsRoleChoice = !!perfilBase && !activeRole && availableRoles.length > 1;
+
+  const setActiveRole = (papel: ActiveRole) => {
+    if (!availableRoles.includes(papel)) return;
+    setActiveRoleState(papel);
+    if (perfilBase) localStorage.setItem(roleStorageKey(perfilBase.id), papel);
+  };
 
   useEffect(() => {
     const handleSession = async (currentSession: Session | null) => {
@@ -59,36 +124,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (profileError) {
           console.error('Error loading profile:', profileError);
-          setUser(null);
+          setPerfilBase(null);
+          setAvailableRoles([]);
+          setActiveRoleState(null);
         } else if (profile) {
-          console.log('Profile loaded:', profile);
-          // Obreiro tem acesso de nível pastor: mapeamos o papel efetivo para
-          // 'pastor' (libera menu e caminhos de código), mantendo isObreiro
-          // para exibir o rótulo correto e escopar consultas pelo pastor real.
-          const isObreiro = profile.role === 'obreiro';
-          const userData: User = {
+          const base: PerfilBase = {
             id: profile.id,
             name: profile.name,
             email: profile.email,
-            role: isObreiro ? 'pastor' : profile.role,
             phone: profile.phone,
             discipuladorId: profile.discipulador_uuid,
             pastorId: profile.pastor_uuid,
             celula: profile.celula,
             isTesoureiro: profile.is_tesoureiro || false,
             isCursoCoordenador: profile.is_curso_coordenador || false,
-            isObreiro,
             isKids: profile.is_kids || false,
             isRadicais: profile.is_radicais || false,
             createdAt: new Date(profile.created_at),
+            papelCadastrado: profile.role,
           };
-          console.log('User data created:', userData);
-          setUser(userData);
+
+          const papeis = await descobrirPapeis(profile.id, profile.role);
+          setPerfilBase(base);
+          setAvailableRoles(papeis);
+
+          // Com um papel só, entra direto. Com vários, respeita a escolha
+          // anterior; se não houver, o app pede para escolher.
+          const salvo = localStorage.getItem(roleStorageKey(profile.id)) as ActiveRole | null;
+          if (papeis.length === 1) {
+            setActiveRoleState(papeis[0]);
+          } else if (salvo && papeis.includes(salvo)) {
+            setActiveRoleState(salvo);
+          } else {
+            setActiveRoleState(null);
+          }
         } else {
-          setUser(null);
+          setPerfilBase(null);
+          setAvailableRoles([]);
+          setActiveRoleState(null);
         }
       } else {
-        setUser(null);
+        setPerfilBase(null);
+        setAvailableRoles([]);
+        setActiveRoleState(null);
       }
 
       setLoading(false);
@@ -148,11 +226,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const value: AuthState = {
     user,
-    isAuthenticated: !!user,
+    // Autenticado assim que o perfil carrega: se faltar escolher o papel, o
+    // app mostra a seleção em vez de mandar de volta para o login.
+    isAuthenticated: !!perfilBase,
     login,
     logout,
     loading,
-    authTransition
+    authTransition,
+    availableRoles,
+    activeRole,
+    setActiveRole,
+    needsRoleChoice,
   };
 
   return (

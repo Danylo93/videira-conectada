@@ -15,6 +15,7 @@ import { SidebarTrigger } from '@/components/ui/sidebar';
 import { LogOut, User, Settings, Check } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { PROFILE_MODE_ORDER, getProfileModeConfig } from '@/config/profileModes';
+import { ACTIVE_ROLE_LABEL } from '@/types/auth';
 
 const roleNames = {
   pastor: 'Pastor',
@@ -24,7 +25,7 @@ const roleNames = {
 };
 
 export function Header() {
-  const { user, logout } = useAuth();
+  const { user, logout, availableRoles, activeRole, setActiveRole } = useAuth();
   const { mode, setMode } = useProfileMode();
   const navigate = useNavigate();
 
@@ -104,6 +105,28 @@ export function Header() {
               </div>
             </div>
             <DropdownMenuSeparator />
+            {/* Quem acumula funções troca de papel sem precisar sair. */}
+            {availableRoles.length > 1 && (
+              <>
+                <DropdownMenuLabel>Entrar como</DropdownMenuLabel>
+                {availableRoles.map((papel) => (
+                  <DropdownMenuItem
+                    key={papel}
+                    onSelect={(event) => {
+                      event.preventDefault();
+                      if (papel !== activeRole) {
+                        setActiveRole(papel);
+                        navigate('/');
+                      }
+                    }}
+                  >
+                    <span className="flex-1">{ACTIVE_ROLE_LABEL[papel]}</span>
+                    {activeRole === papel && <Check className="ml-2 h-4 w-4" />}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+              </>
+            )}
             {user.role === 'pastor' && (
               <>
                 <DropdownMenuLabel>Modo de Perfil</DropdownMenuLabel>
