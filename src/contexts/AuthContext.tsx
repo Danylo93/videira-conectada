@@ -62,36 +62,21 @@ function comPapel(base: PerfilBase, papel: ActiveRole): User {
 }
 
 /**
- * Contas liberadas para escolher a função no login. Por enquanto só o Danylo,
- * que acumula obreiro, discipulador e líder de célula — as demais entram
- * direto no papel cadastrado, como sempre. Para liberar outra pessoa, basta
- * incluir o e-mail aqui.
- */
-const EMAILS_COM_MULTIPLAS_FUNCOES = ['danylo.oliveira73@gmail.com'];
-
-const podeEscolherFuncao = (email?: string | null) =>
-  !!email && EMAILS_COM_MULTIPLAS_FUNCOES.includes(email.trim().toLowerCase());
-
-/**
  * Descobre os papéis que a pessoa pode assumir a partir das relações que já
  * existem no banco — sem precisar de campo novo:
  * - papel cadastrado em profiles.role;
  * - discipulador, se há líderes apontando para ela (discipulador_uuid);
  * - líder de célula, se há pessoas na célula dela (members.lider_id).
+ *
+ * Vale para todo mundo: quem tem só um papel entra direto (sem pop-up); quem
+ * acumula escolhe como quer entrar.
  */
-async function descobrirPapeis(
-  perfilId: string,
-  papelCadastrado: string,
-  email?: string | null,
-): Promise<ActiveRole[]> {
+async function descobrirPapeis(perfilId: string, papelCadastrado: string): Promise<ActiveRole[]> {
   const papeis = new Set<ActiveRole>();
   if (papelCadastrado === 'pastor') papeis.add('pastor');
   if (papelCadastrado === 'obreiro') papeis.add('obreiro');
   if (papelCadastrado === 'discipulador') papeis.add('discipulador');
   if (papelCadastrado === 'lider') papeis.add('lider');
-
-  // Fora da lista: mantém só o papel cadastrado (sem pop-up de escolha).
-  if (!podeEscolherFuncao(email)) return [...papeis];
 
   try {
     const [{ count: lideresNaRede }, { count: pessoasNaCelula }] = await Promise.all([
@@ -162,7 +147,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             papelCadastrado: profile.role,
           };
 
-          const papeis = await descobrirPapeis(profile.id, profile.role, profile.email);
+          const papeis = await descobrirPapeis(profile.id, profile.role);
           setPerfilBase(base);
           setAvailableRoles(papeis);
 
