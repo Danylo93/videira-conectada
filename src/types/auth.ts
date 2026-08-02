@@ -35,6 +35,27 @@ export function getPastorScopeId(user: User): string {
 
 export type AuthTransition = 'initial' | 'login' | 'logout';
 
+/**
+ * Papel com que a pessoa entra no sistema. Quem acumula funções (ex.: obreiro
+ * que também discipula e ainda lidera a própria célula) escolhe um deles no
+ * login; o app inteiro passa a se comportar como aquele papel.
+ */
+export type ActiveRole = 'pastor' | 'obreiro' | 'discipulador' | 'lider';
+
+export const ACTIVE_ROLE_LABEL: Record<ActiveRole, string> = {
+  pastor: 'Pastor',
+  obreiro: 'Obreiro',
+  discipulador: 'Discipulador',
+  lider: 'Líder de Célula',
+};
+
+export const ACTIVE_ROLE_DESCRIPTION: Record<ActiveRole, string> = {
+  pastor: 'Visão de toda a igreja: redes, células, relatórios e gestão.',
+  obreiro: 'Visão de todas as redes e células, com relatórios e gestão.',
+  discipulador: 'Acompanhe os líderes da sua rede e os relatórios deles.',
+  lider: 'Cuide da sua célula: pessoas, presença e relatórios semanais.',
+};
+
 export interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
@@ -42,4 +63,12 @@ export interface AuthState {
   logout: () => Promise<void>;
   loading: boolean;
   authTransition: AuthTransition;
+  /** Papéis que esta pessoa pode assumir (mais de um = acumula funções). */
+  availableRoles: ActiveRole[];
+  /** Papel atualmente ativo (null enquanto a escolha não foi feita). */
+  activeRole: ActiveRole | null;
+  /** Troca o papel ativo (persistido por usuário). */
+  setActiveRole: (role: ActiveRole) => void;
+  /** true quando há mais de um papel e a pessoa ainda não escolheu. */
+  needsRoleChoice: boolean;
 }

@@ -11,6 +11,7 @@ import type { AuthTransition } from "@/types/auth";
 
 // Shell sempre presente (não faz parte do code-splitting de rotas)
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { RoleSelect } from "@/components/auth/RoleSelect";
 import FancyLoader from "./components/FancyLoader";
 import { useDelayedLoading } from "./hooks/useDelayedLoading";
 import { usePageTitle } from "./hooks/use-page-title";
@@ -154,7 +155,7 @@ function ReportsRouter() {
 }
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
-  const { isAuthenticated, loading, authTransition } = useAuth();
+  const { isAuthenticated, loading, authTransition, needsRoleChoice } = useAuth();
   const [loaderCopy, setLoaderCopy] = useState<LoaderCopy>(PROTECTED_LOADER_COPY.initial);
 
 
@@ -171,7 +172,11 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
   // mostra o loader até a auth terminar + garante um tempo mínimo pra animação
   return <FancyLoader message={loaderCopy.message} tips={loaderCopy.tips} />;
     }
-  return isAuthenticated ? <>{children}</> : <Navigate to="/auth" replace />;
+  if (!isAuthenticated) return <Navigate to="/auth" replace />;
+  // Acumula funções (obreiro/discipulador/líder) e ainda não escolheu: pede
+  // para escolher antes de entrar.
+  if (needsRoleChoice) return <RoleSelect />;
+  return <>{children}</>;
 }
 
 
