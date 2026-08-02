@@ -71,12 +71,21 @@ function comPapel(base: PerfilBase, papel: ActiveRole): User {
  * Vale para todo mundo: quem tem só um papel entra direto (sem pop-up); quem
  * acumula escolhe como quer entrar.
  */
-async function descobrirPapeis(perfilId: string, papelCadastrado: string): Promise<ActiveRole[]> {
+async function descobrirPapeis(
+  perfilId: string,
+  papelCadastrado: string,
+  celula?: string | null,
+): Promise<ActiveRole[]> {
   const papeis = new Set<ActiveRole>();
   if (papelCadastrado === 'pastor') papeis.add('pastor');
   if (papelCadastrado === 'obreiro') papeis.add('obreiro');
   if (papelCadastrado === 'discipulador') papeis.add('discipulador');
   if (papelCadastrado === 'lider') papeis.add('lider');
+
+  // Ter célula no perfil já basta para poder entrar como líder — sem isso,
+  // quem acabou de assumir uma célula e ainda não cadastrou ninguém ficaria
+  // sem a opção.
+  if (celula && celula.trim()) papeis.add('lider');
 
   try {
     const [{ count: lideresNaRede }, { count: pessoasNaCelula }] = await Promise.all([
@@ -147,7 +156,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             papelCadastrado: profile.role,
           };
 
-          const papeis = await descobrirPapeis(profile.id, profile.role);
+          const papeis = await descobrirPapeis(profile.id, profile.role, profile.celula);
           setPerfilBase(base);
           setAvailableRoles(papeis);
 

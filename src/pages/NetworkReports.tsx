@@ -141,7 +141,8 @@ export function NetworkReports() {
     if (!user) return;
     let data;
     try {
-      data = await profilesService.getLeaders(user, mode);
+      // incluirProprio: o discipulador que também lidera célula vê a dele na rede
+      data = await profilesService.getLeaders(user, mode, { incluirProprio: true });
     } catch {
       setLoading(false);
       return;
