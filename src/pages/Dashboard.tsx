@@ -234,7 +234,7 @@ export function Dashboard() {
     (async () => {
       try {
         if (user.role === "discipulador") {
-          const leaders = await profilesService.getLeaders(user, mode);
+          const leaders = await profilesService.getLeaders(user, mode, { incluirProprio: true });
           if (!cancelled) {
             setNetworkLeaders(leaders.map((l) => ({ id: l.id, name: l.name })));
           }

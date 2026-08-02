@@ -45,12 +45,16 @@ export const profilesService = {
   async getLeaders(
     user: User,
     mode: ProfileMode,
-    opts: { discipuladorId?: string } = {},
+    opts: { discipuladorId?: string; incluirProprio?: boolean } = {},
   ): Promise<RosterProfile[]> {
     let query = supabase.from('profiles').select(ROSTER_COLUMNS).in('role', ['lider', 'obreiro', 'pastor']);
 
     if (user.role === 'discipulador') {
-      query = query.eq('discipulador_uuid', user.id);
+      // Um discipulador que também lidera a própria célula entra na lista da
+      // rede (as estatísticas já o consideram) quando incluirProprio é pedido.
+      query = opts.incluirProprio
+        ? query.or(`discipulador_uuid.eq.${user.id},id.eq.${user.id}`)
+        : query.eq('discipulador_uuid', user.id);
     } else {
       query = query.eq('pastor_uuid', getPastorScopeId(user));
     }
